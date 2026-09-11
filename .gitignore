@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Next.js Build Outputs
+.next/
+out/
+build/
+dist/
+
+# NestJS / TypeScript Build Outputs
+dist/
+*.tsbuildinfo
+
+# Environment & Secrets (Mandatory Rule: Never commit secrets)
+.env
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+!.env.example
+
+# Turborepo Cache
+.turbo/
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Sentry
+.sentry-native/
+
+# OS and IDE Files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Database / Storage Local Mounts
+postgres-data/
+minio-data/
+redis-data/
+*.sqlite
+*.sqlite-journal
+
+# Logs
+logs/
+*.log
