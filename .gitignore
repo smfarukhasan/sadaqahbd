@@ -51,7 +51,7 @@ Thumbs.db
 *.sw?
 
 # Database / Storage Local Mounts
-postgres-data/
+mysql-data/
 minio-data/
 redis-data/
 *.sqlite

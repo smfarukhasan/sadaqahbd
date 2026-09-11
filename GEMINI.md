@@ -19,7 +19,7 @@
    - প্রজেক্টের নির্ধারিত মডিউলার বাউন্ডারি ও প্যাটার্ন শতভাগ অনুসরণ করতে হবে।
 
 2. **সর্বোচ্চ পারফরম্যান্স অপ্টিমাইজেশন (High-Performance Engineering):**
-   - ডেটাবেজ লেভেলে: B-Tree/Composite/GIN ইনডেক্সিং, কার্সার পেজিনেশন, `SELECT *` পরিহার, N+1 কোয়েরি প্রতিরোধ।
+   - ডেটাবেজ লেভেলে: B-Tree/Composite/FULLTEXT ইনডেক্সিং, কার্সার পেজিনেশন, `SELECT *` পরিহার, N+1 কোয়েরি প্রতিরোধ।
    - ব্যাকএন্ড লেভেলে: Fastify অ্যাডাপ্টার, মাল্টি-লেয়ার Redis ক্যাশিং, BullMQ ব্যাকগ্রাউন্ড প্রসেসিং।
    - ফ্রন্টএন্ড লেভেলে: RSC (React Server Components), Streaming with Suspense, TanStack Virtual, WebP/AVIF ইমেজ অপ্টিমাইজেশন।
 
@@ -33,7 +33,7 @@
 4. **লাইটওয়েট ও রিসোর্স সাশ্রয়ী আর্কিটেকচার (Lightweight Footprint & Resource Efficiency):**
    - মেমোরি ও সিপিইউ খরচ সর্বনিম্ন রাখার ডিজাইন।
    - ফ্রন্টএন্ড বান্ডেল সাইজ অপ্টিমাইজেশন, অপ্রয়োজনীয় ভারী লাইব্রেরি পরিহার, Tree-shaking।
-   - ব্যাকএন্ডে অপ্টিমাইজড কানেকশন পুলিং (PgBouncer) ও লাইটওয়েট Alpine ডকার ইমেজ।
+   - ব্যাকএন্ডে অপ্টিমাইজড কানেকশন পুলিং (MySQL Connection Pool / ProxySQL) ও লাইটওয়েট Alpine ডকার ইমেজ।
 
 5. **সম্পূর্ণ দ্বিভাষিক সমর্থন (100% Strict Bilingual Support: Bengali & English):**
    - পুরো অ্যাপ্লিকেশনে বাংলা (`bn`) ও ইংরেজি (`en`) উভয়ের পূর্ণ সমর্থন থাকতে হবে।
@@ -74,8 +74,8 @@
 ### B. Backend Core Tech Stack
 - **Framework & Language:** NestJS (Fastify Adapter — Express-এর তুলনায় দ্বিগুণ দ্রুত ও লাইটওয়েট) + TypeScript
 - **Architecture:** Modular Architecture (প্রতিটি ফিচার আলাদা মডিউল — controller, service, DTO, repository আলাদা আলাদা)
-- **Database:** PostgreSQL
-- **ORM / Database Access:** Drizzle ORM (জিরো-ওভারহেড, টাইপ-সেফ ও এক্সট্রিমলি ফাস্ট)
+- **Database:** MySQL (InnoDB Engine, utf8mb4 charset & collation)
+- **ORM / Database Access:** Drizzle ORM (`drizzle-orm/mysql2` — জিরো-ওভারহেড, টাইপ-সেফ ও এক্সট্রিমলি ফাস্ট)
 - **In-Memory Cache & Queue Store:** Redis
 - **Background Jobs:** BullMQ
 - **Authentication & Authorization:** Passport.js + JWT (HTTP-Only, Secure, SameSite Cookies) + CASL (Role/Permission Based Access Control)
@@ -91,7 +91,7 @@
 
 ### C. Infrastructure & DevOps
 - **Containerization:** Docker (Multi-stage build, Alpine base image দিয়ে ছোট ও optimized image)
-- **Local Development Orchestration:** Docker Compose (Postgres, Redis, Backend, Frontend একসাথে)
+- **Local Development Orchestration:** Docker Compose (MySQL, Redis, Backend, Frontend একসাথে)
 - **Reverse Proxy & Edge Layer:** Nginx (SSL termination, gzip/brotli compression, static caching, load balancing)
 - **CI/CD:** GitHub Actions (lint → typecheck → test → build → deploy pipeline)
 - **Monorepo:** Turborepo — Zod schema ও TypeScript types shared package আকারে FE ও BE দুই জায়গায় ব্যবহারের জন্য
@@ -100,28 +100,28 @@
 
 ---
 
-## 3. Database Optimization Rules (PostgreSQL + Drizzle ORM)
+## 3. Database Optimization Rules (MySQL + Drizzle ORM)
 
 ### D.1 Connection & Pooling
-1. **Connection Pooling:** PgBouncer (transaction mode) ব্যবহার করতে হবে, বিশেষ করে কন্টেইনার/মাল্টি-ইনস্ট্যান্স এনভায়রনমেন্টে কানেকশন এক্সহশন ঠেকাতে।
-2. **Pool Sizing:** অ্যাপ-লেভেল pool size (Drizzle/pg pool) হিসাব করে সেট করতে হবে — CPU কোর সংখ্যা ও DB max_connections অনুযায়ী, অতিরিক্ত বড় pool রিসোর্স নষ্ট করে।
-3. **Idle Connection Timeout:** idle ও statement timeout কনফিগার করতে হবে যাতে ঝুলে থাকা কানেকশন/কোয়েরি রিসোর্স আটকে না রাখে।
+1. **Connection Pooling:** MySQL Connection Pool (`mysql2` pool) সঠিকভাবে কনফিগার করতে হবে; মাল্টি-ইনস্ট্যান্স বা হাই-স্কেল এনভায়রনমেন্টে কানেকশন এক্সহশন ঠেকাতে ProxySQL ব্যবহার করা যেতে পারে।
+2. **Pool Sizing:** অ্যাপ-লেভেল pool size (Drizzle/mysql2 pool) হিসাব করে সেট করতে হবে — CPU কোর সংখ্যা ও MySQL `max_connections` অনুযায়ী, অতিরিক্ত বড় pool রিসোর্স নষ্ট করে।
+3. **Idle Connection Timeout:** `wait_timeout` ও `interactive_timeout` এবং অ্যাপ লেভেলে idle timeout কনফিগার করতে হবে যাতে ঝুলে থাকা কানেকশন স্লট আটকে না রাখে।
 
 ### D.2 Indexing Strategy
-1. **B-Tree Indexing:** ফিল্টারিং, সর্টিং, এবং Foreign Key ফিল্ডে B-Tree ইনডেক্স বাধ্যতামূলক।
-2. **Composite Index:** একাধিক কলাম দিয়ে একসাথে ফিল্টার/সর্ট হলে (যেমন WHERE status = ? ORDER BY created_at) composite index তৈরি করতে হবে, কলামের অর্ডার query pattern অনুযায়ী ঠিক করতে হবে।
-3. **Full-text Search Index:** টেক্সট সার্চের ফিল্ডে GIN ইনডেক্স (বা pg_trgm দিয়ে fuzzy/partial search) ব্যবহার করতে হবে।
-4. **Partial Index:** নির্দিষ্ট subset ডেটার উপর বারবার কোয়েরি হলে (যেমন WHERE deleted_at IS NULL) partial index দিয়ে ইনডেক্স সাইজ ও লেখার overhead কমাতে হবে।
-5. **Unused / Duplicate Index Audit:** পিরিয়ডিক্যালি (pg_stat_user_indexes) দেখে অব্যবহৃত বা ডুপ্লিকেট ইনডেক্স রিমুভ করতে হবে।
+1. **B-Tree Indexing:** ফিল্টারিং, সর্টিং, এবং Foreign Key ফিল্ডে B-Tree ইনডেক্স বাধ্যতামূলক (InnoDB ডিফল্ট)।
+2. **Composite Index:** একাধিক কলাম দিয়ে একসাথে ফিল্টার/সর্ট হলে (যেমন WHERE status = ? ORDER BY created_at) composite index তৈরি করতে হবে, কলামের অর্ডার query pattern অনুযায়ী (Leftmost Prefix Rule) ঠিক করতে হবে।
+3. **Full-text Search Index:** টেক্সট সার্চের ফিল্ডে MySQL `FULLTEXT` ইনডেক্স (`MATCH ... AGAINST`) ব্যবহার করতে হবে।
+4. **Prefix Indexing:** দীর্ঘ VARCHAR বা TEXT ফিল্ডে ইনডেক্স করার প্রয়োজন হলে prefix length নির্দিষ্ট করে ইনডেক্স সাইজ অপ্টিমাইজ করতে হবে।
+5. **Unused / Duplicate Index Audit:** পিরিয়ডিক্যালি (`sys.schema_unused_indexes`) দেখে অব্যবহৃত বা ডুপ্লিকেট ইনডেক্স রিমুভ করতে হবে — প্রতিটি ইনডেক্স রাইট পারফরম্যান্সে ওভারহেড যোগ করে।
 
 ### D.3 Query Optimization
-1. **Cursor-based Pagination:** অফসেট-ভিত্তিক পেজিনেশনের বদলে আইডি/টাইমস্ট্যাম্প-ভিত্তিক কার্সার পেজিনেশন ব্যবহার করতে হবে।
+1. **Cursor-based Pagination:** অফসেট-ভিত্তিক পেজিনেশনের (`LIMIT offset, count`) বদলে আইডি/টাইমস্ট্যাম্প-ভিত্তিক কার্সার পেজিনেশন ব্যবহার করতে হবে, বড় ডেটাসেটে অফসেট বাড়ার সাথে সাথে MySQL কোয়েরি স্লো হওয়া রোধে।
 2. **N+1 Query Prevention:** Drizzle-র relational query (`with` / `join`) ব্যবহার করে নেস্টেড লুপ কোয়েরি এড়াতে হবে; দরকার হলে DataLoader প্যাটার্নে batch করতে হবে।
-3. **Select Only Required Columns:** `SELECT *` পরিহার করে শুধু প্রয়োজনীয় কলাম টানতে হবে — নেটওয়ার্ক payload ও মেমোরি খরচ কমে।
-4. **EXPLAIN ANALYZE Practice:** কোয়েরি স্লো মনে হলে প্রোডাকশনে যাওয়ার আগে `EXPLAIN ANALYZE` দিয়ে execution plan যাচাই করতে হবে (Seq Scan বনাম Index Scan)।
-5. **Batch Writes:** একাধিক row একসাথে insert/update করতে হলে bulk insert/upsert ব্যবহার করতে হবে।
-6. **Avoid Heavy Computation in DB:** জটিল বিজনেস লজিক ডেটাবেজ ফাংশন/ট্রিগারে না রেখে অ্যাপ লেয়ারে রাখতে হবে।
-7. **Read/Write Separation:** হাই-ট্রাফিক অ্যাপে read-heavy কোয়েরির জন্য PostgreSQL read replica ব্যবহার করার প্রস্তুতি রাখতে হবে।
+3. **Select Only Required Columns:** `SELECT *` পরিহার করে শুধু প্রয়োজনীয় কলাম টানতে হবে — নেটওয়ার্ক payload ও মেমোরি খরচ কমে।
+4. **EXPLAIN ANALYZE Practice:** কোয়েরি স্লো মনে হলে প্রোডাকশনে যাওয়ার আগে `EXPLAIN` বা `EXPLAIN ANALYZE` দিয়ে execution plan যাচাই করতে হবে (type: ALL/Full Table Scan বনাম ref/eq_ref/range Index Scan)।
+5. **Batch Writes:** একাধিক row একসাথে insert/update করতে হলে bulk insert (`INSERT INTO ... VALUES (...), (...)`) বা upsert (`ON DUPLICATE KEY UPDATE`) ব্যবহার করতে হবে।
+6. **Avoid Heavy Computation in DB:** জটিল বিজনেস লজিক ডেটাবেজে না রেখে অ্যাপ লেয়ারে রাখতে হবে।
+7. **Read/Write Separation:** হাই-ট্রাফিক অ্যাপে read-heavy কোয়েরির জন্য MySQL Read Replica (GTID replication) ব্যবহার করার প্রস্তুতি রাখতে হবে।
 
 ### D.4 Caching (Redis)
 1. **Multi-Layer Caching:** কম পরিবর্তনশীল ডেটা (সেটিংস, প্ল্যান লিস্ট, প্রোফাইল, কনফিগ) সরাসরি DB থেকে না টেনে Redis-এ ক্যাশ করতে হবে।
@@ -141,10 +141,10 @@
 
 ### D.6 Data Integrity & Migration
 1. **Transactional Integrity:** একাধিক ধাপের রাইট অপারেশনে ডেটাবেজ ইন্টিগ্রিটি বজায় রাখতে Drizzle-র transaction ব্লক ব্যবহার করতে হবে (`db.transaction(...)`)।
-2. **Schema Migrations:** প্রতিটি স্কিমা পরিবর্তন ভার্সনড মাইগ্রেশন ফাইল (Drizzle Kit) দিয়ে ট্র্যাক করতে হবে, প্রোডাকশনে সরাসরি ম্যানুয়াল পরিবর্তন নিষিদ্ধ।
+2. **Schema Migrations:** প্রতিটি স্কিমা পরিবর্তন ভার্সনড মাইগ্রেশন ফাইল (Drizzle Kit with MySQL dialect) দিয়ে ট্র্যাক করতে হবে, প্রোডাকশনে সরাসরি ম্যানুয়াল পরিবর্তন নিষিদ্ধ।
 3. **Soft Delete Pattern:** গুরুত্বপূর্ণ এন্টিটিতে `deleted_at` কলাম দিয়ে soft delete ব্যবহার করতে হবে।
-4. **Backup & PITR:** নিয়মিত অটোমেটেড ব্যাকআপ ও Point-in-Time Recovery কনফিগার করতে হবে।
-5. **Query Monitoring:** `pg_stat_statements` চালু রেখে সবচেয়ে ভারী কোয়েরি নিয়মিত পর্যবেক্ষণ করতে হবে।
+4. **Backup & PITR:** নিয়মিত অটোমেটেড mysqldump / Percona XtraBackup ও Binary Log (binlog) ভিত্তিক Point-in-Time Recovery কনফিগার করতে হবে।
+5. **Query Monitoring:** MySQL `slow_query_log` চালু রেখে এবং `performance_schema` / `sys.statement_analysis` দিয়ে সবচেয়ে ভারী কোয়েরি নিয়মিত পর্যবেক্ষণ করতে হবে।
 
 ---
 
