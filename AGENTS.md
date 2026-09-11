@@ -27,10 +27,10 @@
 
 3. **নিশ্ছিদ্র সিকিউরিটি ও হ্যাকার আক্রমণ প্রতিরোধ (Bulletproof Security & Threat Defense):**
    - OWASP Top 10 আক্রমণ (SQL Injection, XSS, CSRF, SSRF, RCE) থেকে কঠোর সুরক্ষা।
+   - অথেনটিকেশন: Firebase Authentication (Email/Password ও Google Login), পাসওয়ার্ড গুগলের সিকিউর ইনফ্রাস্ট্রাকচারে সংরক্ষিত, লোকাল ডিবিতে কোনো র পাসওয়ার্ড স্টোর হবে না।
+   - ব্যাকএন্ড ভেরিফিকেশন: Firebase Admin SDK দিয়ে ভেরিফাইড টোকেন ও `httpOnly`, `secure`, `sameSite: 'strict'` সেশন কুকি।
    - Drizzle ORM-এর Parameterized Query ব্যবহার — কোনো র (raw) আনস্যানিটাইজড SQL নয়।
-   - রেট লিমিটিং (`@nestjs/throttler`), Argon2 পাসওয়ার্ড হ্যাশিং, Helmet সিকিউরিটি হেডার।
-   - Imunify360 ও LiteSpeed WAF সামঞ্জস্যপূর্ণ ক্লিন কোডিং প্র্যাকটিস।
-   - টোকেন স্টোরেজ: শুধুমাত্র `httpOnly`, `secure`, `sameSite: 'strict'` কুকিতে (LocalStorage সম্পূর্ণ নিষিদ্ধ)।
+   - রেট লিমিটিং (`@nestjs/throttler`), Helmet সিকিউরিটি হেডার, Imunify360 ও LiteSpeed WAF সামঞ্জস্যপূর্ণ ক্লিন কোড।
    - বোট প্রটেকশন: Cloudflare Turnstile; পারমিশন কন্ট্রোল: CASL।
 
 4. **শেয়ার্ড হোস্টিং ফ্রেন্ডলি লাইটওয়েট ও রিসোর্স সাশ্রয়ী আর্কিটেকচার (CloudLinux LVE Optimized):**
@@ -53,6 +53,8 @@
 - **Framework & Language:** Next.js (App Router) + TypeScript (Strict Mode)
 - **Deployment Build:** Next.js Standalone Mode (`output: 'standalone'` — ক্ষুদ্র ফুটপ্রিন্ট, সার্ভারে ভারী `node_modules` লাগে না)
 - **Architecture:** React Server Components (RSC) + Client Components + Streaming with Suspense
+- **Authentication & Auth UI:** Firebase Client SDK (`firebase/auth`) — Email/Password Login & Google OAuth Login
+- **Push Notifications:** Firebase Cloud Messaging (`firebase/messaging` Web Push via Service Worker)
 - **Client-side State Management:** Zustand (অতি লাইটওয়েট ও পারফরম্যান্ট)
 - **Server State & Data Fetching:** TanStack Query (React Query)
 - **Form Management:** React Hook Form
@@ -82,16 +84,17 @@
 - **Architecture:** Modular Architecture (প্রতিটি ফিচার আলাদা মডিউল — controller, service, DTO, repository আলাদা আলাদা)
 - **Database:** MySQL (InnoDB Engine, utf8mb4 charset & collation, cPanel MySQL)
 - **ORM / Database Access:** Drizzle ORM (`drizzle-orm/mysql2` — জিরো-ওভারহেড, টাইপ-সেফ ও এক্সট্রিমলি ফাস্ট)
+- **Authentication & User Management:** Firebase Admin SDK (`firebase-admin/auth`) — ID Token / Session Cookie Verification, MySQL `users` টেবিলের সাথে সিঙ্ক
+- **Push Notifications (Server):** Firebase Admin SDK (`firebase-admin/messaging` — FCM Push Notifications)
+- **Authorization & RBAC:** CASL (Role & Permission Based Access Control)
 - **Cache & Queue Layer (Modular Dual-Mode):**
   - *Shared Hosting (বর্তমান):* In-Memory Cache (অথবা Serverless Upstash Redis HTTP REST) + MySQL/DB-based lightweight queue অথবা cPanel Cron Job
   - *VPS (ভবিষ্যত):* Local Redis + BullMQ (একই ইন্টারফেসের মাধ্যমে শুধু `.env` পরিবর্তনে সক্ষম)
-- **Authentication & Authorization:** Passport.js + JWT (HTTP-Only, Secure, SameSite Cookies) + CASL (Role/Permission Based Access Control)
 - **Validation & Transformation:** Zod (`nestjs-zod` এর মাধ্যমে DTO হিসেবে ব্যবহার, ফ্রন্টএন্ডের সাথে schema শেয়ারড)
 - **API Documentation:** NestJS Swagger (`@nestjs/swagger`)
 - **Logging:** Pino (`nestjs-pino`) — হাই-থ্রুপুট স্ট্রাকচার্ড JSON লগার
 - **Error Tracking:** Sentry
 - **Security Middleware:** Helmet, `@nestjs/throttler` (Rate Limiting), HPP (HTTP Parameter Pollution Protection)
-- **Password Hashing:** Argon2
 - **Health Check:** `@nestjs/terminus` (Liveness & Readiness probes)
 - **Testing:** Jest (Unit/Integration) + Supertest (E2E)
 - **Package Manager:** pnpm
@@ -118,7 +121,7 @@
 3. **No Connection Leaks:** প্রতিটি ট্রানজেকশন ও কোয়েরি সম্পন্নের সাথে সাথে কানেকশন যাতে পুলে ফেরত যায় তা নিশ্চিত করতে হবে।
 
 ### D.2 Indexing Strategy
-1. **B-Tree Indexing:** ফিল্টারিং, সর্টিং, এবং Foreign Key ফিল্ডে B-Tree ইনডেক্স বাধ্যতামূলক (InnoDB ডিফল্ট)।
+1. **B-Tree Indexing:** ফিল্টারিং, সর্টিং, এবং Foreign Key ফিল্ডে B-Tree ইনডেক্স বাধ্যতামূলক (InnoDB ডিফল্ট)। `firebase_uid` কলামে ইউনিক B-Tree ইনডেক্স থাকতে হবে।
 2. **Composite Index:** একাধিক কলাম দিয়ে ফিল্টার/সর্ট হলে (যেমন `WHERE status = ? ORDER BY created_at`) composite index তৈরি করতে হবে (Leftmost Prefix Rule মেনে)।
 3. **Full-text Search Index:** টেক্সট সার্চের ফিল্ডে MySQL `FULLTEXT` ইনডেক্স (`MATCH ... AGAINST`) ব্যবহার করতে হবে।
 4. **Prefix Indexing:** দীর্ঘ VARCHAR বা TEXT ফিল্ডে ইনডেক্স করার প্রয়োজন হলে prefix length নির্দিষ্ট করে ইনডেক্স সাইজ অপ্টিমাইজ করতে হবে।
@@ -139,8 +142,8 @@
 4. **VPS Ready:** ক্যাশ সার্ভিস এমন ইন্টারফেসে থাকবে যাতে পরবর্তীতে VPS-এ লোকাল Redis-এ এক ক্লিকে সুইচ করা যায়।
 
 ### D.5 Background Jobs (Shared Hosting Strategy)
-1. **Lightweight Job Offloading:** শেয়ার্ড হোস্টিংয়ে ভারী প্রসেস দীর্ঘক্ষণ চললে CloudLinux তা কিল করে দেয়। তাই ইমেইল বা ব্যাকগ্রাউন্ড টাস্কের জন্য MySQL-based queue অথবা cPanel Cron Job ব্যবহার করা হবে।
-2. **Idempotency:** জব হ্যান্ডলার idempotent রাখতে হবে যাতে ডুপ্লিকেট এক্সিকিউশন রোধ হয়।
+1. **Lightweight Job Offloading:** শেয়ার্ড হোস্টিংয়ে ভারী প্রসেস দীর্ঘক্ষণ চললে CloudLinux তা কিল করে দেয়। তাই ইমেইল, FCM নোটিফিকেশন বা ব্যাকগ্রাউন্ড টাস্কের জন্য MySQL-based queue অথবা cPanel Cron Job ব্যবহার করা হবে।
+2. **Idempotency:** জব হ্যান্ডলার idempotent রাখতে হবে যাতে ডুপ্লিকেট নোটিফিকেশন বা এক্সিকিউশন রোধ হয়।
 3. **Retry & Backoff:** ব্যর্থ জবের জন্য ব্যাকঅফ রিট্রাই লজিক থাকতে হবে।
 4. **VPS Ready:** ইন্টারফেসটি BullMQ কমপ্যাটিবল থাকবে যাতে VPS-এ গেলে সহজেই লোকাল BullMQ সক্রিয় করা যায়।
 
@@ -158,8 +161,10 @@
 2. **Strict Memory Budget (< 150 MB):** মেমোরি লিকিং অবজেক্ট বা অপ্রয়োজনীয় বড় লাইব্রেরি পরিহার করতে হবে যাতে CloudLinux LVE লিমিট এক্সিড না করে।
 3. **Strict Request Validation:** প্রতিটি এন্ডপয়েন্টে schema-ভিত্তিক ভ্যালিডেশন (`nestjs-zod`) করতে হবে — অপরিচিত ফিল্ড স্ট্রিপ ও রিজেক্ট করতে হবে।
 4. **Rate Limiting:** `@nestjs/throttler` দিয়ে প্রতি IP ও অ্যাকাউন্টে রিকোয়েস্ট লিমিট রাখতে হবে।
-5. **Password Security:** Argon2 দিয়ে হ্যাশ করতে হবে।
-6. **Token Strategy:** Access token শর্ট-লিভড (১০–১৫ মিনিট), Refresh token লং-লিভড; উভয়ই `httpOnly`, `secure`, `sameSite: 'strict'` কুকিতে পাঠাতে হবে।
+5. **Authentication Handling (Firebase Admin):**
+   - ক্লায়েন্ট থেকে আসা Firebase ID Token বা Session Cookie ব্যাকএন্ডের `FirebaseAuthGuard`-এ `firebase-admin.auth().verifyIdToken()` দিয়ে ভেরিফাই করতে হবে।
+   - ভেরিফাইড ইউজার প্রথমবারের মতো লগইন করলে MySQL `users` টেবিলে প্রোফাইল সিঙ্ক (Upsert) হবে।
+6. **Token Strategy:** Session cookie তৈরি করা হলে তা অবশ্যই `httpOnly`, `secure`, `sameSite: 'strict'` কুকিতে পাঠাতে হবে।
 7. **SQL Injection & XSS Protection:** Drizzle ORM Parameterized Query বাধ্যতামূলক; Fastify/Express Helmet দিয়ে সিকিউরিটি হেডার নিশ্চিত করতে হবে।
 8. **Imunify360 Harmony:** সার্ভারে কোনো অপ্রত্যাশিত ইভাল বা ডায়নামিক স্ক্রিপ্ট জেনারেশন করা যাবে না যাতে Imunify360 WAF ফলস পজিটিভ ফ্ল্যাগ না তোলে।
 9. **Global Error Handling:** গ্লোবাল `HttpExceptionFilter` দিয়ে ইন্টারনাল ফাইলপাথ বা ডিবি এরর ইউজারের কাছে লুকানো বাধ্যতামূলক।
@@ -171,14 +176,20 @@
 ## 5. Development Rules — Frontend (Next.js App Router)
 
 1. **Next.js Standalone Build (`output: 'standalone'`):** প্রোডাকশন বিল্ডে standalone মোড বাধ্যতামূলক, যাতে শেয়ার্ড হোস্টিংয়ে বিশাল `node_modules` ছাড়াই অতি হালকা ও দ্রুত চলে।
-2. **Static & Dynamic Balance:** স্ট্যাটিক পেইজে SSG/ISR ব্যবহার করে সার্ভার সিপিইউ ও র‍্যামের ওপর লোড সর্বনিম্ন রাখতে হবে।
-3. **RSC & Streaming:** ড্যাশবোর্ড ও ডেটা পেইজে React Server Components + Streaming Suspense ব্যবহার করতে হবে।
-4. **Image Optimization:** `next/image` ব্যবহার করে WebP/AVIF ফরম্যাট ও Lazy Loading নিশ্চিত করতে হবে।
-5. **Query Caching:** TanStack Query-র `staleTime` ও `gcTime` সঠিকভাবে কনফিগার করতে হবে।
-6. **Pagination & Virtualization:** বড় তালিকায় কার্সার পেজিনেশন ও TanStack Virtual ব্যবহার বাধ্যতামূলক।
-7. **Strict i18n Discipline (বাংলা ও ইংরেজি):** পুরো অ্যাপ্লিকেশনের প্রতিটি টেক্সট `next-intl` ডিকশনারি কী থেকে লোড হবে। হার্ডকোডেড বাংলা বা ইংরেজি স্ট্রিং কোডে সরাসরি লেখা সম্পূর্ণ নিষিদ্ধ।
-8. **Fault Isolation:** প্রতিটি পেইজ ও মডিউলকে React Error Boundary দিয়ে প্রটেক্ট করতে হবে।
-9. **Shared Validation:** ফ্রন্টএন্ড ফর্ম ভ্যালিডেশনে ব্যাকএন্ডের সাথে শেয়ারড Zod schema ব্যবহার করতে হবে।
+2. **Firebase Auth Integration:**
+   - Email/Password এবং Google Sign-In এর জন্য Firebase Modular SDK (`firebase/auth`) ব্যবহার করতে হবে।
+   - অথেনটিকেশন স্টেট হ্যান্ডলিংয়ের জন্য রিঅ্যাক্টিভ হুক ও Zustand Auth Store ব্যবহার করতে হবে।
+3. **Push Notifications (FCM):**
+   - `firebase/messaging` এর মাধ্যমে ব্রাউজার নোটিফিকেশন পারমিশন রিকোয়েস্ট ও FCM টোকেন সংগ্রহ করে ব্যাকএন্ডে সংরক্ষণ করতে হবে।
+   - ব্যাকগ্রাউন্ড মেসেজিংয়ের জন্য `firebase-messaging-sw.js` সার্ভিস ওয়ার্কার কনফিগার করতে হবে।
+4. **Static & Dynamic Balance:** স্ট্যাটিক পেইজে SSG/ISR ব্যবহার করে সার্ভার সিপিইউ ও র‍্যামের ওপর লোড সর্বনিম্ন রাখতে হবে।
+5. **RSC & Streaming:** ড্যাশবোর্ড ও ডেটা পেইজে React Server Components + Streaming Suspense ব্যবহার করতে হবে।
+6. **Image Optimization:** `next/image` ব্যবহার করে WebP/AVIF ফরম্যাট ও Lazy Loading নিশ্চিত করতে হবে।
+7. **Query Caching:** TanStack Query-র `staleTime` ও `gcTime` সঠিকভাবে কনফিগার করতে হবে।
+8. **Pagination & Virtualization:** বড় তালিকায় কার্সার পেজিনেশন ও TanStack Virtual ব্যবহার বাধ্যতামূলক।
+9. **Strict i18n Discipline (বাংলা ও ইংরেজি):** পুরো অ্যাপ্লিকেশনের প্রতিটি টেক্সট `next-intl` ডিকশনারি কী থেকে লোড হবে। হার্ডকোডেড বাংলা বা ইংরেজি স্ট্রিং কোডে সরাসরি লেখা সম্পূর্ণ নিষিদ্ধ।
+10. **Fault Isolation:** প্রতিটি পেইজ ও মডিউলকে React Error Boundary দিয়ে প্রটেক্ট করতে হবে।
+11. **Shared Validation:** ফ্রন্টএন্ড ফর্ম ভ্যালিডেশনে ব্যাকএন্ডের সাথে শেয়ারড Zod schema ব্যবহার করতে হবে।
 
 ---
 
@@ -187,5 +198,5 @@
 1. **Single Source of Truth:** Zod schema ও TypeScript types একবার লিখে (`packages/schema`) FE ও BE দুই জায়গায় ব্যবহার করতে হবে।
 2. **Static Asset Offloading:** LiteSpeed ক্যাশিং ও Cloudflare CDN সক্রিয় রেখে স্ট্যাটিক ফাইলের চাপ সার্ভার থেকে সরাতে হবে।
 3. **Disk Space Discipline (10 GB NVMe Guard):** সার্ভার ড্রাইভে কখনো ইউজার ফাইল বা লগ জমিয়ে রাখা যাবে না; ফাইল Cloudflare R2-এ স্টোর করতে হবে।
-4. **Zero Secrets in Git:** `.env` ফাইল কখনো কমিট হবে না।
+4. **Zero Secrets in Git:** `.env` ফাইল কখনো কমিট হবে না; ফায়ারবেজ ও অন্যান্য ক্রেডেনশিয়াল `.env.example` ফাইলে প্লেসহোল্ডার হিসেবে থাকবে।
 5. **Future VPS Readiness:** কোডবেস এমন ক্লিন ও মডুলার রাখতে হবে যাতে পরবর্তীতে এক কমান্ডে ডকারাইজ করে VPS-এ ডেডিকেটেড Nginx ও Redis সহ শিফট করা যায়।
