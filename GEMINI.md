@@ -13,19 +13,31 @@
 
 ---
 
-### 1.2 Five Mandatory Core Directives (বাধ্যতামূলক ৫টি মূল নীতি)
+### 1.2 Mandatory Core Directives (বাধ্যতামূলক মূল নীতিসমূহ)
 
 1. **পূর্বের সিস্টেম ও ডেটাবেজের সাথে সামঞ্জস্যতা (System & Database Consistency First):**
    - যেকোনো নতুন ফিচার বা কোড লেখার আগে বিদ্যমান আর্কিটেকচার, স্কিমা, রিলেশন এবং কনভেনশন পুঙ্খানুপুঙ্খভাবে পর্যালোচনা করতে হবে।
    - পূর্বের সিস্টেম বাইপাস করে কোনো বিচ্ছিন্ন/অসঙ্গতিপূর্ণ টেবিল, ফিল্ড বা অ্যাড-হক লজিক তৈরি করা যাবে না।
    - প্রজেক্টের নির্ধারিত মডিউলার বাউন্ডারি ও প্যাটার্ন শতভাগ অনুসরণ করতে হবে।
 
-2. **সর্বোচ্চ পারফরম্যান্স অপ্টিমাইজেশন (High-Performance Engineering):**
+2. **অ্যাডাপ্টিভ ডিভাইস-ভিত্তিক ভিউ — মোবাইল অ্যাপ বনাম ডেস্কটপ ওয়েবসাইট (Adaptive Device Experience):**
+   - **ছোট স্ক্রিন / মোবাইল (Mobile App-like Experience):**
+     - লুক ও ফিলে খাঁটি মোবাইল অ্যাপের অনুভূতি: স্ক্রিনের নিচে ফিক্সড বটম নেভিগেশন বার (Bottom Navigation Bar — Home, Donate, Activities, Profile ইত্যাদি)।
+     - মোবাইল অ্যাপ হেডার (User Avatar, Notification Bell, Back / Menu Drawer)।
+     - সেন্ট্রাল ডায়ালগের বদলে বটম শিট মডাল (Bottom Sheet / Drawer)।
+     - থাম্ব-ফ্রেন্ডলি টাচ টার্গেট (কমপক্ষে ৪৪px-৪৮px) এবং Safe Area Inset (`env(safe-area-inset-bottom)`) সমর্থন।
+   - **মাঝারি ও বড় স্ক্রিন / ট্যাবলেট ও ডেস্কটপ (Modern Website Experience):**
+     - ক্লাসিক প্রিমিয়াম ওয়েবসাইট লেআউট: স্টিকি টপ নেভিগেশন বার, ড্রপডাউন মেনু, অ্যাকশন বাটন।
+     - মাল্টি-কলাম গ্রিড লেআউট (২, ৩ বা ৪ কলাম), এক্সপ্যান্ডেড সাইডবার ও ডেটা টেবিল।
+     - স্ট্যান্ডার্ড সেন্ট্রালাইজড ডায়ালগ/মডাল এবং রিচ হোভার ইন্টারঅ্যাকশন।
+   - **পারফরম্যান্স সতর্কতা:** শুধুমাত্র CSS `display: none` দিয়ে ডেস্কটপ DOM মোবাইলে লুকিয়ে মেমোরি নষ্ট করা যাবে না; রেসপন্সিভ কন্ডিশনাল রেন্ডারিং ব্যবহার করতে হবে যাতে মোবাইলে লাইটওয়েট এক্সপেরিয়েন্স নিশ্চিত হয়।
+
+3. **সর্বোচ্চ পারফরম্যান্স অপ্টিমাইজেশন (High-Performance Engineering):**
    - ডেটাবেজ লেভেলে: B-Tree/Composite/FULLTEXT ইনডেক্সিং, কার্সার পেজিনেশন, `SELECT *` পরিহার, N+1 কোয়েরি প্রতিরোধ।
    - ব্যাকএন্ড লেভেলে: Fastify/Express লাইটওয়েট অ্যাডাপ্টার, মেমোরি-দক্ষ ক্যাশিং, এবং অ্যাসিনক্রোনাস ব্যাকগ্রাউন্ড প্রসেসিং।
    - ফ্রন্টএন্ড লেভেলে: RSC (React Server Components), Streaming with Suspense, TanStack Virtual, Next.js Standalone Build, WebP/AVIF ইমেজ অপ্টিমাইজেশন।
 
-3. **নিশ্ছিদ্র সিকিউরিটি ও হ্যাকার আক্রমণ প্রতিরোধ (Bulletproof Security & Threat Defense):**
+4. **নিশ্ছিদ্র সিকিউরিটি ও হ্যাকার আক্রমণ প্রতিরোধ (Bulletproof Security & Threat Defense):**
    - OWASP Top 10 আক্রমণ (SQL Injection, XSS, CSRF, SSRF, RCE) থেকে কঠোর সুরক্ষা।
    - অথেনটিকেশন: Firebase Authentication (Email/Password ও Google Login), পাসওয়ার্ড গুগলের সিকিউর ইনফ্রাস্ট্রাকচারে সংরক্ষিত, লোকাল ডিবিতে কোনো র পাসওয়ার্ড স্টোর হবে না।
    - ব্যাকএন্ড ভেরিফিকেশন: Firebase Admin SDK দিয়ে ভেরিফাইড টোকেন ও `httpOnly`, `secure`, `sameSite: 'strict'` সেশন কুকি।
@@ -33,14 +45,14 @@
    - রেট লিমিটিং (`@nestjs/throttler`), Helmet সিকিউরিটি হেডার, Imunify360 ও LiteSpeed WAF সামঞ্জস্যপূর্ণ ক্লিন কোড।
    - বোট প্রটেকশন: Cloudflare Turnstile; পারমিশন কন্ট্রোল: CASL।
 
-4. **শেয়ার্ড হোস্টিং ফ্রেন্ডলি লাইটওয়েট ও রিসোর্স সাশ্রয়ী আর্কিটেকচার (CloudLinux LVE Optimized):**
+5. **শেয়ার্ড হোস্টিং ফ্রেন্ডলি লাইটওয়েট ও রিসোর্স সাশ্রয়ী আর্কিটেকচার (CloudLinux LVE Optimized):**
    - মেমোরি ও সিপিইউ খরচ সর্বনিম্ন রাখার ডিজাইন (CloudLinux LVE RAM কোটা সাধারণত ১-২ জিবি, তাই প্রসেস মেমোরি ১৫০ এমবির নিচে রাখা বাধ্যতামূলক)।
    - ফ্রন্টএন্ড বান্ডেল সাইজ অপ্টিমাইজেশন, Next.js `output: 'standalone'` বিল্ড (যাতে ১০ জিবি এসএসডি নষ্ট না হয়)।
    - ডকার সম্পূর্ণ পরিহার (শেয়ার্ড হোস্টিংয়ে কোনো ডকার ডেমন নেই; নেটিভ Node.js রানটাইম ব্যবহার করা হবে)।
    - ব্যাকএন্ডে অপ্টিমাইজড `mysql2` কানেকশন পুলিং।
    - ব্যবহারকারীর আপলোড করা ফাইল/মিডিয়া ১০ জিবি ডিস্কে না রেখে ক্লাউড অবজেক্ট স্টোরেজে (Cloudflare R2) সংরক্ষণ করা।
 
-5. **সম্পূর্ণ দ্বিভাষিক সমর্থন (100% Strict Bilingual Support: Bengali & English):**
+6. **সম্পূর্ণ দ্বিভাষিক সমর্থন (100% Strict Bilingual Support: Bengali & English):**
    - পুরো অ্যাপ্লিকেশনে বাংলা (`bn`) ও ইংরেজি (`en`) উভয়ের পূর্ণ সমর্থন থাকতে হবে।
    - কোনো UI কম্পোনেন্ট, ফর্ম লেবেল, বাটন বা প্লেসহোল্ডারে কোনো হার্ডকোডেড টেক্সট থাকবে না — সবই `next-intl` ডিকশনারির মাধ্যমে লোড হবে।
    - ব্যাকএন্ড এরর মেসেজ ও ভ্যালিডেশন নোটিফিকেশনেও সঠিক লোকালাইজড মেসেজ সাপোর্ট বজায় রাখতে হবে।
@@ -53,6 +65,9 @@
 - **Framework & Language:** Next.js (App Router) + TypeScript (Strict Mode)
 - **Deployment Build:** Next.js Standalone Mode (`output: 'standalone'` — ক্ষুদ্র ফুটপ্রিন্ট, সার্ভারে ভারী `node_modules` লাগে না)
 - **Architecture:** React Server Components (RSC) + Client Components + Streaming with Suspense
+- **Device-Adaptive UI Architecture:**
+  - *Mobile (< 768px):* Bottom Navigation Bar + App Bar Header + Drawer / Bottom Sheets + Touch-optimized List Views
+  - *Tablet & Desktop (>= 768px):* Top Navigation Bar + Mega/Dropdown Menus + Multi-column Grids + Desktop Dialogs
 - **Authentication & Auth UI:** Firebase Client SDK (`firebase/auth`) — Email/Password Login & Google OAuth Login
 - **Push Notifications:** Firebase Cloud Messaging (`firebase/messaging` Web Push via Service Worker)
 - **Client-side State Management:** Zustand (অতি লাইটওয়েট ও পারফরম্যান্ট)
@@ -175,21 +190,32 @@
 
 ## 5. Development Rules — Frontend (Next.js App Router)
 
-1. **Next.js Standalone Build (`output: 'standalone'`):** প্রোডাকশন বিল্ডে standalone মোড বাধ্যতামূলক, যাতে শেয়ার্ড হোস্টিংয়ে বিশাল `node_modules` ছাড়াই অতি হালকা ও দ্রুত চলে।
-2. **Firebase Auth Integration:**
+1. **Device-Adaptive UI Architecture (মোবাইল অ্যাপ বনাম ডেস্কটপ ওয়েবসাইট):**
+   - **Mobile Layout (< 768px):** 
+     - ফিক্সড বটম নেভিগেশন বার (Bottom Navigation Bar) থাকবে, যা থাম্ব দিয়ে সহজে অ্যাক্সেসযোগ্য।
+     - হেডার হবে ক্লিন মোবাইল অ্যাপ বার (App Bar), যাতে নোটিফিকেশন আইকন, অবতার এবং ড্রয়ার/ব্যাক বাটন থাকবে।
+     - মোবাইল ভিউতে ভারী সেন্ট্রালাইজড পপআপের বদলে বটম শিট (Bottom Sheet / Drawer) ব্যবহার করতে হবে।
+     - Safe Area Inset (`padding-bottom: env(safe-area-inset-bottom)`) বজায় রাখতে হবে।
+   - **Desktop Layout (>= 768px):** 
+     - ফুল-ফিচার্ড টপ হেডার ও নেভিগেশন মেনু (Top Navbar), ব্র্যান্ডিং লোগো এবং অ্যাকশন বাটন।
+     - মাল্টি-কলাম রেসপন্সিভ গ্রিড (Desktop Cards, Data Tables, Sidebars)।
+     - স্ট্যান্ডার্ড সেন্ট্রালাইজড ডায়ালগ/মডাল এবং প্রফেশনাল হোভার এফেক্ট।
+   - **Clean Rendering:** শুধুমাত্র CSS `display: none` দিয়ে ডেস্কটপের ভারী উপাদান মোবাইলে হাইড না করে প্রয়োজন অনুযায়ী অ্যাডাপ্টিভ কন্ডিশনাল রেন্ডারিং ব্যবহার করতে হবে।
+2. **Next.js Standalone Build (`output: 'standalone'`):** প্রোডাকশন বিল্ডে standalone মোড বাধ্যতামূলক, যাতে শেয়ার্ড হোস্টিংয়ে বিশাল `node_modules` ছাড়াই অতি হালকা ও দ্রুত চলে।
+3. **Firebase Auth Integration:**
    - Email/Password এবং Google Sign-In এর জন্য Firebase Modular SDK (`firebase/auth`) ব্যবহার করতে হবে।
    - অথেনটিকেশন স্টেট হ্যান্ডলিংয়ের জন্য রিঅ্যাক্টিভ হুক ও Zustand Auth Store ব্যবহার করতে হবে।
-3. **Push Notifications (FCM):**
+4. **Push Notifications (FCM):**
    - `firebase/messaging` এর মাধ্যমে ব্রাউজার নোটিফিকেশন পারমিশন রিকোয়েস্ট ও FCM টোকেন সংগ্রহ করে ব্যাকএন্ডে সংরক্ষণ করতে হবে।
    - ব্যাকগ্রাউন্ড মেসেজিংয়ের জন্য `firebase-messaging-sw.js` সার্ভিস ওয়ার্কার কনফিগার করতে হবে।
-4. **Static & Dynamic Balance:** স্ট্যাটিক পেইজে SSG/ISR ব্যবহার করে সার্ভার সিপিইউ ও র‍্যামের ওপর লোড সর্বনিম্ন রাখতে হবে।
-5. **RSC & Streaming:** ড্যাশবোর্ড ও ডেটা পেইজে React Server Components + Streaming Suspense ব্যবহার করতে হবে।
-6. **Image Optimization:** `next/image` ব্যবহার করে WebP/AVIF ফরম্যাট ও Lazy Loading নিশ্চিত করতে হবে।
-7. **Query Caching:** TanStack Query-র `staleTime` ও `gcTime` সঠিকভাবে কনফিগার করতে হবে।
-8. **Pagination & Virtualization:** বড় তালিকায় কার্সার পেজিনেশন ও TanStack Virtual ব্যবহার বাধ্যতামূলক।
-9. **Strict i18n Discipline (বাংলা ও ইংরেজি):** পুরো অ্যাপ্লিকেশনের প্রতিটি টেক্সট `next-intl` ডিকশনারি কী থেকে লোড হবে। হার্ডকোডেড বাংলা বা ইংরেজি স্ট্রিং কোডে সরাসরি লেখা সম্পূর্ণ নিষিদ্ধ।
-10. **Fault Isolation:** প্রতিটি পেইজ ও মডিউলকে React Error Boundary দিয়ে প্রটেক্ট করতে হবে।
-11. **Shared Validation:** ফ্রন্টএন্ড ফর্ম ভ্যালিডেশনে ব্যাকএন্ডের সাথে শেয়ারড Zod schema ব্যবহার করতে হবে।
+5. **Static & Dynamic Balance:** স্ট্যাটিক পেইজে SSG/ISR ব্যবহার করে সার্ভার সিপিইউ ও র‍্যামের ওপর লোড সর্বনিম্ন রাখতে হবে।
+6. **RSC & Streaming:** ড্যাশবোর্ড ও ডেটা পেইজে React Server Components + Streaming Suspense ব্যবহার করতে হবে।
+7. **Image Optimization:** `next/image` ব্যবহার করে WebP/AVIF ফরম্যাট ও Lazy Loading নিশ্চিত করতে হবে।
+8. **Query Caching:** TanStack Query-র `staleTime` ও `gcTime` সঠিকভাবে কনফিগার করতে হবে।
+9. **Pagination & Virtualization:** বড় তালিকায় কার্সার পেজিনেশন ও TanStack Virtual ব্যবহার বাধ্যতামূলক।
+10. **Strict i18n Discipline (বাংলা ও ইংরেজি):** পুরো অ্যাপ্লিকেশনের প্রতিটি টেক্সট `next-intl` ডিকশনারি কী থেকে লোড হবে। হার্ডকোডেড বাংলা বা ইংরেজি স্ট্রিং কোডে সরাসরি লেখা সম্পূর্ণ নিষিদ্ধ।
+11. **Fault Isolation:** প্রতিটি পেইজ ও মডিউলকে React Error Boundary দিয়ে প্রটেক্ট করতে হবে।
+12. **Shared Validation:** ফ্রন্টএন্ড ফর্ম ভ্যালিডেশনে ব্যাকএন্ডের সাথে শেয়ারড Zod schema ব্যবহার করতে হবে।
 
 ---
 
