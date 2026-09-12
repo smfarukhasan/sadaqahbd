@@ -1,6 +1,8 @@
+'use client';
+
 import React from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { ShieldCheck, CheckCircle2, User, Building, Heart, ArrowLeft } from "lucide-react";
 
 // Mock post detail for demonstration
@@ -26,12 +28,8 @@ const mockPostDetail = {
   ],
 };
 
-export default async function PostDetailPage({
-  params,
-}: {
-  params: Promise<{ locale: string; id: string }>;
-}) {
-  const { locale, id } = await params;
+export default function PostDetailPage() {
+  const locale = useLocale();
   const t = useTranslations("StudentPost");
   const tCommon = useTranslations("Common");
   const tDonation = useTranslations("Donation");
