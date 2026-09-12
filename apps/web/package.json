@@ -1,0 +1,37 @@
+{
+  "name": "@sadaqahbd/web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@sadaqahbd/schema": "workspace:*",
+    "@tanstack/react-query": "^5.67.2",
+    "@tanstack/react-virtual": "^3.13.2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "firebase": "^11.4.0",
+    "lucide-react": "^0.479.0",
+    "motion": "^12.4.10",
+    "next": "^15.2.1",
+    "next-intl": "^3.26.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-hook-form": "^7.54.2",
+    "vaul": "^1.1.2",
+    "zod": "^3.24.2",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "eslint": "^9.21.0",
+    "eslint-config-next": "^15.2.1",
+    "typescript": "^5.8.2"
+  }
+}

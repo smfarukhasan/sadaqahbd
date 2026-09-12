@@ -1,0 +1,9 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+allowBuilds:
+  '@firebase/util': true
+  '@scarf/scarf': true
+  esbuild: true
+  protobufjs: true
+  unrs-resolver: true
