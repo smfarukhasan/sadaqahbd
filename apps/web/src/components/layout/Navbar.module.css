@@ -2,10 +2,17 @@
   position: sticky;
   top: 0;
   z-index: 50;
-  background-color: var(--surface);
-  border-bottom: 1px solid var(--surface-border);
-  height: 72px;
-  backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--surface-border-subtle);
+  height: 74px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="dark"] .header {
+  background: rgba(17, 24, 39, 0.88);
 }
 
 .headerInner {
@@ -18,43 +25,89 @@
 .brand {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: var(--primary);
+  gap: 0.85rem;
+  text-decoration: none;
 }
 
-.brandIcon {
-  color: var(--primary);
+.brandIconWrapper {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #0d9488 0%, #059669 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 4px 12px -2px rgba(13, 148, 136, 0.35);
+  transition: transform 0.2s ease;
+}
+
+.brand:hover .brandIconWrapper {
+  transform: scale(1.05);
+}
+
+.brandTextGroup {
+  display: flex;
+  flex-direction: column;
+}
+
+.brandTitle {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.brandTagline {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 .navLinks {
   display: flex;
   align-items: center;
-  gap: 1.75rem;
+  gap: 0.5rem;
 }
 
 .navLink {
-  font-size: 0.95rem;
-  font-weight: 500;
-  color: var(--text-main);
-  transition: color 0.15s ease;
-  padding: 0.5rem 0.25rem;
+  font-size: 0.925rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0.45rem 0.95rem;
+  border-radius: var(--radius-full);
+  transition: all 0.18s ease;
 }
 
 .navLink:hover {
   color: var(--primary);
+  background-color: var(--primary-light);
 }
 
-.donateHighlight {
+.navLinkActive {
   color: var(--primary);
-  font-weight: 600;
+  background-color: var(--primary-light);
+  font-weight: 700;
 }
 
 .actions {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.85rem;
+}
+
+.trustBadge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--primary-dark);
+  background-color: rgba(13, 148, 136, 0.08);
+  border: 1px solid rgba(13, 148, 136, 0.2);
+  border-radius: var(--radius-full);
 }
 
 .langBtn {
@@ -62,33 +115,56 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.45rem 0.85rem;
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-muted);
   border: 1px solid var(--surface-border);
   border-radius: var(--radius-full);
-  background-color: var(--background);
-  transition: all 0.15s ease;
+  background-color: var(--surface);
+  transition: all 0.18s ease;
 }
 
 .langBtn:hover {
   color: var(--text-main);
   border-color: var(--primary);
+  box-shadow: var(--shadow-xs);
+}
+
+.donateBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.52rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0d9488 0%, #059669 100%);
+  border-radius: var(--radius-full);
+  box-shadow: 0 4px 14px -2px rgba(13, 148, 136, 0.35);
+  transition: all 0.2s ease;
+}
+
+.donateBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px -2px rgba(13, 148, 136, 0.45);
 }
 
 .loginBtn {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1.1rem;
-  font-size: 0.9rem;
+  gap: 0.4rem;
+  padding: 0.48rem 1rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  color: #ffffff;
-  background-color: var(--primary);
+  color: var(--text-main);
+  border: 1px solid var(--surface-border);
+  background-color: var(--surface);
   border-radius: var(--radius-full);
-  transition: background-color 0.15s ease;
+  transition: all 0.18s ease;
 }
 
 .loginBtn:hover {
-  background-color: var(--primary-hover);
+  border-color: var(--text-subtle);
+  background-color: var(--background);
 }
+

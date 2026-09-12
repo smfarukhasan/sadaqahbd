@@ -6,6 +6,7 @@ import { routing } from '../../i18n/routing';
 import Navbar from '../../components/layout/Navbar';
 import AppHeader from '../../components/layout/AppHeader';
 import BottomNav from '../../components/layout/BottomNav';
+import Footer from '../../components/layout/Footer';
 import '../globals.css';
 
 export function generateStaticParams() {
@@ -40,9 +41,11 @@ export default async function LocaleLayout({
           <AppHeader />
           <Navbar />
           <main className="safe-bottom-padding">{children}</main>
+          <Footer />
           <BottomNav />
         </NextIntlClientProvider>
       </body>
     </html>
   );
 }
+

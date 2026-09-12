@@ -20,30 +20,41 @@ export default function AppHeader() {
   return (
     <header className={`${styles.appHeader} mobile-only`}>
       <Link href="/" className={styles.brand}>
-        <HeartHandshake className={styles.brandIcon} size={24} />
+        <div className={styles.brandIconWrapper}>
+          <HeartHandshake size={18} />
+        </div>
         <span className={styles.brandText}>{t('siteName')}</span>
       </Link>
 
       <div className={styles.rightActions}>
         <button
           onClick={toggleLanguage}
-          className={styles.iconBtn}
+          className={styles.langPill}
           title={t('language')}
           aria-label={t('language')}
         >
-          <span className={styles.langLabel}>
-            {locale === 'bn' ? 'EN' : 'বাং'}
-          </span>
+          <Globe size={13} />
+          <span>{locale === 'bn' ? 'EN' : 'বাং'}</span>
         </button>
 
-        <Link href="/portal/notifications" className={styles.iconBtn} aria-label="Notifications">
-          <Bell size={20} />
+        <Link
+          href="/portal"
+          className={styles.iconBtn}
+          aria-label="Notifications"
+        >
+          <Bell size={18} />
+          <span className={styles.notificationDot} />
         </Link>
 
-        <Link href="/login" className={styles.iconBtn} aria-label="Account">
-          <User size={20} />
+        <Link
+          href="/login"
+          className={`${styles.iconBtn} ${styles.profileBtn}`}
+          aria-label="Account"
+        >
+          <User size={18} />
         </Link>
       </div>
     </header>
   );
 }
+

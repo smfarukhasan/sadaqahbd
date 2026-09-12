@@ -22,7 +22,10 @@ export default function BottomNav() {
         href="/"
         className={`${styles.tab} ${isActive('/') ? styles.tabActive : ''}`}
       >
-        <Home size={22} />
+        <div className={styles.iconContainer}>
+          <Home size={21} />
+          {isActive('/') && <span className={styles.activeDot} />}
+        </div>
         <span className={styles.tabLabel}>{navT('home')}</span>
       </Link>
 
@@ -30,25 +33,32 @@ export default function BottomNav() {
         href="/posts"
         className={`${styles.tab} ${isActive('/posts') ? styles.tabActive : ''}`}
       >
-        <FileText size={22} />
+        <div className={styles.iconContainer}>
+          <FileText size={21} />
+          {isActive('/posts') && <span className={styles.activeDot} />}
+        </div>
         <span className={styles.tabLabel}>{navT('posts')}</span>
       </Link>
 
+      {/* Floating Center Donate Action */}
       <Link
         href="/donate"
-        className={`${styles.tab} ${styles.donateHighlight} ${isActive('/donate') ? styles.tabActive : ''}`}
+        className={`${styles.tab} ${styles.donateHighlight}`}
       >
         <div className={styles.donateIconWrapper}>
-          <Heart size={24} />
+          <Heart size={22} className={styles.heartPulse} />
         </div>
-        <span className={styles.tabLabel}>{navT('donate')}</span>
+        <span className={styles.donateLabel}>{navT('donate')}</span>
       </Link>
 
       <Link
         href="/ledger"
         className={`${styles.tab} ${isActive('/ledger') ? styles.tabActive : ''}`}
       >
-        <BarChart3 size={22} />
+        <div className={styles.iconContainer}>
+          <BarChart3 size={21} />
+          {isActive('/ledger') && <span className={styles.activeDot} />}
+        </div>
         <span className={styles.tabLabel}>{navT('ledger')}</span>
       </Link>
 
@@ -56,9 +66,13 @@ export default function BottomNav() {
         href="/portal"
         className={`${styles.tab} ${isActive('/portal') ? styles.tabActive : ''}`}
       >
-        <User size={22} />
+        <div className={styles.iconContainer}>
+          <User size={21} />
+          {isActive('/portal') && <span className={styles.activeDot} />}
+        </div>
         <span className={styles.tabLabel}>{navT('portal')}</span>
       </Link>
     </nav>
   );
 }
+
