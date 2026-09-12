@@ -154,285 +154,312 @@ export default function LoginPage() {
   return (
     <div className={styles.wrapper}>
       <div className={styles.card}>
-        {/* Role Selection Category Cards */}
-        <div className={styles.roleSection}>
-          <div className={styles.roleSectionHeader}>
-            <h2 className={styles.roleSectionTitle}>
-              {t('roleSelectionTitle')}
-            </h2>
-            <p className={styles.roleSectionSubtitle}>
-              {t('roleSelectionSubtitle')}
-            </p>
+        <div className={styles.loginLayout}>
+          {/* Left Column: Role Selection & Information */}
+          <div className={styles.roleCol}>
+            <div className={styles.roleSectionHeader}>
+              <h2 className={styles.roleSectionTitle}>
+                {t('roleSelectionTitle')}
+              </h2>
+              <p className={styles.roleSectionSubtitle}>
+                {t('roleSelectionSubtitle')}
+              </p>
+            </div>
+
+            <div className={styles.categoryGrid}>
+              {/* Category 1: Donor */}
+              <div
+                className={`${styles.categoryCard} ${
+                  activeCategory === 'donor' ? styles.categoryCardActive : ''
+                }`}
+                onClick={() => handleCategorySelect('donor')}
+              >
+                <div className={styles.categoryIcon}>
+                  <HeartHandshake size={24} />
+                </div>
+                <span className={styles.categoryNumber}>গ্রুপ ১</span>
+                <span className={styles.categoryTitle}>
+                  {t('categoryDonor')}
+                </span>
+                <span className={styles.categorySub}>
+                  {t('categoryDonorSub')}
+                </span>
+              </div>
+
+              {/* Category 2: Institutional (Student, Teacher, Org) */}
+              <div
+                className={`${styles.categoryCard} ${
+                  activeCategory === 'institutional'
+                    ? styles.categoryCardActive
+                    : ''
+                }`}
+                onClick={() => handleCategorySelect('institutional')}
+              >
+                <div className={styles.categoryIcon}>
+                  <GraduationCap size={24} />
+                </div>
+                <span className={styles.categoryNumber}>গ্রুপ ২</span>
+                <span className={styles.categoryTitle}>
+                  {t('categoryInstitutional')}
+                </span>
+                <span className={styles.categorySub}>
+                  {t('categoryInstitutionalSub')}
+                </span>
+              </div>
+
+              {/* Category 3: Admin & Super Admin */}
+              <div
+                className={`${styles.categoryCard} ${
+                  activeCategory === 'admin' ? styles.categoryCardActive : ''
+                }`}
+                onClick={() => handleCategorySelect('admin')}
+              >
+                <div className={styles.categoryIcon}>
+                  <ShieldCheck size={24} />
+                </div>
+                <span className={styles.categoryNumber}>গ্রুপ ৩</span>
+                <span className={styles.categoryTitle}>
+                  {t('categoryAdmin')}
+                </span>
+                <span className={styles.categorySub}>
+                  {t('categoryAdminSub')}
+                </span>
+              </div>
+            </div>
+
+            {/* Subrole Selectors */}
+            {activeCategory === 'institutional' && (
+              <div className={styles.subRoleWrapper}>
+                <span className={styles.subRoleLabel}>
+                  সুনির্দিষ্ট প্রাতিষ্ঠানিক ভূমিকা নির্বাচন করুন:
+                </span>
+                <div className={styles.subRoleChips}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRole('student')}
+                    className={`${styles.subRoleChip} ${
+                      selectedRole === 'student' ? styles.subRoleChipActive : ''
+                    }`}
+                  >
+                    {t('roleStudent')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRole('teacher')}
+                    className={`${styles.subRoleChip} ${
+                      selectedRole === 'teacher' ? styles.subRoleChipActive : ''
+                    }`}
+                  >
+                    {t('roleTeacher')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRole('organization')}
+                    className={`${styles.subRoleChip} ${
+                      selectedRole === 'organization'
+                        ? styles.subRoleChipActive
+                        : ''
+                    }`}
+                  >
+                    {t('roleOrganization')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeCategory === 'admin' && (
+              <div className={styles.subRoleWrapper}>
+                <span className={styles.subRoleLabel}>
+                  প্রশাসনিক পদবি নির্বাচন করুন:
+                </span>
+                <div className={styles.subRoleChips}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRole('admin')}
+                    className={`${styles.subRoleChip} ${
+                      selectedRole === 'admin' ? styles.subRoleChipActive : ''
+                    }`}
+                  >
+                    {t('roleAdmin')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRole('super_admin')}
+                    className={`${styles.subRoleChip} ${
+                      selectedRole === 'super_admin'
+                        ? styles.subRoleChipActive
+                        : ''
+                    }`}
+                  >
+                    {t('roleSuperAdmin')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Role Features & Security Overview Card */}
+            <div className={styles.roleOverviewCard}>
+              <div className={styles.roleOverviewHeader}>
+                <ShieldCheck size={18} className={styles.roleOverviewIcon} />
+                <span className={styles.roleOverviewTitle}>
+                  {getRoleLabel(selectedRole)} হিসেবে সুবিধা ও নিয়মাবলী
+                </span>
+              </div>
+              <p className={styles.roleOverviewText}>
+                {selectedRole === 'donor' &&
+                  'আপনি সরাসরি শিক্ষার্থীদের যাচাইকৃত পোস্ট পর্যালোচনা করে ব্যক্তিগতভাবে অথবা র্যান্ডম ফান্ডে অনুদান প্রদান করতে পারবেন। ১০০% টাকা সরাসরি শিক্ষার্থীর একাউন্টে যাবে।'}
+                {selectedRole === 'student' &&
+                  'পড়াশোনার আর্থিক সংকট, সেমিস্টার ফি ও মেস খরচের বিবরণ দিয়ে পোস্ট দিতে পারবেন। আপনার পোস্টটি সংশ্লিষ্ট শিক্ষক ও প্রতিষ্ঠান কর্তৃক ভেরিফিকেশন সাপেক্ষে লাইভ হবে।'}
+                {selectedRole === 'teacher' &&
+                  'আপনার প্রতিষ্ঠানের অস্বচ্ছল শিক্ষার্থীদের আর্থিক অসচ্ছলতা যাচাই ও তাদের আবেদনের সত্যতা প্রত্যায়ন করার ক্ষমতা থাকবে।'}
+                {selectedRole === 'organization' &&
+                  'শিক্ষা প্রতিষ্ঠান (মাদ্রাসা, স্কুল, কলেজ) হিসেবে আপনার প্রতিষ্ঠানের শিক্ষার্থী ও শিক্ষকদের ভেরিফিকেশন রিকোয়েস্ট ম্যানেজ করতে পারবেন।'}
+                {(selectedRole === 'admin' || selectedRole === 'super_admin') &&
+                  'প্ল্যাটফর্ম পরিচালনা, নতুন প্রতিষ্ঠান অনুমোদন, ভেরিফিকেশন রিকোয়েস্ট যাচাই এবং সার্বিক স্বচ্ছতা তদারকি করার সুরক্ষিত অ্যাক্সেস।'}
+              </p>
+            </div>
           </div>
 
-          <div className={styles.categoryGrid}>
-            {/* Category 1: Donor */}
-            <div
-              className={`${styles.categoryCard} ${
-                activeCategory === 'donor' ? styles.categoryCardActive : ''
-              }`}
-              onClick={() => handleCategorySelect('donor')}
+          {/* Right Column: Authentication Form */}
+          <div className={styles.authCol}>
+            {/* Selected Role Summary Indicator */}
+            <div className={styles.selectedSummary}>
+              <span className={styles.selectedSummaryLabel}>
+                {t('selectedRoleInfo')}:
+              </span>
+              <span className={styles.selectedSummaryRole}>
+                {getRoleLabel(selectedRole)}
+              </span>
+            </div>
+
+            {/* Tab Headers (Login vs Register) */}
+            <div className={styles.tabHeader}>
+              <button
+                onClick={() => setIsRegister(false)}
+                className={`${styles.tabBtn} ${
+                  !isRegister ? styles.tabActive : ''
+                }`}
+              >
+                {t('loginTitle')}
+              </button>
+              <button
+                onClick={() => setIsRegister(true)}
+                className={`${styles.tabBtn} ${
+                  isRegister ? styles.tabActive : ''
+                }`}
+              >
+                {t('registerTitle')}
+              </button>
+            </div>
+
+            {error && (
+              <div className={styles.errorBox}>
+                <AlertCircle size={18} />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {/* 1. Google 1-Click Login Button with Role Indicator */}
+            <button
+              onClick={handleGoogleSignIn}
+              disabled={loading}
+              className={styles.googleBtn}
             >
-              <div className={styles.categoryIcon}>
-                <HeartHandshake size={20} />
-              </div>
-              <span className={styles.categoryNumber}>গ্রুপ ১</span>
-              <span className={styles.categoryTitle}>
-                {t('categoryDonor')}
+              <svg width="20" height="20" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                />
+              </svg>
+              <span>
+                {t('googleLoginAs', { role: getRoleLabel(selectedRole) })}
               </span>
-              <span className={styles.categorySub}>
-                {t('categoryDonorSub')}
-              </span>
+            </button>
+
+            <div className={styles.divider}>
+              <span>{t('orWithEmail')}</span>
             </div>
 
-            {/* Category 2: Institutional (Student, Teacher, Org) */}
-            <div
-              className={`${styles.categoryCard} ${
-                activeCategory === 'institutional'
-                  ? styles.categoryCardActive
-                  : ''
-              }`}
-              onClick={() => handleCategorySelect('institutional')}
-            >
-              <div className={styles.categoryIcon}>
-                <GraduationCap size={20} />
-              </div>
-              <span className={styles.categoryNumber}>গ্রুপ ২</span>
-              <span className={styles.categoryTitle}>
-                {t('categoryInstitutional')}
-              </span>
-              <span className={styles.categorySub}>
-                {t('categoryInstitutionalSub')}
-              </span>
-            </div>
+            {/* 2. Email & Password Form */}
+            <form onSubmit={handleEmailAuth} className={styles.form}>
+              {isRegister && (
+                <>
+                  <div className={styles.field}>
+                    <label>{t('fullNameLabel')}</label>
+                    <input
+                      type="text"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="আপনার পূর্ণ নাম"
+                    />
+                  </div>
 
-            {/* Category 3: Admin & Super Admin */}
-            <div
-              className={`${styles.categoryCard} ${
-                activeCategory === 'admin' ? styles.categoryCardActive : ''
-              }`}
-              onClick={() => handleCategorySelect('admin')}
-            >
-              <div className={styles.categoryIcon}>
-                <ShieldCheck size={20} />
-              </div>
-              <span className={styles.categoryNumber}>গ্রুপ ৩</span>
-              <span className={styles.categoryTitle}>
-                {t('categoryAdmin')}
-              </span>
-              <span className={styles.categorySub}>
-                {t('categoryAdminSub')}
-              </span>
-            </div>
-          </div>
+                  <div className={styles.field}>
+                    <label>{t('phoneLabel')}</label>
+                    <input
+                      type="tel"
+                      required
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+8801XXXXXXXXX"
+                    />
+                  </div>
+                </>
+              )}
 
-          {/* Subrole Selectors */}
-          {activeCategory === 'institutional' && (
-            <div className={styles.subRoleWrapper}>
-              <span className={styles.subRoleLabel}>
-                সুনির্দিষ্ট প্রাতিষ্ঠানিক ভূমিকা নির্বাচন করুন:
-              </span>
-              <div className={styles.subRoleChips}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('student')}
-                  className={`${styles.subRoleChip} ${
-                    selectedRole === 'student' ? styles.subRoleChipActive : ''
-                  }`}
-                >
-                  {t('roleStudent')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('teacher')}
-                  className={`${styles.subRoleChip} ${
-                    selectedRole === 'teacher' ? styles.subRoleChipActive : ''
-                  }`}
-                >
-                  {t('roleTeacher')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('organization')}
-                  className={`${styles.subRoleChip} ${
-                    selectedRole === 'organization'
-                      ? styles.subRoleChipActive
-                      : ''
-                  }`}
-                >
-                  {t('roleOrganization')}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {activeCategory === 'admin' && (
-            <div className={styles.subRoleWrapper}>
-              <span className={styles.subRoleLabel}>
-                প্রশাসনিক পদবি নির্বাচন করুন:
-              </span>
-              <div className={styles.subRoleChips}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('admin')}
-                  className={`${styles.subRoleChip} ${
-                    selectedRole === 'admin' ? styles.subRoleChipActive : ''
-                  }`}
-                >
-                  {t('roleAdmin')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('super_admin')}
-                  className={`${styles.subRoleChip} ${
-                    selectedRole === 'super_admin'
-                      ? styles.subRoleChipActive
-                      : ''
-                  }`}
-                >
-                  {t('roleSuperAdmin')}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Selected Role Summary Indicator */}
-          <div className={styles.selectedSummary}>
-            <span className={styles.selectedSummaryLabel}>
-              {t('selectedRoleInfo')}:
-            </span>
-            <span className={styles.selectedSummaryRole}>
-              {getRoleLabel(selectedRole)}
-            </span>
-          </div>
-        </div>
-
-        {/* Tab Headers (Login vs Register) */}
-        <div className={styles.tabHeader}>
-          <button
-            onClick={() => setIsRegister(false)}
-            className={`${styles.tabBtn} ${
-              !isRegister ? styles.tabActive : ''
-            }`}
-          >
-            {t('loginTitle')}
-          </button>
-          <button
-            onClick={() => setIsRegister(true)}
-            className={`${styles.tabBtn} ${
-              isRegister ? styles.tabActive : ''
-            }`}
-          >
-            {t('registerTitle')}
-          </button>
-        </div>
-
-        {error && (
-          <div className={styles.errorBox}>
-            <AlertCircle size={18} />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* 1. Google 1-Click Login Button with Role Indicator */}
-        <button
-          onClick={handleGoogleSignIn}
-          disabled={loading}
-          className={styles.googleBtn}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24">
-            <path
-              fill="#4285F4"
-              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-            />
-            <path
-              fill="#34A853"
-              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-            />
-            <path
-              fill="#EA4335"
-              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-            />
-          </svg>
-          <span>
-            {t('googleLoginAs', { role: getRoleLabel(selectedRole) })}
-          </span>
-        </button>
-
-        <div className={styles.divider}>
-          <span>{t('orWithEmail')}</span>
-        </div>
-
-        {/* 2. Email & Password Form */}
-        <form onSubmit={handleEmailAuth} className={styles.form}>
-          {isRegister && (
-            <>
               <div className={styles.field}>
-                <label>{t('fullNameLabel')}</label>
+                <label>{t('emailLabel')}</label>
                 <input
-                  type="text"
+                  type="email"
                   required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="আপনার পূর্ণ নাম"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="example@mail.com"
                 />
               </div>
 
               <div className={styles.field}>
-                <label>{t('phoneLabel')}</label>
+                <label>{t('passwordLabel')}</label>
                 <input
-                  type="tel"
+                  type="password"
                   required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+8801XXXXXXXXX"
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
                 />
               </div>
-            </>
-          )}
 
-          <div className={styles.field}>
-            <label>{t('emailLabel')}</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="example@mail.com"
-            />
+              <button
+                type="submit"
+                disabled={loading}
+                className={styles.submitBtn}
+              >
+                {isRegister ? <UserPlus size={18} /> : <LogIn size={18} />}
+                <span>
+                  {loading
+                    ? commonT('loading')
+                    : isRegister
+                    ? `${t('registerTitle')} (${getRoleLabel(selectedRole)})`
+                    : `${t('loginTitle')} (${getRoleLabel(selectedRole)})`}
+                </span>
+              </button>
+            </form>
           </div>
-
-          <div className={styles.field}>
-            <label>{t('passwordLabel')}</label>
-            <input
-              type="password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className={styles.submitBtn}
-          >
-            {isRegister ? <UserPlus size={18} /> : <LogIn size={18} />}
-            <span>
-              {loading
-                ? commonT('loading')
-                : isRegister
-                ? `${t('registerTitle')} (${getRoleLabel(selectedRole)})`
-                : `${t('loginTitle')} (${getRoleLabel(selectedRole)})`}
-            </span>
-          </button>
-        </form>
+        </div>
       </div>
     </div>
   );
