@@ -1,5 +1,5 @@
 import { db, users, userPermissions } from './index';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { PermissionModuleKey, UserRole } from '@sadaqahbd/schema';
 
 export async function seedMasterAdmin() {
@@ -12,7 +12,7 @@ export async function seedMasterAdmin() {
     .where(eq(users.email, masterEmail))
     .limit(1);
 
-  let masterUserId = 'master-admin-0000-0000-0000-000000000001';
+  let masterUserId = '00000000-0000-0000-0000-000000000001';
 
   if (existing.length === 0) {
     await db.insert(users).values({
@@ -38,7 +38,12 @@ export async function seedMasterAdmin() {
     const existingPerm = await db
       .select()
       .from(userPermissions)
-      .where(eq(userPermissions.userId, masterUserId))
+      .where(
+        and(
+          eq(userPermissions.userId, masterUserId),
+          eq(userPermissions.moduleKey, moduleKey)
+        )
+      )
       .limit(1);
 
     if (existingPerm.length === 0) {
