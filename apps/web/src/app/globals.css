@@ -140,14 +140,21 @@ button {
   }
 }
 
-/* Container */
+/* Container (Expanded for wide & large screens) */
 .container {
   width: 100%;
-  max-width: 1240px;
+  max-width: 1560px;
   margin-left: auto;
   margin-right: auto;
-  padding-left: 1.25rem;
-  padding-right: 1.25rem;
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+@media (max-width: 1024px) {
+  .container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
 }
 
 @media (max-width: 640px) {
