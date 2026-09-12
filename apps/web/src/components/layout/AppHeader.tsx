@@ -40,7 +40,7 @@ export default function AppHeader() {
           <Bell size={20} />
         </Link>
 
-        <Link href="/auth/login" className={styles.iconBtn} aria-label="Account">
+        <Link href="/login" className={styles.iconBtn} aria-label="Account">
           <User size={20} />
         </Link>
       </div>

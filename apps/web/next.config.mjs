@@ -15,6 +15,20 @@ const nextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: '/:locale/auth/login',
+        destination: '/:locale/login',
+        permanent: false,
+      },
+      {
+        source: '/:locale/auth/set-password',
+        destination: '/:locale/set-password',
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default withNextIntl(nextConfig);

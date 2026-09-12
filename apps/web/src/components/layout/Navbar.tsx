@@ -51,7 +51,7 @@ export default function Navbar() {
             <span>{locale === 'bn' ? 'English' : 'বাংলা'}</span>
           </button>
 
-          <Link href="/auth/login" className={styles.loginBtn}>
+          <Link href="/login" className={styles.loginBtn}>
             <User size={18} />
             <span>{t('login')}</span>
           </Link>

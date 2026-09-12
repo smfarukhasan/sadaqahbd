@@ -28,7 +28,7 @@ export default function LoginPage() {
       const user = await loginWithGoogle();
       // Check backend profile sync
       // If first-time google user, forward to set password
-      router.push('/auth/set-password');
+      router.push('/set-password');
     } catch (err: any) {
       setError(err.message || 'গুগল লগইনে সমস্যা হয়েছে');
       setLoading(false);
