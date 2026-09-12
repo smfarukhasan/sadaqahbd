@@ -88,3 +88,19 @@ export const OrganizationProfileSchema = z.object({
 export type OrganizationProfileInput = z.infer<
   typeof OrganizationProfileSchema
 >;
+
+export const SyncProfileSchema = z.object({
+  role: z
+    .enum([
+      UserRole.MASTER_ADMIN,
+      UserRole.SUPER_ADMIN,
+      UserRole.ADMIN,
+      UserRole.ORGANIZATION,
+      UserRole.TEACHER,
+      UserRole.STUDENT,
+      UserRole.DONOR,
+    ])
+    .optional(),
+});
+
+export type SyncProfileInput = z.infer<typeof SyncProfileSchema>;

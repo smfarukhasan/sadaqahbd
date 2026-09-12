@@ -8,7 +8,7 @@
 
 .card {
   width: 100%;
-  max-width: 460px;
+  max-width: 540px;
   background-color: var(--surface);
   border: 1px solid var(--surface-border);
   border-radius: var(--radius-lg);
@@ -16,12 +16,176 @@
   box-shadow: var(--shadow-md);
 }
 
+.roleSection {
+  margin-bottom: 1.75rem;
+}
+
+.roleSectionHeader {
+  margin-bottom: 0.85rem;
+}
+
+.roleSectionTitle {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 0.25rem;
+}
+
+.roleSectionSubtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.categoryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .categoryGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.categoryCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0.85rem 0.5rem;
+  background-color: var(--background);
+  border: 2px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.categoryCard:hover {
+  border-color: var(--text-subtle);
+  transform: translateY(-1px);
+}
+
+.categoryCardActive {
+  border-color: var(--primary);
+  background-color: rgba(16, 185, 129, 0.06);
+}
+
+.categoryIcon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background-color: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+  color: var(--text-muted);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.categoryCardActive .categoryIcon {
+  background-color: var(--primary);
+  color: #ffffff;
+}
+
+.categoryNumber {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 0.2rem;
+  text-transform: uppercase;
+}
+
+.categoryTitle {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.25;
+}
+
+.categorySub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 0.35rem;
+  line-height: 1.2;
+}
+
+.subRoleWrapper {
+  margin-top: 0.65rem;
+  padding: 0.75rem;
+  background-color: var(--background);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--surface-border);
+}
+
+.subRoleLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.subRoleChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.subRoleChip {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  background-color: var(--surface);
+  border: 1px solid var(--surface-border);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.subRoleChip:hover {
+  border-color: var(--primary);
+}
+
+.subRoleChipActive {
+  background-color: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.selectedSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.85rem;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.selectedSummaryLabel {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.selectedSummaryRole {
+  color: var(--primary-dark, #065f46);
+  font-weight: 700;
+}
+
 .tabHeader {
   display: flex;
   background-color: var(--background);
   border-radius: var(--radius-md);
   padding: 4px;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
 }
 
 .tabBtn {

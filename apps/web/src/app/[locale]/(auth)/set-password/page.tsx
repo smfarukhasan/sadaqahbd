@@ -31,12 +31,28 @@ export default function SetPasswordPage() {
     setError('');
 
     try {
-      // Calls API /auth/set-password
-      // Simulated response for client interaction:
-      setTimeout(() => {
-        setLoading(false);
-        router.push('/');
-      }, 800);
+      const { auth } = await import('../../../../lib/firebase');
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        const token = await currentUser.getIdToken();
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+        const res = await fetch(`${apiUrl}/auth/set-password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ password, confirmPassword }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(
+            errData.message || 'পাসওয়ার্ড সংরক্ষণ করতে সমস্যা হয়েছে'
+          );
+        }
+      }
+      router.push('/');
     } catch (err: any) {
       setError(err.message || 'পাসওয়ার্ড সেট করতে সমস্যা হয়েছে');
       setLoading(false);

@@ -22,7 +22,7 @@ export class AuthService {
     private readonly firebaseAdmin: FirebaseAdminService
   ) {}
 
-  async syncProfile(decodedToken: any) {
+  async syncProfile(decodedToken: any, requestedRole?: string) {
     const email = decodedToken.email;
     const uid = decodedToken.uid;
 
@@ -77,6 +77,30 @@ export class AuthService {
       ? 'master-admin-0000-0000-0000-000000000001'
       : crypto.randomUUID();
 
+    // Determine initial role
+    let assignedRole: any = UserRole.DONOR;
+    if (isMaster) {
+      assignedRole = UserRole.MASTER_ADMIN;
+    } else if (
+      requestedRole &&
+      [
+        UserRole.DONOR,
+        UserRole.STUDENT,
+        UserRole.TEACHER,
+        UserRole.ORGANIZATION,
+        UserRole.ADMIN,
+        UserRole.SUPER_ADMIN,
+      ].includes(requestedRole as any)
+    ) {
+      assignedRole = requestedRole;
+    }
+
+    // Role-based status:
+    // Donors are active immediately.
+    // Students, Teachers, Organizations, and Admins are 'pending' until verified/approved
+    const initialStatus =
+      isMaster || assignedRole === UserRole.DONOR ? 'active' : 'pending';
+
     // If Google login without prior password, isPasswordSet is false
     const isPasswordSet =
       decodedToken.firebase?.sign_in_provider === 'password';
@@ -86,8 +110,8 @@ export class AuthService {
       firebaseUid: uid,
       email,
       fullName: decodedToken.name || email.split('@')[0],
-      role: isMaster ? UserRole.MASTER_ADMIN : UserRole.DONOR,
-      status: 'active',
+      role: assignedRole,
+      status: initialStatus,
       isPasswordSet,
       mustChangePassword: false,
     });

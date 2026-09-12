@@ -26,13 +26,16 @@ export class AuthController {
   ) {}
 
   @Post('sync-profile')
-  async syncProfile(@Headers('authorization') authHeader: string) {
+  async syncProfile(
+    @Headers('authorization') authHeader: string,
+    @Body() body?: { role?: string }
+  ) {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new UnauthorizedException('Missing bearer token');
     }
     const token = authHeader.split('Bearer ')[1].trim();
     const decoded = await this.firebaseAdmin.verifyIdToken(token);
-    return this.authService.syncProfile(decoded);
+    return this.authService.syncProfile(decoded, body?.role);
   }
 
   @Get('me')
