@@ -8,6 +8,8 @@ import { PostsModule } from './modules/posts/posts.module';
 import { DonationsModule } from './modules/donations/donations.module';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { MasterAdminModule } from './modules/masteradmin/masteradmin.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { MasterAdminModule } from './modules/masteradmin/masteradmin.module';
     DonationsModule,
     ComplaintsModule,
     MasterAdminModule,
+    NotificationsModule,
+    OrganizationsModule,
   ],
 })
 export class AppModule {}

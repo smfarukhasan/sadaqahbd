@@ -1,9 +1,10 @@
 .footer {
-  background-color: var(--surface);
-  border-top: 1px solid var(--surface-border);
-  margin-top: 4rem;
-  padding-top: 3.5rem;
-  padding-bottom: 2rem;
+  background: #0b1320;
+  color: #94a3b8;
+  border-top: 1px solid #1e293b;
+  margin-top: 5rem;
+  padding-top: 4.5rem;
+  padding-bottom: 2.5rem;
 }
 
 .footerContainer {
@@ -14,65 +15,79 @@
 .grid {
   display: grid;
   grid-template-columns: 2fr 1fr 1.2fr 1.5fr;
-  gap: 2.5rem;
-  margin-bottom: 3rem;
+  gap: 3rem;
+  margin-bottom: 3.5rem;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 2.5rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
 }
 
 .colBrand {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.85rem;
   text-decoration: none;
 }
 
 .brandIconWrapper {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #0d9488 0%, #059669 100%);
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
-  box-shadow: 0 4px 12px -2px rgba(13, 148, 136, 0.35);
+  box-shadow: 0 4px 14px -2px rgba(5, 150, 105, 0.4);
 }
 
 .brandTitle {
-  font-size: 1.35rem;
+  font-size: 1.45rem;
   font-weight: 800;
-  color: var(--text-main);
+  color: #ffffff;
   letter-spacing: -0.02em;
 }
 
 .brandDesc {
-  font-size: 0.88rem;
-  color: var(--text-muted);
-  line-height: 1.6;
-  max-width: 340px;
+  font-size: 0.9rem;
+  color: #94a3b8;
+  line-height: 1.65;
+  max-width: 360px;
 }
 
 .trustPill {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.45rem 0.85rem;
-  background-color: rgba(13, 148, 136, 0.08);
-  border: 1px solid rgba(13, 148, 136, 0.2);
+  padding: 0.5rem 0.95rem;
+  background-color: rgba(5, 150, 105, 0.12);
+  border: 1px solid rgba(5, 150, 105, 0.3);
   border-radius: var(--radius-full);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  color: var(--primary-dark);
+  color: #34d399;
   width: fit-content;
 }
 
 .trustIcon {
-  color: var(--primary);
+  color: #34d399;
 }
 
 .col {
@@ -81,9 +96,9 @@
 }
 
 .colTitle {
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 700;
-  color: var(--text-main);
+  color: #f8fafc;
   margin-bottom: 1.25rem;
   letter-spacing: -0.01em;
 }
@@ -92,56 +107,68 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.75rem;
 }
 
 .link {
-  font-size: 0.88rem;
-  color: var(--text-muted);
-  transition: color 0.15s ease;
+  font-size: 0.9rem;
+  color: #94a3b8;
+  transition: all 0.2s ease;
 }
 
 .link:hover {
-  color: var(--primary);
+  color: #34d399;
+  transform: translateX(3px);
 }
 
 .guaranteeBox {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  background-color: var(--background);
-  padding: 1rem;
+  gap: 0.85rem;
+  background-color: #111a28;
+  padding: 1.25rem;
   border-radius: var(--radius-md);
-  border: 1px solid var(--surface-border-subtle);
+  border: 1px solid #1e293b;
 }
 
 .guaranteeItem {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  line-height: 1.4;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  line-height: 1.45;
 }
 
 .checkIcon {
-  color: var(--primary);
+  color: #34d399;
   flex-shrink: 0;
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
 .bottomBar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 1.75rem;
-  border-top: 1px solid var(--surface-border);
-  font-size: 0.82rem;
-  color: var(--text-muted);
+  padding-top: 2rem;
+  border-top: 1px solid #1e293b;
+  font-size: 0.85rem;
+  color: #64748b;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .bottomLinks {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1.25rem;
+}
+
+.bottomLink {
+  color: #94a3b8;
+  transition: color 0.2s ease;
+}
+
+.bottomLink:hover {
+  color: #34d399;
 }

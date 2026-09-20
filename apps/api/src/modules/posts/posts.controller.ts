@@ -26,6 +26,34 @@ export class PostsController {
     return this.postsService.listPublicVerifiedPosts();
   }
 
+  @Get('pending-approvals')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async listPendingApprovals() {
+    return this.postsService.listPendingSuperAdminPosts();
+  }
+
+  @Get('my-posts')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(UserRole.STUDENT, UserRole.MASTER_ADMIN)
+  async listMyPosts(@CurrentUser() user: any) {
+    return this.postsService.listStudentMyPosts(user);
+  }
+
+  @Get('teacher-pending')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(UserRole.TEACHER, UserRole.MASTER_ADMIN)
+  async listTeacherPending(@CurrentUser() user: any) {
+    return this.postsService.listTeacherPendingPosts(user);
+  }
+
+  @Get('org-pending')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(UserRole.ORGANIZATION, UserRole.MASTER_ADMIN)
+  async listOrgPending(@CurrentUser() user: any) {
+    return this.postsService.listOrgPendingPosts(user);
+  }
+
   @Get(':id')
   async getDetails(@Param('id') id: string) {
     return this.postsService.getPostDetails(id);

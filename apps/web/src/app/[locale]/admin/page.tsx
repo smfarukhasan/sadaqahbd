@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useTranslations } from 'next-intl';
+import React, { useState, useEffect } from 'react';
+import { useTranslations, useLocale } from 'next-intl';
+import Link from 'next/link';
+import { useRouter } from '@/i18n/routing';
 import {
   ShieldAlert,
   Users,
@@ -15,67 +17,329 @@ import {
   Trash2,
   Edit,
   FileCheck,
-  HelpCircle,
   AlertTriangle,
+  Menu,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  ShieldCheck,
+  Globe,
+  ArrowUpRight,
+  SlidersHorizontal,
+  RefreshCw,
+  LogOut,
+  User,
+  UserCheck,
+  UserX,
+  Search,
+  Lock,
 } from 'lucide-react';
 import {
   PermissionModuleKey,
   UserRole,
   ModulePermission,
 } from '@sadaqahbd/schema';
+import { useAuthStore, getRoleDashboardPath } from '@/lib/auth-store';
+import { auth } from '@/lib/firebase';
+import { getAuthToken } from '@/lib/auth-token';
+import { getApiUrl } from '@/lib/api-config';
+import PanelHeader from '@/components/layout/PanelHeader';
+import UserMenuDropdown from '@/components/profile/UserMenuDropdown';
+import AdminNotificationDropdown from '@/components/layout/AdminNotificationDropdown';
+import styles from './admin.module.css';
 
-// Mock active user (in production, populated via AuthContext / Firebase token claim)
-const currentAdminUser: {
-  id: string;
-  fullName: string;
-  role: string;
-  permissions: ModulePermission[];
-} = {
-  id: 'admin-current-user',
-  fullName: 'সুপার এডমিন ইউজার',
-  role: UserRole.SUPER_ADMIN,
-  // Simulated permissions granted to this admin:
-  permissions: [
-    { moduleKey: PermissionModuleKey.SUPER_ADMIN_LIST, canView: true, canEdit: true, canDelete: true, canApprove: true },
-    { moduleKey: PermissionModuleKey.ADMIN_LIST, canView: true, canEdit: true, canDelete: true, canApprove: true },
-    { moduleKey: PermissionModuleKey.ORG_VERIFICATION_REQUESTS, canView: true, canEdit: true, canDelete: true, canApprove: true },
-    { moduleKey: PermissionModuleKey.ORG_LIST, canView: true, canEdit: true, canDelete: true, canApprove: true },
-    { moduleKey: PermissionModuleKey.TEACHER_LIST, canView: true, canEdit: true, canDelete: false, canApprove: true },
-    { moduleKey: PermissionModuleKey.STUDENT_LIST, canView: true, canEdit: true, canDelete: false, canApprove: true },
-    { moduleKey: PermissionModuleKey.TEACHER_VERIFICATION_REQUESTS, canView: true, canEdit: false, canDelete: false, canApprove: true },
-    { moduleKey: PermissionModuleKey.STUDENT_VERIFICATION_REQUESTS, canView: true, canEdit: false, canDelete: false, canApprove: true },
-    { moduleKey: PermissionModuleKey.STUDENT_POST_VERIFICATION_REQUESTS, canView: true, canEdit: true, canDelete: true, canApprove: true },
-    { moduleKey: PermissionModuleKey.DONOR_PROFILE, canView: true, canEdit: false, canDelete: false, canApprove: false },
-    { moduleKey: PermissionModuleKey.ACCOUNTS_DONATION_APPROVAL, canView: true, canEdit: true, canDelete: false, canApprove: true },
-  ],
-};
+
+const ALL_MODULES = [
+  { key: PermissionModuleKey.SUPER_ADMIN_LIST, name: 'সুপার এডমিন তদারকি', nameEn: 'Super Admin Oversight', superAdminOnly: true },
+  { key: PermissionModuleKey.ADMIN_LIST, name: 'সাধারণ এডমিন ম্যানেজমেন্ট', nameEn: 'General Admin Management', superAdminOnly: true },
+  { key: PermissionModuleKey.ORG_VERIFICATION_REQUESTS, name: 'শিক্ষা প্রতিষ্ঠান অনুমোদন', nameEn: 'Institution Approvals', superAdminOnly: false },
+  { key: PermissionModuleKey.ORG_LIST, name: 'প্রতিষ্ঠান তালিকা', nameEn: 'Institution Directory', superAdminOnly: false },
+  { key: PermissionModuleKey.TEACHER_LIST, name: 'শিক্ষক তালিকা', nameEn: 'Teacher Directory', superAdminOnly: false },
+  { key: PermissionModuleKey.STUDENT_LIST, name: 'শিক্ষার্থী তালিকা', nameEn: 'Student Directory', superAdminOnly: false },
+  { key: PermissionModuleKey.STUDENT_POST_VERIFICATION_REQUESTS, name: 'শিক্ষার্থী পোস্ট ছাড়পত্র', nameEn: 'Student Campaign Clearances', superAdminOnly: false },
+  { key: PermissionModuleKey.ACCOUNTS_DONATION_APPROVAL, name: 'অ্যাকাউন্টস ও অনুদান অনুমোদন', nameEn: 'Accounts & Donation Approval', superAdminOnly: true },
+];
 
 export default function AdminDashboardPage() {
+  const locale = useLocale();
+  const isBn = locale === 'bn';
   const t = useTranslations('Admin');
   const tCommon = useTranslations('Common');
+  const user = useAuthStore((s) => s.user);
+  const loadingAuth = useAuthStore((s) => s.loading);
+  const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<string>('users');
-  const [activeSubTab, setActiveSubTab] = useState<string>('super_admins');
+  // Role Protection Guard
+  useEffect(() => {
+    if (!loadingAuth) {
+      if (!user) {
+        if (typeof window !== 'undefined') {
+          const stored = localStorage.getItem('sadaqahbd_master_admin');
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              if (parsed && (parsed.role === 'master_admin' || parsed.role === 'super_admin')) {
+                useAuthStore.getState().setUser(parsed);
+                return;
+              }
+            } catch {}
+          }
+        }
+        router.push('/login');
+      } else if (
+        user.role !== UserRole.MASTER_ADMIN &&
+        user.role !== UserRole.SUPER_ADMIN &&
+        user.role !== UserRole.ADMIN
+      ) {
+        router.replace(getRoleDashboardPath(user.role) as any);
+      }
+    }
+  }, [user, loadingAuth, router]);
 
-  // Confirmation Modal state for Accept / Reject
-  const [modalAction, setModalAction] = useState<{
+  // Active navigation view in drawer
+  const [activeNav, setActiveNav] = useState<string>('overview');
+
+  // Sidebar Drawer state (Desktop collapse & Mobile off-canvas)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
+
+  // Real Database Datasets (Zero Demo Data)
+  const [superAdmins, setSuperAdmins] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [userSearchTerm, setUserSearchTerm] = useState<string>('');
+  const [userRoleFilter, setUserRoleFilter] = useState<string>('all');
+  const [orgVerificationRequests, setOrgVerificationRequests] = useState<any[]>([]);
+  const [studentPostRequests, setStudentPostRequests] = useState<any[]>([]);
+  const [pendingDonations, setPendingDonations] = useState<any[]>([]);
+  const [donorsList, setDonorsList] = useState<any[]>([]);
+  const [loadingData, setLoadingData] = useState<boolean>(true);
+  const [actionLoading, setActionLoading] = useState<boolean>(false);
+  const [feedbackMsg, setFeedbackMsg] = useState<string>('');
+
+  // Action / Inspection Slide-Over Drawer State
+  const [actionDrawer, setActionDrawer] = useState<{
     isOpen: boolean;
-    type: 'accept' | 'reject';
-    targetId: string;
-    targetTitle: string;
+    type: 'org_review' | 'post_review' | 'donation_review' | 'add_super_admin' | 'affiliation_review' | 'edit_permissions';
+    itemData: any;
     reason: string;
   }>({
     isOpen: false,
-    type: 'accept',
-    targetId: '',
-    targetTitle: '',
+    type: 'org_review',
+    itemData: null,
     reason: '',
   });
 
-  // Check user permission helper
+  // Pending Teacher & Student Final Approvals (Stage 2)
+  const [adminPendingAffiliations, setAdminPendingAffiliations] = useState<{
+    teachers: any[];
+    students: any[];
+  }>({ teachers: [], students: [] });
+
+  // Create Super Admin / Admin Form State
+  const [newAdminRole, setNewAdminRole] = useState<'super_admin' | 'admin'>('super_admin');
+  const [newAdminName, setNewAdminName] = useState('');
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [newAdminPhone, setNewAdminPhone] = useState('');
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([
+    PermissionModuleKey.ORG_VERIFICATION_REQUESTS,
+    PermissionModuleKey.STUDENT_POST_VERIFICATION_REQUESTS,
+    PermissionModuleKey.ACCOUNTS_DONATION_APPROVAL,
+  ]);
+
+  const resetAdminForm = () => {
+    setNewAdminRole('super_admin');
+    setNewAdminName('');
+    setNewAdminEmail('');
+    setNewAdminPhone('');
+    setSelectedPermissions([
+      PermissionModuleKey.ORG_VERIFICATION_REQUESTS,
+      PermissionModuleKey.STUDENT_POST_VERIFICATION_REQUESTS,
+      PermissionModuleKey.ACCOUNTS_DONATION_APPROVAL,
+    ]);
+  };
+
+  // Edit Admin Permissions & Role State
+  const [editingAdmin, setEditingAdmin] = useState<any>(null);
+  const [editAdminRole, setEditAdminRole] = useState<'super_admin' | 'admin'>('super_admin');
+  const [editAdminPermissions, setEditAdminPermissions] = useState<string[]>([]);
+  const [isUpdatingPermissions, setIsUpdatingPermissions] = useState(false);
+
+  // Edit Organization Request State (allows Master/Super Admin to correct details prior to approving)
+  const [orgEditName, setOrgEditName] = useState('');
+  const [orgEditType, setOrgEditType] = useState('school');
+  const [orgEditRegNo, setOrgEditRegNo] = useState('');
+  const [orgEditContact, setOrgEditContact] = useState('');
+  const [orgEditPhone, setOrgEditPhone] = useState('');
+  const [orgEditEmail, setOrgEditEmail] = useState('');
+  const [orgEditAddress, setOrgEditAddress] = useState('');
+  const [orgEditDesc, setOrgEditDesc] = useState('');
+
+  const handleOpenOrgReview = (org: any) => {
+    setOrgEditName(org.name || '');
+    setOrgEditType(org.type || 'school');
+    setOrgEditRegNo(org.regNo || org.registrationNumber || '');
+    setOrgEditContact(org.contact || org.contactPerson || '');
+    setOrgEditPhone(org.phone || org.contactPhone || '');
+    setOrgEditEmail(org.email || '');
+    setOrgEditAddress(org.address || '');
+    setOrgEditDesc(org.description || '');
+    setActionDrawer({
+      isOpen: true,
+      type: 'org_review',
+      itemData: org,
+      reason: '',
+    });
+  };
+
+  const handleOpenEditPermissions = (adminUser: any) => {
+    setEditingAdmin(adminUser);
+    setEditAdminRole(adminUser.role === 'admin' ? 'admin' : 'super_admin');
+    const existingPermKeys = (adminUser.permissions || []).map((p: any) => p.moduleKey);
+    setEditAdminPermissions(existingPermKeys);
+    setActionDrawer({
+      isOpen: true,
+      type: 'edit_permissions',
+      itemData: adminUser,
+      reason: '',
+    });
+  };
+
+  const toggleEditPermission = (key: string) => {
+    if (editAdminPermissions.includes(key)) {
+      setEditAdminPermissions(editAdminPermissions.filter((k) => k !== key));
+    } else {
+      setEditAdminPermissions([...editAdminPermissions, key]);
+    }
+  };
+
+  const handleSaveAdminPermissions = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!editingAdmin) return;
+    setIsUpdatingPermissions(true);
+    const apiUrl = getApiUrl();
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${apiUrl}/masteradmin/super-admins/${editingAdmin.id}/permissions`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          role: editAdminRole,
+          moduleKeys: editAdminPermissions,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'পারমিশন আপডেট করতে সমস্যা হয়েছে');
+      }
+
+      setFeedbackMsg(
+        isBn
+          ? `"${editingAdmin.fullName || editingAdmin.name}"-এর পারমিশন ও রোল সফলভাবে আপডেট করা হয়েছে।`
+          : `Permissions for "${editingAdmin.fullName || editingAdmin.name}" updated successfully.`
+      );
+      setActionDrawer((prev) => ({ ...prev, isOpen: false }));
+      loadAdminData(true);
+    } catch (err: any) {
+      alert(err.message || 'Error updating permissions');
+    } finally {
+      setIsUpdatingPermissions(false);
+    }
+  };
+
+  // Load Real Data from Backend (isSilent = true prevents flicker on interval refresh)
+  const loadAdminData = async (isSilent = false) => {
+    if (!isSilent) setLoadingData(true);
+    const apiUrl = getApiUrl();
+
+    try {
+      const token = await getAuthToken();
+      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
+      // 1. Super Admins
+      try {
+        const res = await fetch(`${apiUrl}/masteradmin/super-admins`, { headers });
+        if (res.ok) {
+          setSuperAdmins(await res.json());
+        }
+      } catch (e) {}
+
+      // 2. All Users (Universal User Directory for Master Admin & authorized staff)
+      try {
+        const res = await fetch(`${apiUrl}/masteradmin/all-users`, { headers });
+        if (res.ok) {
+          setAllUsers(await res.json());
+        }
+      } catch (e) {}
+
+      // 3. Org Verification Requests
+      try {
+        const res = await fetch(`${apiUrl}/users/org-requests`, { headers });
+        if (res.ok) {
+          setOrgVerificationRequests(await res.json());
+        }
+      } catch (e) {}
+
+      // 4. Student Post Approvals
+      try {
+        const res = await fetch(`${apiUrl}/posts/pending-approvals`, { headers });
+        if (res.ok) {
+          setStudentPostRequests(await res.json());
+        }
+      } catch (e) {}
+
+      // 5. Pending Donations
+      try {
+        const res = await fetch(`${apiUrl}/donations/pending`, { headers });
+        if (res.ok) {
+          setPendingDonations(await res.json());
+        }
+      } catch (e) {}
+
+      // 6. Pending Teacher & Student Final Affiliations
+      try {
+        const res = await fetch(`${apiUrl}/users/pending-affiliations`, { headers });
+        if (res.ok) {
+          const affData = await res.json();
+          setAdminPendingAffiliations(affData || { teachers: [], students: [] });
+        }
+      } catch (e) {}
+
+      // 7. Donors List
+      try {
+        const res = await fetch(`${apiUrl}/users/by-role/donor`, { headers });
+        if (res.ok) {
+          setDonorsList(await res.json());
+        }
+      } catch (e) {}
+    } catch (err) {
+      console.error('Error fetching admin data:', err);
+    } finally {
+      if (!isSilent) setLoadingData(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAdminData(false);
+    if (typeof window !== 'undefined') {
+      const tabParam = new URLSearchParams(window.location.search).get('tab');
+      if (tabParam) {
+        setActiveNav(tabParam);
+      }
+    }
+  }, [user]);
+
+  // Permissions helper
   const getPermission = (key: string) => {
+    if (user?.role === UserRole.MASTER_ADMIN || user?.role === UserRole.SUPER_ADMIN) {
+      return { canView: true, canEdit: true, canDelete: true, canApprove: true };
+    }
     return (
-      currentAdminUser.permissions.find((p) => p.moduleKey === key) || {
+      user?.permissions?.find((p: any) => p.moduleKey === key) || {
         canView: false,
         canEdit: false,
         canDelete: false,
@@ -84,543 +348,2803 @@ export default function AdminDashboardPage() {
     );
   };
 
-  // Mock initial dataset for Admin operations
-  const [superAdmins, setSuperAdmins] = useState([
-    { id: 'sa-1', name: 'আব্দুল করিম', email: 'karim@sadaqahbd.com', phone: '01711000001', role: 'super_admin' },
-    { id: 'sa-2', name: 'তাসলিমা জাহান', email: 'taslima@sadaqahbd.com', phone: '01811000002', role: 'super_admin' },
-  ]);
+  // Filtered Users List for universal directory
+  const filteredUsers = allUsers.filter((u) => {
+    const term = userSearchTerm.trim().toLowerCase();
+    const matchesSearch =
+      !term ||
+      (u.fullName && u.fullName.toLowerCase().includes(term)) ||
+      (u.email && u.email.toLowerCase().includes(term)) ||
+      (u.phone && u.phone.includes(term));
+    const matchesRole = userRoleFilter === 'all' || u.role === userRoleFilter;
+    return matchesSearch && matchesRole;
+  });
 
-  const [orgVerificationRequests, setOrgVerificationRequests] = useState([
-    { id: 'org-req-1', name: 'ঢাকা রেসিডেন্সিয়াল মডেল কলেজ', regNo: 'REG-5481', contact: 'প্রিন্সিপাল অফিস', phone: '01911000003', status: 'pending' },
-    { id: 'org-req-2', name: 'কুমিল্লা ভিক্টোরিয়া সরকারি কলেজ', regNo: 'REG-8921', contact: 'প্রফেসর ড. আহমেদ', phone: '01611000004', status: 'pending' },
-  ]);
-
-  const [studentPostRequests, setStudentPostRequests] = useState([
-    {
-      id: 'post-req-1',
-      studentName: 'রাফিয়া আক্তার',
-      institution: 'ময়মনসিংহ মেডিকেল কলেজ',
-      title: 'মেডিকেল ৪র্থ বর্ষের টিউশন ও হোস্টেল ফি',
-      amount: 45000,
-      teacherVerified: true,
-      orgVerified: true,
-      status: 'pending_super_admin',
-    },
-    {
-      id: 'post-req-2',
-      studentName: 'মো. ফাহিম হাসান',
-      institution: 'বুয়েট',
-      title: 'কম্পিউটার সায়েন্স ৩য় বর্ষের বই ও ল্যাপটপ মেরামত খরচ',
-      amount: 18000,
-      teacherVerified: true,
-      orgVerified: true,
-      status: 'pending_super_admin',
-    },
-  ]);
-
-  const [pendingDonations, setPendingDonations] = useState([
-    { id: 'don-1', donorName: 'রেহানা পারভীন', amount: 5000, type: 'random', method: 'bKash', trxId: 'TRX987214', status: 'pending' },
-    { id: 'don-2', donorName: 'মুহাম্মদ শাকিল', amount: 15000, type: 'direct', studentName: 'রাফিয়া আক্তার', method: 'Bank', trxId: 'TRX451298', status: 'pending' },
-  ]);
-
-  // Handle confirmation modal submission
-  const handleConfirmAction = () => {
-    if (modalAction.type === 'accept') {
-      // Approve item
-      if (modalAction.targetId.startsWith('org-req-')) {
-        setOrgVerificationRequests((prev) => prev.filter((item) => item.id !== modalAction.targetId));
-      } else if (modalAction.targetId.startsWith('post-req-')) {
-        setStudentPostRequests((prev) => prev.filter((item) => item.id !== modalAction.targetId));
-      } else if (modalAction.targetId.startsWith('don-')) {
-        setPendingDonations((prev) => prev.filter((item) => item.id !== modalAction.targetId));
-      }
-    } else {
-      // Reject item with reason
-      if (modalAction.targetId.startsWith('org-req-')) {
-        setOrgVerificationRequests((prev) => prev.filter((item) => item.id !== modalAction.targetId));
-      } else if (modalAction.targetId.startsWith('post-req-')) {
-        setStudentPostRequests((prev) => prev.filter((item) => item.id !== modalAction.targetId));
-      } else if (modalAction.targetId.startsWith('don-')) {
-        setPendingDonations((prev) => prev.filter((item) => item.id !== modalAction.targetId));
-      }
+  // Toggle user active / suspended status
+  const handleToggleUserStatus = async (userId: string, targetStatus: 'active' | 'suspended', userName: string) => {
+    if (
+      !confirm(
+        isBn
+          ? `আপনি কি নিশ্চিত যে "${userName}"-এর অ্যাকাউন্ট ${targetStatus === 'suspended' ? 'স্থগিত (Suspend)' : 'সক্রিয় (Activate)'} করতে চান?`
+          : `Are you sure you want to ${targetStatus === 'suspended' ? 'suspend' : 'activate'} "${userName}"?`
+      )
+    ) {
+      return;
     }
-
-    setModalAction({ isOpen: false, type: 'accept', targetId: '', targetTitle: '', reason: '' });
+    const apiUrl = getApiUrl();
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${apiUrl}/masteradmin/users/${userId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ status: targetStatus }),
+      });
+      if (res.ok) {
+        setFeedbackMsg(
+          isBn ? 'ব্যবহারকারীর স্ট্যাটাস সফলভাবে আপডেট করা হয়েছে।' : 'User status updated successfully.'
+        );
+        setTimeout(() => setFeedbackMsg(''), 4000);
+        loadAdminData();
+      } else {
+        const err = await res.json();
+        alert(err.message || 'Failed to update user status');
+      }
+    } catch (e: any) {
+      alert(e.message || 'Network error');
+    }
   };
 
+  // Delete user account permanently
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (
+      !confirm(
+        isBn
+          ? `সতর্কতা: আপনি কি নিশ্চিত যে "${userName}"-কে প্ল্যাটফর্ম থেকে স্থায়ীভাবে মুছে ফেলতে চান?`
+          : `Warning: Are you sure you want to permanently delete user "${userName}"?`
+      )
+    ) {
+      return;
+    }
+    const apiUrl = getApiUrl();
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${apiUrl}/users/${userId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        setFeedbackMsg(isBn ? 'ব্যবহারকারী সফলভাবে ডিলিট করা হয়েছে।' : 'User deleted successfully.');
+        setTimeout(() => setFeedbackMsg(''), 4000);
+        loadAdminData();
+      } else {
+        const err = await res.json();
+        alert(err.message || 'Failed to delete user');
+      }
+    } catch (e: any) {
+      alert(e.message || 'Network error');
+    }
+  };
+
+  // Handle Real Drawer action execution (Approve or Reject)
+  const handleExecuteAction = async (actionType: 'approve' | 'reject') => {
+    if (!actionDrawer.itemData) return;
+
+    const id = actionDrawer.itemData.id;
+    setActionLoading(true);
+    setFeedbackMsg('');
+    const apiUrl = getApiUrl();
+
+    try {
+      const token = await getAuthToken();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+
+      if (actionDrawer.type === 'org_review') {
+        const res = await fetch(`${apiUrl}/users/org/${id}/verify`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            approved: actionType === 'approve',
+            reason: actionDrawer.reason,
+            name: orgEditName,
+            type: orgEditType,
+            registrationNumber: orgEditRegNo,
+            contactPerson: orgEditContact,
+            contactPhone: orgEditPhone,
+            email: orgEditEmail,
+            address: orgEditAddress,
+            description: orgEditDesc,
+          }),
+        });
+
+        if (!res.ok) throw new Error('প্রতিষ্ঠান যাচাইকরণ ব্যর্থ হয়েছে');
+        setFeedbackMsg(actionType === 'approve' ? 'প্রতিষ্ঠান সফলভাবে অনুমোদিত হয়েছে।' : 'প্রতিষ্ঠান আবেদন বাতিল করা হয়েছে।');
+        setOrgVerificationRequests((prev) => prev.filter((item) => item.id !== id));
+      } else if (actionDrawer.type === 'post_review') {
+        const res = await fetch(`${apiUrl}/posts/${id}/super-admin-approve`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            approved: actionType === 'approve',
+            rejectionReason: actionDrawer.reason,
+          }),
+        });
+
+        if (!res.ok) throw new Error('পোস্ট যাচাইকরণ সম্পন্ন করা সম্ভব হয়নি');
+        setFeedbackMsg(actionType === 'approve' ? 'শিক্ষার্থী পোস্ট সফলভাবে লাইভ করা হয়েছে।' : 'শিক্ষার্থী পোস্ট বাতিল করা হয়েছে।');
+        setStudentPostRequests((prev) => prev.filter((item) => item.id !== id));
+      } else if (actionDrawer.type === 'donation_review') {
+        const res = await fetch(`${apiUrl}/donations/review`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            donationId: id,
+            status: actionType === 'approve' ? 'accepted' : 'rejected',
+            rejectionReason: actionDrawer.reason,
+          }),
+        });
+
+        if (!res.ok) throw new Error('অনুদান যাচাই সম্পন্ন হয়নি');
+        setFeedbackMsg(actionType === 'approve' ? 'অনুদান সফলভাবে লেজারে অনুমোদিত হয়েছে।' : 'অনুদান বাতিল করা হয়েছে।');
+        setPendingDonations((prev) => prev.filter((item) => item.id !== id));
+      } else if (actionDrawer.type === 'affiliation_review') {
+        const { role, profileId } = actionDrawer.itemData;
+        const res = await fetch(`${apiUrl}/users/affiliations/${role}/${profileId}/review`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            approved: actionType === 'approve',
+            reason: actionDrawer.reason,
+          }),
+        });
+
+        if (!res.ok) throw new Error('এফিলিয়েশন যাচাই সম্পন্ন হয়নি');
+        setFeedbackMsg(
+          actionType === 'approve'
+            ? `${role === 'teacher' ? 'শিক্ষক' : 'শিক্ষার্থী'} চূড়ান্তভাবে অনুমোদিত ও সক্রিয় করা হয়েছে।`
+            : `${role === 'teacher' ? 'শিক্ষক' : 'শিক্ষার্থী'} আবেদন বাতিল করা হয়েছে।`
+        );
+        loadAdminData();
+      }
+
+      setActionDrawer({ isOpen: false, type: 'org_review', itemData: null, reason: '' });
+    } catch (err: any) {
+      alert(err.message || 'অপারেশন সম্পন্ন করতে সমস্যা হয়েছে');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Real Super Admin Creation
+  const handleCreateSuperAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionLoading(true);
+    const apiUrl = getApiUrl();
+
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${apiUrl}/masteradmin/super-admins`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          fullName: newAdminName,
+          email: newAdminEmail,
+          phone: newAdminPhone,
+          role: newAdminRole,
+          moduleKeys: selectedPermissions,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(
+          errData.message ||
+            (isBn
+              ? `${newAdminRole === 'super_admin' ? 'সুপার এডমিন' : 'এডমিন'} তৈরিতে ব্যর্থ হয়েছে`
+              : `Failed to create ${newAdminRole === 'super_admin' ? 'Super Admin' : 'Admin'}`)
+        );
+      }
+
+      setFeedbackMsg(
+        isBn
+          ? `${newAdminRole === 'super_admin' ? 'সুপার এডমিন' : 'এডমিন'} "${newAdminName}" সফলভাবে তৈরি হয়েছে। ডিফল্ট পাসওয়ার্ড: pass1233`
+          : `${newAdminRole === 'super_admin' ? 'Super Admin' : 'Admin'} "${newAdminName}" created successfully. Default password: pass1233`
+      );
+      setActionDrawer((prev) => ({ ...prev, isOpen: false }));
+      resetAdminForm();
+      loadAdminData();
+    } catch (err: any) {
+      alert(err.message || (isBn ? 'ত্রুটি দেখা দিয়েছে' : 'An error occurred'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Real Super Admin Deletion
+  const handleDeleteSuperAdmin = async (id: string, name: string) => {
+    if (!confirm(`আপনি কি নিশ্চিতভাবে "${name}" একাউন্টটি মুছে ফেলতে চান?`)) return;
+
+    const apiUrl = getApiUrl();
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${apiUrl}/masteradmin/super-admins/${id}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (!res.ok) throw new Error('ডিলিট করা সম্ভব হয়নি');
+
+      setFeedbackMsg(`সুপার এডমিন "${name}" সফলভাবে মুছে ফেলা হয়েছে।`);
+      setSuperAdmins((prev) => prev.filter((a) => a.id !== id));
+    } catch (err: any) {
+      alert(err.message || 'ত্রুটি দেখা দিয়েছে');
+    }
+  };
+
+  const togglePermission = (key: string) => {
+    if (selectedPermissions.includes(key)) {
+      setSelectedPermissions(selectedPermissions.filter((k) => k !== key));
+    } else {
+      setSelectedPermissions([...selectedPermissions, key]);
+    }
+  };
+
+  // Switch navigation and auto-close mobile drawer
+  const handleNavSelect = (navKey: string) => {
+    setActiveNav(navKey);
+    setIsMobileDrawerOpen(false);
+  };
+
+  const displayName = user?.fullName || 'এডমিন কর্মকর্তা';
+  const displayRole = user?.role || UserRole.ADMIN;
+
+  const notificationCategories = [
+    {
+      id: 'org_requests',
+      titleBn: 'প্রতিষ্ঠান অনুমোদন আবেদন',
+      titleEn: 'Institute Verifications',
+      count: orgVerificationRequests.length,
+      icon: Building2,
+      navKey: 'org_requests',
+    },
+    {
+      id: 'post_requests',
+      titleBn: 'শিক্ষার্থী পোস্ট ছাড়পত্র',
+      titleEn: 'Student Post Approvals',
+      count: studentPostRequests.length,
+      icon: GraduationCap,
+      navKey: 'post_requests',
+    },
+    {
+      id: 'donation_approval',
+      titleBn: 'অনুদান পেমেন্ট যাচাই',
+      titleEn: 'Donation Verifications',
+      count: pendingDonations.length,
+      icon: DollarSign,
+      navKey: 'donation_approval',
+    },
+    {
+      id: 'affiliation_requests',
+      titleBn: 'শিক্ষক ও শিক্ষার্থী চূড়ান্ত অনুমোদন',
+      titleEn: 'Teacher & Student Clearances',
+      count: (adminPendingAffiliations?.teachers?.length || 0) + (adminPendingAffiliations?.students?.length || 0),
+      icon: UserCheck,
+      navKey: 'affiliation_requests',
+    },
+  ];
+
   return (
-    <div className="container" style={{ paddingTop: "2rem", paddingBottom: "5rem" }}>
-      {/* Page Header */}
-      <div style={{ marginBottom: "2rem" }}>
-        <h1 style={{ fontSize: "1.85rem", fontWeight: "800", color: "var(--color-primary-dark)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <ShieldAlert size={28} color="var(--color-primary)" />
-          {t("title")}
-        </h1>
-        <p style={{ color: "var(--color-text-muted)", fontSize: "0.95rem" }}>
-          লগইনকৃত এডমিন: <strong>{currentAdminUser.fullName}</strong> ({currentAdminUser.role})
-        </p>
-      </div>
-
-      {/* Main Module Tabs */}
-      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", borderBottom: "1px solid var(--color-border)", paddingBottom: "0.75rem", marginBottom: "1.75rem" }}>
-        {getPermission(PermissionModuleKey.SUPER_ADMIN_LIST).canView && (
-          <button
-            onClick={() => { setActiveTab('users'); setActiveSubTab('super_admins'); }}
-            className={`btn ${activeTab === 'users' ? 'btn-primary' : 'btn-outline'}`}
-            style={{ padding: "0.5rem 1rem", fontSize: "0.9rem" }}
+    <div style={{ minHeight: '100vh', backgroundColor: 'var(--color-bg, #f8fafc)', color: 'var(--color-text, #0f172a)' }}>
+      {/* Top Clean Executive Bar */}
+      <header
+        style={{
+          backgroundColor: 'var(--surface, #ffffff)',
+          borderBottom: '1px solid var(--surface-border, #e2e8f0)',
+          height: '64px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 1.5rem',
+          position: 'sticky',
+          top: 0,
+          zIndex: 50,
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          <div
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)',
+            }}
           >
-            <Users size={16} /> ১. ইউজার ম্যানেজমেন্ট (এডমিন)
-          </button>
-        )}
-
-        {getPermission(PermissionModuleKey.TEACHER_LIST).canView && (
-          <button
-            onClick={() => { setActiveTab('orgs'); setActiveSubTab('posts_verify'); }}
-            className={`btn ${activeTab === 'orgs' ? 'btn-primary' : 'btn-outline'}`}
-            style={{ padding: "0.5rem 1rem", fontSize: "0.9rem" }}
-          >
-            <Building2 size={16} /> ২. অর্গানাইজেশন ম্যানেজমেন্ট (সাধারণ)
-          </button>
-        )}
-
-        {getPermission(PermissionModuleKey.DONOR_PROFILE).canView && (
-          <button
-            onClick={() => { setActiveTab('donors'); setActiveSubTab('donor_list'); }}
-            className={`btn ${activeTab === 'donors' ? 'btn-primary' : 'btn-outline'}`}
-            style={{ padding: "0.5rem 1rem", fontSize: "0.9rem" }}
-          >
-            <Heart size={16} /> ৩. ডোনার তালিকা
-          </button>
-        )}
-
-        {getPermission(PermissionModuleKey.ACCOUNTS_DONATION_APPROVAL).canView && currentAdminUser.role !== UserRole.ADMIN && (
-          <button
-            onClick={() => { setActiveTab('accounts'); setActiveSubTab('donations_verify'); }}
-            className={`btn ${activeTab === 'accounts' ? 'btn-primary' : 'btn-outline'}`}
-            style={{ padding: "0.5rem 1rem", fontSize: "0.9rem" }}
-          >
-            <DollarSign size={16} /> ৪. একাউন্টস ও ফান্ড ম্যানেজমেন্ট
-          </button>
-        )}
-      </div>
-
-      {/* Tab 1: User Management */}
-      {activeTab === 'users' && (
-        <div>
-          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem" }}>
-            <button
-              onClick={() => setActiveSubTab('super_admins')}
-              style={{
-                padding: "0.4rem 0.8rem",
-                borderRadius: "var(--radius-sm)",
-                border: "none",
-                backgroundColor: activeSubTab === 'super_admins' ? 'var(--color-primary)' : 'var(--color-surface)',
-                color: activeSubTab === 'super_admins' ? 'white' : 'var(--color-text)',
-                cursor: "pointer",
-                fontWeight: "600",
-                fontSize: "0.85rem",
-              }}
-            >
-              ১.১ {t("superAdminList")}
-            </button>
-            <button
-              onClick={() => setActiveSubTab('org_requests')}
-              style={{
-                padding: "0.4rem 0.8rem",
-                borderRadius: "var(--radius-sm)",
-                border: "none",
-                backgroundColor: activeSubTab === 'org_requests' ? 'var(--color-primary)' : 'var(--color-surface)',
-                color: activeSubTab === 'org_requests' ? 'white' : 'var(--color-text)',
-                cursor: "pointer",
-                fontWeight: "600",
-                fontSize: "0.85rem",
-              }}
-            >
-              ১.৩ {t("orgVerificationReq")} ({orgVerificationRequests.length})
-            </button>
+            <ShieldCheck size={20} />
           </div>
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+            <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-main, #0f172a)' }}>
+              সাদাকাহ বিডি
+            </span>
+            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#059669' }}>
+              {user?.role === 'super_admin' ? 'সুপার এডমিন কন্ট্রোল সেন্টার' : 'এডমিন প্যানেল'}
+            </span>
+          </div>
+        </div>
 
-          {activeSubTab === 'super_admins' && (
-            <div className="card" style={{ padding: "1.5rem", backgroundColor: "var(--color-surface)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                <h3 style={{ fontSize: "1.15rem", fontWeight: "700" }}>{t("superAdminList")}</h3>
-                {getPermission(PermissionModuleKey.SUPER_ADMIN_LIST).canEdit && (
-                  <button className="btn btn-primary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.85rem" }}>
-                    <Plus size={16} /> নতুন সুপার এডমিন যোগ করুন
-                  </button>
-                )}
-              </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <Link
+            href="/"
+            className={styles.publicSiteBtn}
+            title={isBn ? 'পাবলিক ওয়েবসাইট দেখুন' : 'Visit Public Website'}
+            aria-label={isBn ? 'পাবলিক ওয়েবসাইট' : 'Public Site'}
+          >
+            <Globe size={16} className={styles.publicSiteIcon} />
+            <span className={styles.publicSiteText}>
+              {isBn ? 'পাবলিক ওয়েবসাইট' : 'Public Site'}
+            </span>
+          </Link>
 
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
-                      <th style={{ padding: "0.75rem" }}>নাম</th>
-                      <th style={{ padding: "0.75rem" }}>ইমেইল</th>
-                      <th style={{ padding: "0.75rem" }}>ফোন</th>
-                      <th style={{ padding: "0.75rem", textAlign: "right" }}>অ্যাকশন</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {superAdmins.map((admin) => (
-                      <tr key={admin.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                        <td style={{ padding: "0.75rem", fontWeight: "600" }}>{admin.name}</td>
-                        <td style={{ padding: "0.75rem" }}>{admin.email}</td>
-                        <td style={{ padding: "0.75rem" }}>{admin.phone}</td>
-                        <td style={{ padding: "0.75rem", textAlign: "right" }}>
-                          {getPermission(PermissionModuleKey.SUPER_ADMIN_LIST).canEdit && (
-                            <button className="btn btn-outline" style={{ padding: "0.3rem 0.5rem", marginRight: "0.5rem" }}>
-                              <Edit size={14} />
-                            </button>
-                          )}
-                          {getPermission(PermissionModuleKey.SUPER_ADMIN_LIST).canDelete && (
-                            <button
-                              className="btn btn-outline"
-                              style={{ padding: "0.3rem 0.5rem", color: "var(--color-accent)", borderColor: "var(--color-accent)" }}
-                              onClick={() => setSuperAdmins((prev) => prev.filter((a) => a.id !== admin.id))}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          {/* Admin Notifications Dropdown (small & large screens) */}
+          <AdminNotificationDropdown
+            categories={notificationCategories}
+            onSelectNav={handleNavSelect}
+          />
+
+          {/* Profile Dropdown with Name & Actions */}
+          <UserMenuDropdown customDisplayName={displayName} customRole={displayRole} />
+        </div>
+      </header>
+
+      <div className={styles.adminLayout}>
+      {/* ====================================================================
+          Mobile Admin Header Bar (Small Screens)
+          ==================================================================== */}
+      <div className={styles.mobileAdminBar}>
+        <button
+          className={styles.drawerToggleBtn}
+          onClick={() => setIsMobileDrawerOpen(true)}
+          aria-label="এডমিন মেনু ড্রয়ার খুলুন"
+        >
+          <Menu size={20} color="var(--color-primary)" />
+          <span>এডমিন মেনু</span>
+        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div className={styles.brandIcon} style={{ width: 32, height: 32 }}>
+            <ShieldCheck size={18} />
+          </div>
+          <span style={{ fontWeight: '800', fontSize: '0.95rem', color: 'var(--text-main, #0f172a)' }}>
+            সাদাকাহ বিডি এডমিন
+          </span>
+        </div>
+      </div>
+
+      {/* ====================================================================
+          Mobile Off-Canvas Drawer Backdrop & Drawer
+          ==================================================================== */}
+      <div
+        className={`${styles.drawerOverlay} ${isMobileDrawerOpen ? styles.drawerOverlayOpen : ''}`}
+        onClick={() => setIsMobileDrawerOpen(false)}
+      />
+
+      <aside className={`${styles.mobileDrawer} ${isMobileDrawerOpen ? styles.mobileDrawerOpen : ''}`}>
+        <div className={styles.sidebarHeader}>
+          <div className={styles.userProfileCard}>
+            <div className={styles.userAvatar}>{displayName.charAt(0)}</div>
+            <div className={styles.userInfo}>
+              <span className={styles.userName}>{displayName}</span>
+              <span className={styles.userRole}>{user?.email || displayRole}</span>
+            </div>
+          </div>
+          <button
+            className={styles.collapseBtn}
+            onClick={() => setIsMobileDrawerOpen(false)}
+            aria-label="ড্রয়ার বন্ধ করুন"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Mobile Navigation Links */}
+        <div style={{ flex: 1, paddingBottom: '1rem' }}>
+          {renderNavSections(
+            activeNav,
+            handleNavSelect,
+            orgVerificationRequests.length,
+            studentPostRequests.length,
+            pendingDonations.length,
+            user?.role,
+            false,
+            (adminPendingAffiliations?.teachers?.length || 0) + (adminPendingAffiliations?.students?.length || 0),
+            allUsers.length
+          )}
+        </div>
+
+        {/* Mobile Drawer Bottom Logout */}
+        <div className={styles.drawerFooter}>
+          <button
+            type="button"
+            onClick={async () => {
+              await useAuthStore.getState().logout();
+              window.location.href = '/login';
+            }}
+            className={styles.drawerLogoutBtn}
+          >
+            <LogOut size={18} />
+            <span>লগআউট</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* ====================================================================
+          Desktop Sidebar Navigation Drawer (Collapsible)
+          ==================================================================== */}
+      <aside
+        className={`${styles.sidebarDrawer} ${
+          isSidebarCollapsed ? styles.sidebarDrawerCollapsed : ''
+        }`}
+      >
+        <div className={styles.sidebarHeader}>
+          {!isSidebarCollapsed && (
+            <div className={styles.userProfileCard}>
+              <div className={styles.userAvatar}>{displayName.charAt(0)}</div>
+              <div className={styles.userInfo}>
+                <span className={styles.userName}>{displayName}</span>
+                <span className={styles.userRole}>{user?.email || displayRole}</span>
               </div>
             </div>
           )}
 
-          {activeSubTab === 'org_requests' && (
-            <div className="card" style={{ padding: "1.5rem", backgroundColor: "var(--color-surface)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)" }}>
-              <h3 style={{ fontSize: "1.15rem", fontWeight: "700", marginBottom: "1rem" }}>{t("orgVerificationReq")}</h3>
-              {orgVerificationRequests.length === 0 ? (
-                <p style={{ color: "var(--color-text-muted)" }}>কোনো নতুন রিকোয়েস্ট পেন্ডিং নেই।</p>
+          <button
+            className={styles.collapseBtn}
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            title={isSidebarCollapsed ? 'ড্রয়ার প্রসারিত করুন' : 'ড্রয়ার সংকুচিত করুন'}
+          >
+            {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
+        </div>
+
+        {/* Desktop Navigation Links */}
+        <div style={{ flex: 1 }}>
+          {renderNavSections(
+            activeNav,
+            handleNavSelect,
+            orgVerificationRequests.length,
+            studentPostRequests.length,
+            pendingDonations.length,
+            user?.role,
+            isSidebarCollapsed,
+            (adminPendingAffiliations?.teachers?.length || 0) + (adminPendingAffiliations?.students?.length || 0),
+            allUsers.length
+          )}
+        </div>
+
+        {/* Desktop Drawer Bottom Logout */}
+        <div className={styles.drawerFooter}>
+          <button
+            type="button"
+            onClick={async () => {
+              await useAuthStore.getState().logout();
+              window.location.href = '/login';
+            }}
+            className={styles.drawerLogoutBtn}
+            title="লগআউট"
+          >
+            <LogOut size={18} />
+            {!isSidebarCollapsed && <span>লগআউট</span>}
+          </button>
+        </div>
+      </aside>
+
+      {/* ====================================================================
+          Main Content Workspace
+          ==================================================================== */}
+      <main className={styles.mainContent}>
+        {/* Master Admin Root Privilege Banner */}
+        {user?.role === UserRole.MASTER_ADMIN && (
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #1e1b4b 0%, #311042 100%)',
+              border: '1px solid rgba(168, 85, 247, 0.4)',
+              padding: '1.1rem 1.35rem',
+              borderRadius: '14px',
+              marginBottom: '1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              color: '#e2e8f0',
+              flexWrap: 'wrap',
+              gap: '1rem',
+              boxShadow: '0 4px 20px -4px rgba(168, 85, 247, 0.25)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <div
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  backgroundColor: 'rgba(236, 72, 153, 0.2)',
+                  border: '1px solid rgba(236, 72, 153, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <ShieldAlert size={22} color="#ec4899" />
+              </div>
+              <div>
+                <strong style={{ color: '#fff', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>{isBn ? 'মাস্টার এডমিন একক কেন্দ্রীয় কন্ট্রোল সেন্টার' : 'Master Admin Root Control Console'}</span>
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      padding: '0.15rem 0.55rem',
+                      borderRadius: '20px',
+                      backgroundColor: '#f59e0b',
+                      color: '#000',
+                      fontWeight: 800,
+                      letterSpacing: '0.02em',
+                    }}
+                  >
+                    👑 {isBn ? 'রুট সুপ্রিম এক্সেস' : 'ROOT PRIVILEGE'}
+                  </span>
+                </strong>
+                <p style={{ margin: '0.2rem 0 0', fontSize: '0.84rem', color: '#cbd5e1' }}>
+                  {isBn
+                    ? 'একই প্যানেল থেকে সমস্ত এডমিন, ইউজার ডিরেক্টরি, প্রতিষ্ঠান, ক্যাম্পেইন ও অডিট নিয়ন্ত্রণ করুন।'
+                    : 'Manage all administrators, universal user directory, verifications, and financial ledger from this single console.'}
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setActiveNav('all_users')}
+                className="btn btn-primary"
+                style={{
+                  fontSize: '0.82rem',
+                  padding: '0.5rem 1rem',
+                  background: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+                  border: 'none',
+                }}
+              >
+                <Users size={15} /> {isBn ? 'সকল ইউজার অডিট' : 'User Audit'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveNav('super_admins')}
+                className="btn btn-secondary"
+                style={{ fontSize: '0.82rem', padding: '0.5rem 1rem' }}
+              >
+                <ShieldCheck size={15} /> {isBn ? 'এডমিন স্টাফ' : 'Admin Staff'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Feedback Alert */}
+        {feedbackMsg && (
+          <div
+            style={{
+              padding: '0.85rem 1.25rem',
+              backgroundColor: '#ecfdf5',
+              border: '1px solid #10b981',
+              color: '#047857',
+              borderRadius: '8px',
+              marginBottom: '1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <CheckCircle2 size={18} />
+              <span>{feedbackMsg}</span>
+            </div>
+            <button
+              onClick={() => setFeedbackMsg('')}
+              style={{ background: 'none', border: 'none', color: '#047857', cursor: 'pointer' }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        {/* VIEW 1: Overview Dashboard */}
+        {activeNav === 'overview' && (
+          <div>
+            <div className={styles.contentHeader}>
+              <div>
+                <h1 className={styles.pageTitle}>
+                  <ShieldCheck size={28} color="var(--color-primary)" />
+                  এডমিন ড্যাশবোর্ড ওভারভিউ
+                </h1>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.95rem', marginTop: '0.25rem' }}>
+                  সাদাকাহ বিডি কেন্দ্রীয় অ্যাডমিনিস্ট্রেশন ও দ্রুত সিদ্ধান্ত কেন্দ্র।
+                </p>
+              </div>
+
+              <button
+                onClick={() => loadAdminData()}
+                className="btn btn-outline"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', padding: '0.5rem 1rem' }}
+              >
+                <RefreshCw size={14} className={loadingData ? 'spin' : ''} />
+                <span>রিফ্রেশ</span>
+              </button>
+            </div>
+
+            {/* Quick KPI Stat Cards (Real Live Data) */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: '1.25rem',
+                marginBottom: '2rem',
+              }}
+            >
+              <div
+                className="card"
+                style={{
+                  padding: '1.25rem',
+                  backgroundColor: 'var(--surface, #ffffff)',
+                  borderRadius: '12px',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                  প্রতিষ্ঠান আবেদন (পেন্ডিং)
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
+                  <span style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f59e0b' }}>
+                    {loadingData ? '...' : orgVerificationRequests.length}
+                  </span>
+                  <Building2 size={28} color="#f59e0b" opacity={0.6} />
+                </div>
+                <button
+                  onClick={() => setActiveNav('org_requests')}
+                  style={{
+                    marginTop: '0.75rem',
+                    fontSize: '0.8rem',
+                    color: 'var(--color-primary)',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  যাচাই করতে ড্রয়ার খুলুন →
+                </button>
+              </div>
+
+              <div
+                className="card"
+                style={{
+                  padding: '1.25rem',
+                  backgroundColor: 'var(--surface, #ffffff)',
+                  borderRadius: '12px',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                  শিক্ষার্থী পোস্ট (পেন্ডিং)
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
+                  <span style={{ fontSize: '1.75rem', fontWeight: 800, color: '#3b82f6' }}>
+                    {loadingData ? '...' : studentPostRequests.length}
+                  </span>
+                  <GraduationCap size={28} color="#3b82f6" opacity={0.6} />
+                </div>
+                <button
+                  onClick={() => setActiveNav('student_posts')}
+                  style={{
+                    marginTop: '0.75rem',
+                    fontSize: '0.8rem',
+                    color: 'var(--color-primary)',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  পোস্ট যাচাই ও লাইভ করুন →
+                </button>
+              </div>
+
+              <div
+                className="card"
+                style={{
+                  padding: '1.25rem',
+                  backgroundColor: 'var(--surface, #ffffff)',
+                  borderRadius: '12px',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                  অনুদান পেমেন্ট যাচাই
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
+                  <span style={{ fontSize: '1.75rem', fontWeight: 800, color: '#10b981' }}>
+                    {loadingData ? '...' : pendingDonations.length}
+                  </span>
+                  <DollarSign size={28} color="#10b981" opacity={0.6} />
+                </div>
+                <button
+                  onClick={() => setActiveNav('pending_donations')}
+                  style={{
+                    marginTop: '0.75rem',
+                    fontSize: '0.8rem',
+                    color: 'var(--color-primary)',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  অনুদান লেজারে স্থানান্তর →
+                </button>
+              </div>
+
+              <div
+                className="card"
+                style={{
+                  padding: '1.25rem',
+                  backgroundColor: 'var(--surface, #ffffff)',
+                  borderRadius: '12px',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                  সক্রিয় সুপার এডমিন
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
+                  <span style={{ fontSize: '1.75rem', fontWeight: 800, color: '#8b5cf6' }}>
+                    {loadingData ? '...' : superAdmins.length}
+                  </span>
+                  <Users size={28} color="#8b5cf6" opacity={0.6} />
+                </div>
+                <button
+                  onClick={() => setActiveNav('super_admins')}
+                  style={{
+                    marginTop: '0.75rem',
+                    fontSize: '0.8rem',
+                    color: 'var(--color-primary)',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  ইউজার তালিকা পরিচালনা →
+                </button>
+              </div>
+            </div>
+
+            {/* Quick action helper guide */}
+            <div
+              className="card"
+              style={{
+                padding: '1.5rem',
+                backgroundColor: 'var(--surface, #ffffff)',
+                borderRadius: '12px',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-main, #0f172a)' }}>
+                সরাসরি ডাটাবেজ তথ্য ও ড্রয়ার অ্যাকশন
+              </h3>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', lineHeight: 1.6 }}>
+                এখানে প্রদর্শিত সকল তথ্য সরাসরি MySQL ডাটাবেজ ও ক্লাউড সার্ভার থেকে লোড হচ্ছে। ড্রয়ারের যেকোনো অপশনে ক্লিক করে বাস্তব আবেদনপত্র পর্যালোচনা ও সরাসরি অ্যাকশন নিতে পারবেন।
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 2: Super Admin List */}
+        {activeNav === 'super_admins' && (
+          <div>
+            <div className={styles.contentHeader}>
+              <div>
+                <h1 className={styles.pageTitle}>
+                  <Users size={26} color="var(--color-primary)" />
+                  {t('superAdminList')}
+                </h1>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                  সিস্টেমের সক্রিয় সুপার এডমিন কর্মকর্তা এবং তাদের অনুমতি পরিচালনা।
+                </p>
+              </div>
+              {getPermission(PermissionModuleKey.SUPER_ADMIN_LIST).canEdit && (
+                <button
+                  className="btn btn-primary"
+                  style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                  onClick={() => {
+                    resetAdminForm();
+                    setActionDrawer({
+                      isOpen: true,
+                      type: 'add_super_admin',
+                      itemData: {},
+                      reason: '',
+                    });
+                  }}
+                >
+                  <Plus size={16} /> {isBn ? 'নতুন এডমিন যোগ করুন' : 'Add Admin'}
+                </button>
+              )}
+            </div>
+
+            <div
+              className="card"
+              style={{
+                padding: '1.5rem',
+                backgroundColor: 'var(--surface, #ffffff)',
+                borderRadius: '12px',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              {loadingData ? (
+                <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-muted)' }}>ডাটা লোড হচ্ছে...</p>
+              ) : superAdmins.length === 0 ? (
+                <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-muted)' }}>
+                  কোনো সুপার এডমিন পাওয়া যায়নি।
+                </p>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--color-border)', textAlign: 'left' }}>
+                        <th style={{ padding: '0.75rem' }}>নাম</th>
+                        <th style={{ padding: '0.75rem' }}>ইমেইল</th>
+                        <th style={{ padding: '0.75rem' }}>ফোন</th>
+                        <th style={{ padding: '0.75rem' }}>রোল</th>
+                        <th style={{ padding: '0.75rem', textAlign: 'right' }}>অ্যাকশন</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {superAdmins.map((admin) => (
+                        <tr key={admin.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                          <td style={{ padding: '0.75rem', fontWeight: '600' }}>{admin.fullName || admin.name}</td>
+                          <td style={{ padding: '0.75rem' }}>{admin.email}</td>
+                          <td style={{ padding: '0.75rem' }}>{admin.phone || '—'}</td>
+                          <td style={{ padding: '0.75rem' }}>
+                            <span style={{
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: '4px',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              backgroundColor: admin.role === 'super_admin' ? 'rgba(139, 92, 246, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                              color: admin.role === 'super_admin' ? '#7c3aed' : '#2563eb',
+                            }}>
+                              {admin.role === 'super_admin' ? (isBn ? 'সুপার এডমিন' : 'Super Admin') : (isBn ? 'এডমিন' : 'Admin')}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                              <button
+                                className="btn btn-outline"
+                                style={{
+                                  padding: '0.3rem 0.6rem',
+                                  fontSize: '0.8rem',
+                                  marginRight: '0.5rem',
+                                  color: 'var(--color-primary)',
+                                  borderColor: 'var(--color-primary)',
+                                }}
+                                onClick={() => handleOpenEditPermissions(admin)}
+                                title={isBn ? 'পারমিশন এডিট' : 'Edit Permissions'}
+                              >
+                                <Edit size={14} /> {isBn ? 'পারমিশন' : 'Edit'}
+                              </button>
+                            {getPermission(PermissionModuleKey.SUPER_ADMIN_LIST).canDelete && (
+                              <button
+                                className="btn btn-outline"
+                                style={{
+                                  padding: '0.3rem 0.5rem',
+                                  color: 'var(--color-accent)',
+                                  borderColor: 'var(--color-accent)',
+                                }}
+                                onClick={() => handleDeleteSuperAdmin(admin.id, admin.fullName || admin.name)}
+                                title="সুপার এডমিন মুছুন"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 2.5: Universal Users Directory & Audit (Master Admin & Super Admin) */}
+        {activeNav === 'all_users' && (
+          <div>
+            <div className={styles.contentHeader}>
+              <div>
+                <h1 className={styles.pageTitle}>
+                  <Users size={26} color="var(--color-primary)" />
+                  {isBn ? 'সকল ব্যবহারকারী অডিট ও ডিরেক্টরি' : 'Universal User Directory & Governance'}
+                </h1>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                  {isBn
+                    ? 'প্ল্যাটফর্মের সকল অ্যাকাউন্টের তদারকি, স্থগিতা/পুনঃসক্রিয়করণ ও সার্বিক নিরাপত্তা পরিচালনা।'
+                    : 'Audit platform accounts, toggle suspension/activation status, and manage platform safety.'}
+                </p>
+              </div>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                {isBn ? `মোট রেজিস্টার্ড ইউজার: ${allUsers.length} জন` : `Total Registered Users: ${allUsers.length}`}
+              </div>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '1rem',
+                flexWrap: 'wrap',
+                marginBottom: '1.25rem',
+                alignItems: 'center',
+              }}
+            >
+              <div style={{ flex: '1 1 280px', position: 'relative' }}>
+                <Search
+                  size={18}
+                  style={{
+                    position: 'absolute',
+                    left: '0.85rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#94a3b8',
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder={isBn ? 'নাম, ইমেইল বা ফোন দিয়ে খুঁজুন...' : 'Search by name, email, or phone...'}
+                  value={userSearchTerm}
+                  onChange={(e) => setUserSearchTerm(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem 1rem 0.6rem 2.5rem',
+                    borderRadius: '10px',
+                    border: '1px solid var(--surface-border, #e2e8f0)',
+                    fontSize: '0.88rem',
+                    backgroundColor: 'var(--surface, #ffffff)',
+                    color: 'var(--text-main, #0f172a)',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              <select
+                value={userRoleFilter}
+                onChange={(e) => setUserRoleFilter(e.target.value)}
+                style={{
+                  padding: '0.6rem 1.25rem',
+                  borderRadius: '10px',
+                  border: '1px solid var(--surface-border, #e2e8f0)',
+                  fontSize: '0.88rem',
+                  backgroundColor: 'var(--surface, #ffffff)',
+                  color: 'var(--text-main, #0f172a)',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                <option value="all">{isBn ? 'সকল রোল (All Roles)' : 'All Roles'}</option>
+                <option value="donor">{isBn ? 'দাতা (Donor)' : 'Donor'}</option>
+                <option value="student">{isBn ? 'শিক্ষার্থী (Student)' : 'Student'}</option>
+                <option value="teacher">{isBn ? 'শিক্ষক (Teacher)' : 'Teacher'}</option>
+                <option value="organization">{isBn ? 'প্রতিষ্ঠান (Organization)' : 'Organization'}</option>
+                <option value="admin">{isBn ? 'স্টাফ এডমিন (Admin)' : 'Staff Admin'}</option>
+                <option value="super_admin">{isBn ? 'সুপার এডমিন (Super Admin)' : 'Super Admin'}</option>
+              </select>
+            </div>
+
+            {/* Users Table */}
+            <div
+              className="card"
+              style={{
+                padding: '1.5rem',
+                backgroundColor: 'var(--surface, #ffffff)',
+                borderRadius: '12px',
+                border: '1px solid var(--color-border, #e2e8f0)',
+              }}
+            >
+              {loadingData ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                  {isBn ? 'ডাটা লোড হচ্ছে...' : 'Loading Users...'}
+                </div>
+              ) : filteredUsers.length === 0 ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                  {isBn ? 'কোনো ব্যবহারকারী পাওয়া যায়নি।' : 'No users match your search criteria.'}
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid var(--color-border, #e2e8f0)', color: 'var(--color-text-muted)' }}>
+                        <th style={{ padding: '0.75rem 1rem' }}>{isBn ? 'ব্যবহারকারীর নাম' : 'User'}</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>{isBn ? 'রোল' : 'Role'}</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>{isBn ? 'যোগাযোগ' : 'Contact'}</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>{isBn ? 'স্ট্যাটাস' : 'Status'}</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>{isBn ? 'তারিখ' : 'Joined'}</th>
+                        <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>{isBn ? 'অ্যাকশন' : 'Action'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredUsers.map((u) => {
+                        const isRootMaster =
+                          u.role === UserRole.MASTER_ADMIN || u.email?.toLowerCase() === 'admin@sadaqahbd.com';
+                        return (
+                          <tr key={u.id} style={{ borderBottom: '1px solid var(--color-border, #e2e8f0)' }}>
+                            <td style={{ padding: '1rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
+                              <div>{u.fullName || 'Unnamed'}</div>
+                              <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>ID: {u.id.slice(0, 8)}</span>
+                            </td>
+                            <td style={{ padding: '1rem' }}>
+                              <span
+                                style={{
+                                  padding: '0.2rem 0.6rem',
+                                  borderRadius: '20px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 800,
+                                  textTransform: 'uppercase',
+                                  backgroundColor:
+                                    u.role === 'master_admin'
+                                      ? '#fef3c7'
+                                      : u.role === 'super_admin'
+                                      ? '#ede9fe'
+                                      : u.role === 'admin'
+                                      ? '#e0e7ff'
+                                      : u.role === 'donor'
+                                      ? '#fce7f3'
+                                      : u.role === 'student'
+                                      ? '#eff6ff'
+                                      : u.role === 'teacher'
+                                      ? '#ecfdf5'
+                                      : '#fef3c7',
+                                  color:
+                                    u.role === 'master_admin'
+                                      ? '#b45309'
+                                      : u.role === 'super_admin'
+                                      ? '#6d28d9'
+                                      : u.role === 'admin'
+                                      ? '#4338ca'
+                                      : u.role === 'donor'
+                                      ? '#be185d'
+                                      : u.role === 'student'
+                                      ? '#1d4ed8'
+                                      : u.role === 'teacher'
+                                      ? '#047857'
+                                      : '#b45309',
+                                }}
+                              >
+                                {u.role}
+                              </span>
+                            </td>
+                            <td style={{ padding: '1rem' }}>
+                              <div style={{ color: 'var(--text-main)' }}>{u.email}</div>
+                              <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>{u.phone || 'No phone'}</span>
+                            </td>
+                            <td style={{ padding: '1rem' }}>
+                              <span
+                                style={{
+                                  padding: '0.2rem 0.55rem',
+                                  borderRadius: '20px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  backgroundColor:
+                                    u.status === 'suspended'
+                                      ? 'rgba(239, 68, 68, 0.12)'
+                                      : 'rgba(34, 197, 94, 0.12)',
+                                  color: u.status === 'suspended' ? '#dc2626' : '#16a34a',
+                                  border: `1px solid ${
+                                    u.status === 'suspended' ? '#fca5a5' : '#86efac'
+                                  }`,
+                                }}
+                              >
+                                {u.status === 'suspended' ? (isBn ? 'স্থগিত' : 'Suspended') : (isBn ? 'সক্রিয়' : 'Active')}
+                              </span>
+                            </td>
+                            <td style={{ padding: '1rem', color: '#94a3b8', fontSize: '0.82rem' }}>
+                              {u.createdAt ? new Date(u.createdAt).toLocaleDateString(isBn ? 'bn-BD' : 'en-US') : '—'}
+                            </td>
+                            <td style={{ padding: '1rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              {isRootMaster ? (
+                                <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', fontWeight: 600 }}>
+                                  🛡️ {isBn ? 'রুট সুরক্ষিত' : 'Root Protected'}
+                                </span>
+                              ) : (
+                                <div style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center' }}>
+                                  {u.status === 'suspended' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleUserStatus(u.id, 'active', u.fullName || u.email)}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.35rem',
+                                        padding: '0.35rem 0.75rem',
+                                        backgroundColor: '#ecfdf5',
+                                        border: '1px solid #a7f3d0',
+                                        color: '#047857',
+                                        borderRadius: '8px',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                      }}
+                                      title={isBn ? 'সক্রিয় করুন' : 'Activate User'}
+                                    >
+                                      <UserCheck size={14} />
+                                      <span>{isBn ? 'সক্রিয়' : 'Activate'}</span>
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleUserStatus(u.id, 'suspended', u.fullName || u.email)}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.35rem',
+                                        padding: '0.35rem 0.75rem',
+                                        backgroundColor: '#fef2f2',
+                                        border: '1px solid #fecaca',
+                                        color: '#dc2626',
+                                        borderRadius: '8px',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                      }}
+                                      title={isBn ? 'স্থগিত করুন' : 'Suspend User'}
+                                    >
+                                      <UserX size={14} />
+                                      <span>{isBn ? 'স্থগিত' : 'Suspend'}</span>
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteUser(u.id, u.fullName || u.email)}
+                                    style={{
+                                      padding: '0.35rem 0.6rem',
+                                      backgroundColor: '#fff',
+                                      border: '1px solid #fecaca',
+                                      color: '#dc2626',
+                                      borderRadius: '8px',
+                                      cursor: 'pointer',
+                                    }}
+                                    title={isBn ? 'ডিলিট করুন' : 'Delete User'}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 3: Org Verification Requests */}
+        {activeNav === 'org_requests' && (
+          <div>
+            <div className={styles.contentHeader}>
+              <div>
+                <h1 className={styles.pageTitle}>
+                  <Building2 size={26} color="var(--color-primary)" />
+                  {t('orgVerificationReq')} ({orgVerificationRequests.length})
+                </h1>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                  শিক্ষা প্রতিষ্ঠানসমূহ কর্তৃক প্রেরিত প্রাতিষ্ঠানিক ছাড়পত্র ও নিবন্ধন অনুমোদন ড্রয়ার।
+                </p>
+              </div>
+            </div>
+
+            <div
+              className="card"
+              style={{
+                padding: '1.5rem',
+                backgroundColor: 'var(--surface, #ffffff)',
+                borderRadius: '12px',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              {loadingData ? (
+                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>ডাটা লোড হচ্ছে...</p>
+              ) : orgVerificationRequests.length === 0 ? (
+                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                  কোনো প্রতিষ্ঠান ছাড়পত্র রিকোয়েস্ট পেন্ডিং নেই।
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   {orgVerificationRequests.map((org) => (
                     <div
                       key={org.id}
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        padding: "1rem",
-                        backgroundColor: "var(--color-bg)",
-                        borderRadius: "var(--radius-md)",
-                        border: "1px solid var(--color-border)",
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '1.25rem',
+                        backgroundColor: 'var(--background-alt, #f8fafc)',
+                        borderRadius: '10px',
+                        border: '1px solid var(--color-border)',
+                        flexWrap: 'wrap',
+                        gap: '1rem',
                       }}
                     >
                       <div>
-                        <h4 style={{ fontWeight: "700", fontSize: "1rem", marginBottom: "0.2rem" }}>{org.name}</h4>
-                        <p style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
-                          রেজিস্ট্রেশন: {org.regNo} | যোগাযোগ: {org.contact} ({org.phone})
+                        <h4 style={{ fontWeight: '700', fontSize: '1.05rem', marginBottom: '0.25rem', color: 'var(--text-main, #0f172a)' }}>
+                          {org.name}
+                        </h4>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                          রেজিস্ট্রেশন কোড: <strong>{org.regNo}</strong> | প্রতিনিধি: {org.contact} ({org.phone || 'ফোন নেই'})
                         </p>
+                        {org.address && (
+                          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted, #64748b)', marginTop: '0.2rem' }}>
+                            ঠিকানা: {org.address}
+                          </p>
+                        )}
                       </div>
 
-                      {getPermission(PermissionModuleKey.ORG_VERIFICATION_REQUESTS).canApprove && (
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
-                          <button
-                            className="btn btn-primary"
-                            style={{ padding: "0.4rem 0.8rem", fontSize: "0.85rem" }}
-                            onClick={() =>
-                              setModalAction({
-                                isOpen: true,
-                                type: 'accept',
-                                targetId: org.id,
-                                targetTitle: org.name,
-                                reason: '',
-                              })
-                            }
-                          >
-                            <CheckCircle2 size={16} /> {tCommon("accept")}
-                          </button>
-                          <button
-                            className="btn btn-outline"
-                            style={{ padding: "0.4rem 0.8rem", fontSize: "0.85rem", color: "var(--color-accent)", borderColor: "var(--color-accent)" }}
-                            onClick={() =>
-                              setModalAction({
-                                isOpen: true,
-                                type: 'reject',
-                                targetId: org.id,
-                                targetTitle: org.name,
-                                reason: '',
-                              })
-                            }
-                          >
-                            <XCircle size={16} /> {tCommon("reject")}
-                          </button>
-                        </div>
-                      )}
+                      <button
+                        className="btn btn-primary"
+                        style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+                        onClick={() => handleOpenOrgReview(org)}
+                      >
+                        <Eye size={16} /> ড্রয়ারে যাচাই করুন
+                      </button>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Tab 2: Organization Management (Student Posts Approval) */}
-      {activeTab === 'orgs' && (
-        <div>
-          <div className="card" style={{ padding: "1.5rem", backgroundColor: "var(--color-surface)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)" }}>
-            <h3 style={{ fontSize: "1.15rem", fontWeight: "700", marginBottom: "0.5rem" }}>
-              ২.৫ {t("postVerificationReq")}
-            </h3>
-            <p style={{ fontSize: "0.9rem", color: "var(--color-text-muted)", marginBottom: "1.25rem" }}>
-              প্রতিষ্ঠান ও শিক্ষক কর্তৃক ডাবল ভেরিফাইড পোস্টসমূহ। সুপার এডমিনের চূড়ান্ত অনুমোদন পেলে পোস্ট লাইভ হবে।
-            </p>
-
-            {studentPostRequests.length === 0 ? (
-              <p style={{ color: "var(--color-text-muted)" }}>কোনো পোস্ট অনুমোদনের অপেক্ষায় নেই।</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                {studentPostRequests.map((post) => (
-                  <div
-                    key={post.id}
-                    style={{
-                      padding: "1.25rem",
-                      backgroundColor: "var(--color-bg)",
-                      borderRadius: "var(--radius-md)",
-                      border: "1px solid var(--color-border)",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
-                      <div>
-                        <h4 style={{ fontWeight: "700", fontSize: "1.05rem", color: "var(--color-primary-dark)" }}>
-                          {post.title}
-                        </h4>
-                        <p style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
-                          শিক্ষার্থী: <strong>{post.studentName}</strong> | প্রতিষ্ঠান: <strong>{post.institution}</strong>
-                        </p>
-                      </div>
-                      <span style={{ fontWeight: "800", color: "var(--color-primary)", fontSize: "1.1rem" }}>
-                        ৳{post.amount.toLocaleString()}
-                      </span>
-                    </div>
-
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1rem" }}>
-                      <div style={{ display: "flex", gap: "0.5rem", fontSize: "0.8rem" }}>
-                        <span style={{ padding: "0.2rem 0.5rem", backgroundColor: "rgba(13, 148, 136, 0.12)", color: "var(--color-primary)", borderRadius: "4px" }}>
-                          ✓ শিক্ষক কর্তৃক যাচাইকৃত
-                        </span>
-                        <span style={{ padding: "0.2rem 0.5rem", backgroundColor: "rgba(13, 148, 136, 0.12)", color: "var(--color-primary)", borderRadius: "4px" }}>
-                          ✓ প্রতিষ্ঠান কর্তৃক যাচাইকৃত
-                        </span>
-                      </div>
-
-                      {getPermission(PermissionModuleKey.STUDENT_POST_VERIFICATION_REQUESTS).canApprove && (
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
-                          <button
-                            className="btn btn-primary"
-                            style={{ padding: "0.4rem 0.8rem", fontSize: "0.85rem" }}
-                            onClick={() =>
-                              setModalAction({
-                                isOpen: true,
-                                type: 'accept',
-                                targetId: post.id,
-                                targetTitle: `${post.title} (${post.studentName})`,
-                                reason: '',
-                              })
-                            }
-                          >
-                            <CheckCircle2 size={16} /> পোস্ট লাইভ করুন
-                          </button>
-                          <button
-                            className="btn btn-outline"
-                            style={{ padding: "0.4rem 0.8rem", fontSize: "0.85rem", color: "var(--color-accent)", borderColor: "var(--color-accent)" }}
-                            onClick={() =>
-                              setModalAction({
-                                isOpen: true,
-                                type: 'reject',
-                                targetId: post.id,
-                                targetTitle: post.title,
-                                reason: '',
-                              })
-                            }
-                          >
-                            <XCircle size={16} /> প্রত্যাখ্যান
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Tab 3: Donor List */}
-      {activeTab === 'donors' && (
-        <div className="card" style={{ padding: "1.5rem", backgroundColor: "var(--color-surface)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)" }}>
-          <h3 style={{ fontSize: "1.15rem", fontWeight: "700", marginBottom: "1rem" }}>{t("donorList")}</h3>
-          <p style={{ color: "var(--color-text-muted)", fontSize: "0.9rem" }}>
-            প্ল্যাটফর্মের নিবন্ধিত ডোনারদের প্রোফাইল ও সর্বমোট প্রদত্ত অনুদানের বিবরণ।
-          </p>
-        </div>
-      )}
-
-      {/* Tab 4: Accounts & Donation Approvals */}
-      {activeTab === 'accounts' && (
-        <div className="card" style={{ padding: "1.5rem", backgroundColor: "var(--color-surface)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)" }}>
-          <h3 style={{ fontSize: "1.15rem", fontWeight: "700", marginBottom: "0.5rem" }}>{t("accountsManagement")}</h3>
-          <p style={{ fontSize: "0.9rem", color: "var(--color-text-muted)", marginBottom: "1.25rem" }}>
-            সরাসরি ও র্যান্ডম অনুদানের ট্রানজেকশন যাচাই ও অনুমোদন। (সাধারণ এডমিনের জন্য অ্যাক্সেস প্রযোজ্য নয়)
-          </p>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {pendingDonations.map((don) => (
-              <div
-                key={don.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "1rem",
-                  backgroundColor: "var(--color-bg)",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid var(--color-border)",
-                }}
-              >
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.2rem" }}>
-                    <span style={{ fontWeight: "700", fontSize: "1rem" }}>{don.donorName}</span>
-                    <span style={{ fontSize: "0.75rem", padding: "0.15rem 0.4rem", borderRadius: "4px", backgroundColor: don.type === 'random' ? 'rgba(13, 148, 136, 0.15)' : 'rgba(59, 130, 246, 0.15)' }}>
-                      {don.type === 'random' ? 'র্যান্ডম ফান্ড' : `সরাসরি: ${don.studentName}`}
-                    </span>
-                  </div>
-                  <p style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
-                    মাধ্যম: {don.method} | ট্রানজেকশন আইডি: <code>{don.trxId}</code>
-                  </p>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>
-                  <span style={{ fontWeight: "800", color: "var(--color-primary)", fontSize: "1.15rem" }}>
-                    ৳{don.amount.toLocaleString()}
-                  </span>
-
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
-                    <button
-                      className="btn btn-primary"
-                      style={{ padding: "0.4rem 0.8rem", fontSize: "0.85rem" }}
-                      onClick={() =>
-                        setModalAction({
-                          isOpen: true,
-                          type: 'accept',
-                          targetId: don.id,
-                          targetTitle: `অনুদান: ৳${don.amount} (${don.donorName})`,
-                          reason: '',
-                        })
-                      }
-                    >
-                      <CheckCircle2 size={16} /> অনুমোদন
-                    </button>
-                    <button
-                      className="btn btn-outline"
-                      style={{ padding: "0.4rem 0.8rem", fontSize: "0.85rem", color: "var(--color-accent)", borderColor: "var(--color-accent)" }}
-                      onClick={() =>
-                        setModalAction({
-                          isOpen: true,
-                          type: 'reject',
-                          targetId: don.id,
-                          targetTitle: `অনুদান: ৳${don.amount}`,
-                          reason: '',
-                        })
-                      }
-                    >
-                      <XCircle size={16} /> বাতিল
-                    </button>
-                  </div>
-                </div>
+        {/* VIEW 4: Student Posts Verification */}
+        {activeNav === 'student_posts' && (
+          <div>
+            <div className={styles.contentHeader}>
+              <div>
+                <h1 className={styles.pageTitle}>
+                  <GraduationCap size={26} color="var(--color-primary)" />
+                  {t('postVerificationReq')} ({studentPostRequests.length})
+                </h1>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                  শিক্ষক ও প্রতিষ্ঠান প্রধান কর্তৃক ডাবল ভেরিফাইড আবেদন। চূড়ান্ত অনুমোদন পেলে লাইভ হবে।
+                </p>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Confirmation & Rejection Reason Modal */}
-      {modalAction.isOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100,
-            padding: "1rem",
-          }}
-        >
-          <div
-            className="card"
-            style={{
-              width: "100%",
-              maxWidth: "500px",
-              padding: "2rem",
-              borderRadius: "var(--radius-lg)",
-              backgroundColor: "var(--color-surface)",
-              boxShadow: "var(--shadow-lg)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-              {modalAction.type === 'accept' ? (
-                <CheckCircle2 size={24} color="var(--color-primary)" />
-              ) : (
-                <AlertTriangle size={24} color="var(--color-accent)" />
-              )}
-              <h3 style={{ fontSize: "1.25rem", fontWeight: "700" }}>
-                {modalAction.type === 'accept' ? 'অনুমোদন নিশ্চিতকরণ' : 'প্রত্যাখ্যান নিশ্চিতকরণ'}
-              </h3>
             </div>
 
-            <p style={{ color: "var(--color-text)", marginBottom: "1rem", fontSize: "0.95rem" }}>
-              আপনি কি নিশ্চিতভাবে <strong>"{modalAction.targetTitle}"</strong> {modalAction.type === 'accept' ? 'অনুমোদন' : 'প্রত্যাখ্যান'} করতে চান?
-            </p>
+            <div
+              className="card"
+              style={{
+                padding: '1.5rem',
+                backgroundColor: 'var(--surface, #ffffff)',
+                borderRadius: '12px',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              {loadingData ? (
+                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>ডাটা লোড হচ্ছে...</p>
+              ) : studentPostRequests.length === 0 ? (
+                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                  কোনো শিক্ষার্থী পোস্ট অনুমোদনের অপেক্ষায় নেই।
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {studentPostRequests.map((post) => (
+                    <div
+                      key={post.id}
+                      style={{
+                        padding: '1.25rem',
+                        backgroundColor: 'var(--background-alt, #f8fafc)',
+                        borderRadius: '12px',
+                        border: '1px solid var(--color-border)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          marginBottom: '0.5rem',
+                          flexWrap: 'wrap',
+                          gap: '0.5rem',
+                        }}
+                      >
+                        <div>
+                          <h4 style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--color-primary-dark)' }}>
+                            {post.title}
+                          </h4>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                            শিক্ষার্থী: <strong>{post.studentName}</strong> | প্রতিষ্ঠান: <strong>{post.institution}</strong>
+                          </p>
+                        </div>
+                        <span style={{ fontWeight: '800', color: 'var(--color-primary)', fontSize: '1.2rem' }}>
+                          ৳{Number(post.amount || 0).toLocaleString()}
+                        </span>
+                      </div>
 
-            {modalAction.type === 'reject' && (
-              <div style={{ marginBottom: "1.25rem" }}>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", marginBottom: "0.4rem" }}>
-                  {t("rejectReason")} (বাধ্যতামূলক):
-                </label>
-                <textarea
-                  rows={3}
-                  value={modalAction.reason}
-                  onChange={(e) => setModalAction((prev) => ({ ...prev, reason: e.target.value }))}
-                  placeholder="যেমন: তথ্যের অসংগতি অথবা অস্পষ্ট সংযুক্তি..."
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginTop: '1rem',
+                          flexWrap: 'wrap',
+                          gap: '0.75rem',
+                        }}
+                      >
+                        <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.8rem', flexWrap: 'wrap' }}>
+                          {post.teacherVerified && (
+                            <span
+                              style={{
+                                padding: '0.2rem 0.6rem',
+                                backgroundColor: 'rgba(13, 148, 136, 0.12)',
+                                color: 'var(--color-primary)',
+                                borderRadius: '6px',
+                                fontWeight: 600,
+                              }}
+                            >
+                              ✓ শিক্ষক যাচাইকৃত
+                            </span>
+                          )}
+                          {post.orgVerified && (
+                            <span
+                              style={{
+                                padding: '0.2rem 0.6rem',
+                                backgroundColor: 'rgba(13, 148, 136, 0.12)',
+                                color: 'var(--color-primary)',
+                                borderRadius: '6px',
+                                fontWeight: 600,
+                              }}
+                            >
+                              ✓ প্রতিষ্ঠান সিলমোহর
+                            </span>
+                          )}
+                        </div>
+
+                        <button
+                          className="btn btn-primary"
+                          style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+                          onClick={() =>
+                            setActionDrawer({
+                              isOpen: true,
+                              type: 'post_review',
+                              itemData: post,
+                              reason: '',
+                            })
+                          }
+                        >
+                          <Eye size={16} /> ড্রয়ারে বিস্তারিত দেখুন ও অনুমোদন করুন
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* VIEW: Affiliation Final Clearances (Teachers & Students Stage 2) */}
+        {activeNav === 'affiliation_requests' && (
+          <div>
+            <div className={styles.contentHeader}>
+              <div>
+                <h1 className={styles.pageTitle}>
+                  <UserCheck size={26} color="var(--color-primary)" />
+                  শিক্ষক ও শিক্ষার্থী চূড়ান্ত অনুমোদন (স্টেজ ২)
+                </h1>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                  শিক্ষা প্রতিষ্ঠান কর্তৃক প্রাথমিকভাবে অনুমোদিত আবেদনসমূহ। মাস্টার বা সুপার এডমিন চূড়ান্ত ছাড়পত্র দিলে অ্যাকাউন্ট সক্রিয় ও ফিচার উন্মুক্ত হবে।
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              {/* Teacher Approvals */}
+              <div
+                className="card"
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'var(--surface, #ffffff)',
+                  borderRadius: '12px',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <UserCheck size={20} color="#2563eb" />
+                  প্রতিষ্ঠান অনুমোদিত শিক্ষক তালিকা ({adminPendingAffiliations.teachers.length})
+                </h3>
+
+                {adminPendingAffiliations.teachers.length === 0 ? (
+                  <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '1.5rem', margin: 0 }}>
+                    কোনো শিক্ষক চূড়ান্ত অনুমোদনের জন্য অপেক্ষমাণ নেই।
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {adminPendingAffiliations.teachers.map((t) => (
+                      <div
+                        key={t.profileId}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '1.25rem',
+                          backgroundColor: 'var(--background-alt, #f8fafc)',
+                          borderRadius: '10px',
+                          border: '1px solid var(--color-border)',
+                          flexWrap: 'wrap',
+                          gap: '1rem',
+                        }}
+                      >
+                        <div>
+                          <h4 style={{ fontWeight: '700', fontSize: '1.05rem', margin: 0, color: 'var(--text-main, #0f172a)' }}>
+                            {t.fullName}
+                          </h4>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #64748b)', margin: '0.25rem 0 0' }}>
+                            প্রতিষ্ঠান: <strong style={{ color: 'var(--text-main, #0f172a)' }}>{t.institutionName}</strong>
+                            {t.designation && ` | পদবী: ${t.designation}`}
+                            {t.department && ` | বিভাগ: ${t.department}`}
+                            {t.employeeId && ` | আইডি: ${t.employeeId}`}
+                          </p>
+                          <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '0.2rem 0 0' }}>
+                            ইমেইল: {t.email} | ফোন: {t.phone || 'নেই'}
+                          </p>
+                        </div>
+
+                        <button
+                          className="btn btn-primary"
+                          style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+                          onClick={() =>
+                            setActionDrawer({
+                              isOpen: true,
+                              type: 'affiliation_review',
+                              itemData: { ...t, role: 'teacher' },
+                              reason: '',
+                            })
+                          }
+                        >
+                          <Eye size={16} /> যাচাই ও চূড়ান্ত অনুমোদন
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Student Approvals */}
+              <div
+                className="card"
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'var(--surface, #ffffff)',
+                  borderRadius: '12px',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <GraduationCap size={20} color="#059669" />
+                  প্রতিষ্ঠান অনুমোদিত শিক্ষার্থী তালিকা ({adminPendingAffiliations.students.length})
+                </h3>
+
+                {adminPendingAffiliations.students.length === 0 ? (
+                  <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '1.5rem', margin: 0 }}>
+                    কোনো শিক্ষার্থী চূড়ান্ত অনুমোদনের জন্য অপেক্ষমাণ নেই।
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {adminPendingAffiliations.students.map((s) => (
+                      <div
+                        key={s.profileId}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '1.25rem',
+                          backgroundColor: 'var(--background-alt, #f8fafc)',
+                          borderRadius: '10px',
+                          border: '1px solid var(--color-border)',
+                          flexWrap: 'wrap',
+                          gap: '1rem',
+                        }}
+                      >
+                        <div>
+                          <h4 style={{ fontWeight: '700', fontSize: '1.05rem', margin: 0, color: 'var(--text-main, #0f172a)' }}>
+                            {s.fullName}
+                          </h4>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #64748b)', margin: '0.25rem 0 0' }}>
+                            প্রতিষ্ঠান: <strong style={{ color: 'var(--text-main, #0f172a)' }}>{s.institutionName}</strong>
+                            {s.studentClassRoll && ` | ক্লাস/রোল: ${s.studentClassRoll}`}
+                            {s.address && ` | ঠিকানা: ${s.address}`}
+                          </p>
+                          <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '0.2rem 0 0' }}>
+                            ইমেইল: {s.email} | ফোন: {s.phone || 'নেই'}
+                          </p>
+                        </div>
+
+                        <button
+                          className="btn btn-primary"
+                          style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+                          onClick={() =>
+                            setActionDrawer({
+                              isOpen: true,
+                              type: 'affiliation_review',
+                              itemData: { ...s, role: 'student' },
+                              reason: '',
+                            })
+                          }
+                        >
+                          <Eye size={16} /> যাচাই ও চূড়ান্ত অনুমোদন
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 5: Donor List */}
+        {activeNav === 'donors' && (
+          <div>
+            <div className={styles.contentHeader}>
+              <div>
+                <h1 className={styles.pageTitle}>
+                  <Heart size={26} color="#ec4899" />
+                  {t('donorList')} ({donorsList.length})
+                </h1>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                  প্ল্যাটফর্মের নিবন্ধিত সম্মানিত দাতা ও তাদের সামগ্রিক অবদানের তালিকা।
+                </p>
+              </div>
+            </div>
+
+            <div
+              className="card"
+              style={{
+                padding: '1.5rem',
+                backgroundColor: 'var(--surface, #ffffff)',
+                borderRadius: '12px',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              {loadingData ? (
+                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>ডাটা লোড হচ্ছে...</p>
+              ) : donorsList.length === 0 ? (
+                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                  কোনো নিবন্ধিত দাতা পাওয়া যায়নি।
+                </p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--color-border)', textAlign: 'left' }}>
+                        <th style={{ padding: '0.75rem' }}>নাম</th>
+                        <th style={{ padding: '0.75rem' }}>ইমেইল</th>
+                        <th style={{ padding: '0.75rem' }}>ফোন</th>
+                        <th style={{ padding: '0.75rem' }}>স্ট্যাটাস</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {donorsList.map((donor) => (
+                        <tr key={donor.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                          <td style={{ padding: '0.75rem', fontWeight: 600 }}>{donor.fullName}</td>
+                          <td style={{ padding: '0.75rem' }}>{donor.email}</td>
+                          <td style={{ padding: '0.75rem' }}>{donor.phone || '—'}</td>
+                          <td style={{ padding: '0.75rem' }}>
+                            <span style={{ padding: '0.15rem 0.5rem', borderRadius: '4px', backgroundColor: '#dcfce7', color: '#166534', fontSize: '0.8rem', fontWeight: 700 }}>
+                              {donor.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 6: Pending Donations */}
+        {activeNav === 'pending_donations' && (
+          <div>
+            <div className={styles.contentHeader}>
+              <div>
+                <h1 className={styles.pageTitle}>
+                  <DollarSign size={26} color="#10b981" />
+                  {t('accountsManagement')} ({pendingDonations.length})
+                </h1>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                  অনুদান পেমেন্ট ট্রানজেকশন যাচাই ও চূড়ান্ত পাবলিক লেজারে পোস্টিং।
+                </p>
+              </div>
+            </div>
+
+            <div
+              className="card"
+              style={{
+                padding: '1.5rem',
+                backgroundColor: 'var(--surface, #ffffff)',
+                borderRadius: '12px',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              {loadingData ? (
+                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>ডাটা লোড হচ্ছে...</p>
+              ) : pendingDonations.length === 0 ? (
+                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                  কোনো অনুদান ভেরিফিকেশন অপেক্ষমান নেই।
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {pendingDonations.map((don) => (
+                    <div
+                      key={don.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '1.25rem',
+                        backgroundColor: 'var(--background-alt, #f8fafc)',
+                        borderRadius: '10px',
+                        border: '1px solid var(--color-border)',
+                        flexWrap: 'wrap',
+                        gap: '1rem',
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                          <span style={{ fontWeight: '700', fontSize: '1.05rem', color: 'var(--text-main, #0f172a)' }}>
+                            {don.donorName}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '0.75rem',
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: '4px',
+                              fontWeight: 600,
+                              backgroundColor: don.type === 'random' ? 'rgba(13, 148, 136, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                              color: don.type === 'random' ? '#0d9488' : '#2563eb',
+                            }}
+                          >
+                            {don.type === 'random' ? 'সাধারণ তহবিল' : `সরাসরি: ${don.studentName}`}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                          মাধ্যম: <strong>{don.method}</strong> | ট্রানজেকশন আইডি: <code>{don.trxId}</code> {don.time && `| সময়: ${don.time}`}
+                        </p>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                        <span style={{ fontWeight: '800', color: 'var(--color-primary)', fontSize: '1.25rem' }}>
+                          ৳{Number(don.amount || 0).toLocaleString()}
+                        </span>
+
+                        <button
+                          className="btn btn-primary"
+                          style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+                          onClick={() =>
+                            setActionDrawer({
+                              isOpen: true,
+                              type: 'donation_review',
+                              itemData: don,
+                              reason: '',
+                            })
+                          }
+                        >
+                          <Eye size={16} /> ড্রয়ারে যাচাই ও ছাড়
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* ====================================================================
+          Action / Inspection Slide-Over Drawer (Right / Bottom Drawer)
+          ==================================================================== */}
+      <div
+        className={`${styles.actionDrawerBackdrop} ${
+          actionDrawer.isOpen ? styles.actionDrawerBackdropOpen : ''
+        }`}
+        onClick={() => setActionDrawer((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      <div className={`${styles.actionDrawer} ${actionDrawer.isOpen ? styles.actionDrawerOpen : ''}`}>
+        <div className={styles.actionDrawerHeader}>
+          <h3 className={styles.actionDrawerTitle}>
+            <SlidersHorizontal size={18} color="var(--color-primary)" />
+            {actionDrawer.type === 'org_review' && 'প্রতিষ্ঠান ছাড়পত্র আবেদন পর্যালোচনা'}
+            {actionDrawer.type === 'post_review' && 'শিক্ষার্থী আবেদনপত্র ও খরচ যাচাই'}
+            {actionDrawer.type === 'donation_review' && 'অনুদান ট্রানজেকশন অনুমোদন'}
+            {actionDrawer.type === 'add_super_admin' &&
+              (newAdminRole === 'super_admin'
+                ? (isBn ? 'নতুন সুপার এডমিন তৈরি' : 'Create Super Admin')
+                : (isBn ? 'নতুন এডমিন তৈরি' : 'Create Admin'))}
+            {actionDrawer.type === 'edit_permissions' && (isBn ? 'পারমিশন এডিট করুন' : 'Edit Permissions')}
+            {actionDrawer.type === 'affiliation_review' &&
+              (actionDrawer.itemData?.role === 'teacher'
+                ? 'শিক্ষক প্রোফাইল চূড়ান্ত অনুমোদন'
+                : 'শিক্ষার্থী প্রোফাইল চূড়ান্ত অনুমোদন')}
+          </h3>
+          <button
+            className={styles.actionDrawerCloseBtn}
+            onClick={() => setActionDrawer((prev) => ({ ...prev, isOpen: false }))}
+            aria-label="ড্রয়ার বন্ধ করুন"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className={styles.actionDrawerBody}>
+          {/* Organization Verification Review Body */}
+          {actionDrawer.type === 'org_review' && actionDrawer.itemData && (
+            <div>
+              {actionDrawer.itemData.isRequestedByMember && (
+                <div
                   style={{
-                    width: "100%",
-                    padding: "0.6rem",
-                    borderRadius: "var(--radius-sm)",
-                    border: "1px solid var(--color-border)",
-                    fontFamily: "inherit",
-                    fontSize: "0.9rem",
+                    padding: '0.65rem 0.85rem',
+                    backgroundColor: '#fffbeb',
+                    border: '1px solid #fde68a',
+                    borderRadius: '8px',
+                    color: '#92400e',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    marginBottom: '1rem',
+                  }}
+                >
+                  ℹ️ সাধারণ সদস্য কর্তৃক প্রস্তাবিত — সরেজমিনে যাচাই করে অ্যাকাউন্ট তৈরির ব্যবস্থা গ্রহণ করুন।
+                </div>
+              )}
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>প্রতিষ্ঠানের নাম</div>
+                <input
+                  type="text"
+                  value={orgEditName}
+                  onChange={(e) => setOrgEditName(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    fontFamily: 'inherit',
+                    fontSize: '0.9rem',
+                    backgroundColor: 'var(--surface, #fff)',
+                    color: 'var(--text-main, #0f172a)',
                   }}
                 />
               </div>
-            )}
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
-              <button
-                className="btn btn-outline"
-                onClick={() => setModalAction({ isOpen: false, type: 'accept', targetId: '', targetTitle: '', reason: '' })}
-              >
-                {tCommon("cancel")}
-              </button>
-              <button
-                className={`btn ${modalAction.type === 'accept' ? 'btn-primary' : 'btn-outline'}`}
-                style={modalAction.type === 'reject' ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : {}}
-                onClick={handleConfirmAction}
-              >
-                {tCommon("confirm")}
-              </button>
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>প্রতিষ্ঠানের ধরন</div>
+                <select
+                  value={orgEditType}
+                  onChange={(e) => setOrgEditType(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    fontFamily: 'inherit',
+                    fontSize: '0.9rem',
+                    backgroundColor: 'var(--surface, #fff)',
+                    color: 'var(--text-main, #0f172a)',
+                  }}
+                >
+                  <option value="school">স্কুল (School)</option>
+                  <option value="college">কলেজ (College)</option>
+                  <option value="madrasah">মাদ্রাসা (Madrasah)</option>
+                  <option value="university">বিশ্ববিদ্যালয় (University)</option>
+                  <option value="others">অন্যান্য (Others)</option>
+                </select>
+              </div>
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>সরকারি / বোর্ড নিবন্ধন কোড</div>
+                <input
+                  type="text"
+                  value={orgEditRegNo}
+                  onChange={(e) => setOrgEditRegNo(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    fontFamily: 'inherit',
+                    fontSize: '0.9rem',
+                    backgroundColor: 'var(--surface, #fff)',
+                    color: 'var(--text-main, #0f172a)',
+                  }}
+                />
+              </div>
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>প্রতিনিধি / যোগাযোগ ব্যক্তি</div>
+                <input
+                  type="text"
+                  value={orgEditContact}
+                  onChange={(e) => setOrgEditContact(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    fontFamily: 'inherit',
+                    fontSize: '0.9rem',
+                    backgroundColor: 'var(--surface, #fff)',
+                    color: 'var(--text-main, #0f172a)',
+                  }}
+                />
+              </div>
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>যোগাযোগের ফোন নম্বর</div>
+                <input
+                  type="tel"
+                  value={orgEditPhone}
+                  onChange={(e) => setOrgEditPhone(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    fontFamily: 'inherit',
+                    fontSize: '0.9rem',
+                    backgroundColor: 'var(--surface, #fff)',
+                    color: 'var(--text-main, #0f172a)',
+                  }}
+                />
+              </div>
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>প্রতিষ্ঠানের অফিশিয়াল ইমেইল</div>
+                <input
+                  type="email"
+                  value={orgEditEmail}
+                  onChange={(e) => setOrgEditEmail(e.target.value)}
+                  placeholder="info@institution.edu.bd"
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    fontFamily: 'inherit',
+                    fontSize: '0.9rem',
+                    backgroundColor: 'var(--surface, #fff)',
+                    color: 'var(--text-main, #0f172a)',
+                  }}
+                />
+              </div>
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>প্রতিষ্ঠানের স্থায়ী ঠিকানা</div>
+                <input
+                  type="text"
+                  value={orgEditAddress}
+                  onChange={(e) => setOrgEditAddress(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    fontFamily: 'inherit',
+                    fontSize: '0.9rem',
+                    backgroundColor: 'var(--surface, #fff)',
+                    color: 'var(--text-main, #0f172a)',
+                  }}
+                />
+              </div>
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>বিবরণ (ঐচ্ছিক)</div>
+                <textarea
+                  rows={2}
+                  value={orgEditDesc}
+                  onChange={(e) => setOrgEditDesc(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    fontFamily: 'inherit',
+                    fontSize: '0.9rem',
+                    backgroundColor: 'var(--surface, #fff)',
+                    color: 'var(--text-main, #0f172a)',
+                  }}
+                />
+              </div>
+
+              <div className={styles.sealCard}>
+                <Building2 size={24} color="#166534" />
+                <div>
+                  <div className={styles.sealTitle}>প্রতিষ্ঠান ছাড়পত্র আবেদন পর্যালোচনায় রয়েছে</div>
+                  <div className={styles.sealDesc}>
+                    অনুমোদন করলে প্রতিষ্ঠানটি সক্রিয় হবে এবং শিক্ষার্থীদের আবেদন প্রত্যয়ন করতে পারবে।
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '1.5rem' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                  প্রত্যাখ্যানের কারণ (যদি বাতিল করতে চান):
+                </label>
+                <textarea
+                  rows={3}
+                  value={actionDrawer.reason}
+                  onChange={(e) => setActionDrawer((prev) => ({ ...prev, reason: e.target.value }))}
+                  placeholder="যেমন: নিবন্ধন কোড অস্পষ্ট বা প্রাতিষ্ঠানিক সনদ সংযুক্ত নেই..."
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    fontFamily: 'inherit',
+                    fontSize: '0.9rem',
+                  }}
+                />
+              </div>
             </div>
+          )}
+
+          {/* Affiliation Verification Review Body (Stage 2) */}
+          {actionDrawer.type === 'affiliation_review' && actionDrawer.itemData && (
+            <div>
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>নাম ও ভূমিকা</div>
+                <div className={styles.detailValue} style={{ fontWeight: 800 }}>
+                  {actionDrawer.itemData.fullName} (
+                  {actionDrawer.itemData.role === 'teacher' ? 'শিক্ষক' : 'শিক্ষার্থী'})
+                </div>
+              </div>
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>শিক্ষা প্রতিষ্ঠান</div>
+                <div className={styles.detailValue} style={{ color: 'var(--color-primary-dark)', fontWeight: 700 }}>
+                  {actionDrawer.itemData.institutionName}
+                </div>
+              </div>
+
+              <div className={styles.sealCard}>
+                <CheckCircle2 size={24} color="#166534" />
+                <div>
+                  <div className={styles.sealTitle}>প্রতিষ্ঠান কর্তৃক স্টেজ-১ অনুমোদন সম্পন্ন</div>
+                  <div className={styles.sealDesc}>
+                    শিক্ষা প্রতিষ্ঠান কর্তৃপক্ষ এই আবেদন যাচাই করে ছাড়পত্র প্রদান করেছে। এখন এডমিন হিসেবে আপনার চূড়ান্ত ছাড়পত্র প্রয়োজন।
+                  </div>
+                </div>
+              </div>
+
+              {actionDrawer.itemData.role === 'teacher' ? (
+                <>
+                  {actionDrawer.itemData.designation && (
+                    <div className={styles.detailGroup}>
+                      <div className={styles.detailLabel}>পদবী</div>
+                      <div className={styles.detailValue}>{actionDrawer.itemData.designation}</div>
+                    </div>
+                  )}
+                  {actionDrawer.itemData.department && (
+                    <div className={styles.detailGroup}>
+                      <div className={styles.detailLabel}>বিভাগ / অনুষদ</div>
+                      <div className={styles.detailValue}>{actionDrawer.itemData.department}</div>
+                    </div>
+                  )}
+                  {actionDrawer.itemData.employeeId && (
+                    <div className={styles.detailGroup}>
+                      <div className={styles.detailLabel}>এমপ্লয়ী / শিক্ষক আইডি</div>
+                      <div className={styles.detailValue}>
+                        <code>{actionDrawer.itemData.employeeId}</code>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {actionDrawer.itemData.studentClassRoll && (
+                    <div className={styles.detailGroup}>
+                      <div className={styles.detailLabel}>শ্রেণি ও রোল নম্বর</div>
+                      <div className={styles.detailValue}>{actionDrawer.itemData.studentClassRoll}</div>
+                    </div>
+                  )}
+                  {actionDrawer.itemData.address && (
+                    <div className={styles.detailGroup}>
+                      <div className={styles.detailLabel}>শিক্ষার্থীর স্থায়ী ঠিকানা</div>
+                      <div className={styles.detailValue}>{actionDrawer.itemData.address}</div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>যোগাযোগ</div>
+                <div className={styles.detailValue}>
+                  {actionDrawer.itemData.email} | {actionDrawer.itemData.phone || 'ফোন নেই'}
+                </div>
+              </div>
+
+              <div style={{ marginTop: '1.5rem' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                  প্রত্যাখ্যানের কারণ (যদি বাতিল করতে চান):
+                </label>
+                <textarea
+                  rows={3}
+                  value={actionDrawer.reason}
+                  onChange={(e) => setActionDrawer((prev) => ({ ...prev, reason: e.target.value }))}
+                  placeholder="যেমন: তথ্যে গরমিল বা ভুয়া পরিচয়..."
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    fontFamily: 'inherit',
+                    fontSize: '0.9rem',
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Student Post Verification Review Body */}
+          {actionDrawer.type === 'post_review' && actionDrawer.itemData && (
+            <div>
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>পোস্টের শিরোনাম</div>
+                <div className={styles.detailValue} style={{ color: 'var(--color-primary-dark)' }}>
+                  {actionDrawer.itemData.title}
+                </div>
+              </div>
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>শিক্ষার্থী ও শিক্ষাপ্রতিষ্ঠান</div>
+                <div className={styles.detailValue}>
+                  {actionDrawer.itemData.studentName} ({actionDrawer.itemData.institution})
+                </div>
+              </div>
+
+              <div className={styles.sealCard}>
+                <CheckCircle2 size={24} color="var(--primary)" />
+                <div>
+                  <div className={styles.sealTitle}>দ্বৈত ভেরিফিকেশন স্ট্যাটাস</div>
+                  <div className={styles.sealDesc}>
+                    {actionDrawer.itemData.teacherVerified ? '✓ শিক্ষক সত্যায়ন সম্পন্ন' : 'শিক্ষক সত্যায়ন অপেক্ষমান'} |{' '}
+                    {actionDrawer.itemData.orgVerified ? '✓ প্রতিষ্ঠান ছাড়পত্র প্রাপ্ত' : 'প্রতিষ্ঠান ছাড়পত্র অপেক্ষমান'}
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>পারিবারিক ও আর্থিক সংকটের বিবরণ</div>
+                <div
+                  style={{
+                    backgroundColor: 'var(--background-alt, #f8fafc)',
+                    color: 'var(--text-main, #0f172a)',
+                    padding: '0.85rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    fontSize: '0.88rem',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {actionDrawer.itemData.problemDesc}
+                </div>
+              </div>
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>খরচের সুনির্দিষ্ট বিভাজন</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {actionDrawer.itemData.expenses?.map((exp: any, i: number) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        padding: '0.5rem 0.75rem',
+                        backgroundColor: 'var(--background-alt, #f1f5f9)',
+                        color: 'var(--text-main, #0f172a)',
+                        borderRadius: '6px',
+                        fontSize: '0.85rem',
+                      }}
+                    >
+                      <span>{exp.category}</span>
+                      <strong>৳{Number(exp.amount || 0).toLocaleString()}</strong>
+                    </div>
+                  ))}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      padding: '0.5rem 0.75rem',
+                      backgroundColor: 'rgba(13, 148, 136, 0.12)',
+                      borderRadius: '6px',
+                      fontSize: '0.95rem',
+                      fontWeight: 700,
+                      color: 'var(--color-primary-dark)',
+                    }}
+                  >
+                    <span>সর্বমোট প্রয়োজনীয় অর্থ</span>
+                    <span>৳{Number(actionDrawer.itemData.amount || 0).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                  সংশোধন / বাতিলের কারণ (ঐচ্ছিক):
+                </label>
+                <textarea
+                  rows={2}
+                  value={actionDrawer.reason}
+                  onChange={(e) => setActionDrawer((prev) => ({ ...prev, reason: e.target.value }))}
+                  placeholder="কোনো তথ্য পরিবর্তন বা সংশোধনের নির্দেশ থাকলে লিখুন..."
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    fontFamily: 'inherit',
+                    fontSize: '0.9rem',
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Donation Payment Review Body */}
+          {actionDrawer.type === 'donation_review' && actionDrawer.itemData && (
+            <div>
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>দানকারীর নাম</div>
+                <div className={styles.detailValue}>{actionDrawer.itemData.donorName}</div>
+              </div>
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>অনুদান প্রকার ও প্রাপক</div>
+                <div className={styles.detailValue}>
+                  {actionDrawer.itemData.type === 'random'
+                    ? 'সাধারণ শিক্ষা তহবিল'
+                    : `সরাসরি শিক্ষার্থী: ${actionDrawer.itemData.studentName}`}
+                </div>
+              </div>
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>পেমেন্ট মেথড ও লেনদেন আইডি</div>
+                <div className={styles.detailValue}>
+                  {actionDrawer.itemData.method} — <code>{actionDrawer.itemData.trxId}</code>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: '1rem',
+                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '1rem',
+                }}
+              >
+                <span style={{ fontWeight: 600, color: '#065f46' }}>মোট প্রাপ্ত অর্থ</span>
+                <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#047857' }}>
+                  ৳{Number(actionDrawer.itemData.amount || 0).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Add Super Admin / Admin Body */}
+          {/* Edit Admin Permissions Drawer Body */}
+          {actionDrawer.type === 'edit_permissions' && editingAdmin && (
+            <div>
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>{isBn ? 'কর্মকর্তা' : 'Staff Member'}</div>
+                <div className={styles.detailValue} style={{ fontWeight: 800 }}>
+                  {editingAdmin.fullName || editingAdmin.name}
+                </div>
+              </div>
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>{isBn ? 'ইমেইল' : 'Email'}</div>
+                <div className={styles.detailValue}>{editingAdmin.email}</div>
+              </div>
+
+              <div style={{ marginTop: '1rem' }}>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '0.6rem', color: 'var(--text-main, #0f172a)' }}>
+                  {isBn ? 'রোল নির্ধারণ' : 'Role Selection'}
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <label
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.65rem 1rem',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${editAdminRole === 'super_admin' ? 'var(--color-primary, #059669)' : 'var(--surface-border, #94a3b8)'}`,
+                      backgroundColor: editAdminRole === 'super_admin' ? 'rgba(5, 150, 105, 0.12)' : 'var(--surface, #ffffff)',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                      color: 'var(--text-main, #0f172a)',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="editAdminRole"
+                      value="super_admin"
+                      checked={editAdminRole === 'super_admin'}
+                      onChange={() => setEditAdminRole('super_admin')}
+                      style={{ accentColor: 'var(--color-primary, #059669)', width: '16px', height: '16px', cursor: 'pointer' }}
+                    />
+                    <span>{isBn ? 'সুপার এডমিন' : 'Super Admin'}</span>
+                  </label>
+
+                  <label
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.65rem 1rem',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${editAdminRole === 'admin' ? 'var(--color-primary, #059669)' : 'var(--surface-border, #94a3b8)'}`,
+                      backgroundColor: editAdminRole === 'admin' ? 'rgba(5, 150, 105, 0.12)' : 'var(--surface, #ffffff)',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                      color: 'var(--text-main, #0f172a)',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="editAdminRole"
+                      value="admin"
+                      checked={editAdminRole === 'admin'}
+                      onChange={() => {
+                        setEditAdminRole('admin');
+                        setEditAdminPermissions((prev) =>
+                          prev.filter(
+                            (key) =>
+                              key !== PermissionModuleKey.SUPER_ADMIN_LIST &&
+                              key !== PermissionModuleKey.ADMIN_LIST &&
+                              key !== PermissionModuleKey.ACCOUNTS_DONATION_APPROVAL
+                          )
+                        );
+                      }}
+                      style={{ accentColor: 'var(--color-primary, #059669)', width: '16px', height: '16px', cursor: 'pointer' }}
+                    />
+                    <span>{isBn ? 'এডমিন' : 'Admin'}</span>
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '1.25rem' }}>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '0.6rem', color: 'var(--text-main, #0f172a)' }}>
+                  {isBn ? 'মডিউল পারমিশন' : 'Module Permissions'}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {ALL_MODULES.filter(
+                    (mod) => editAdminRole === 'super_admin' || !mod.superAdminOnly
+                  ).map((mod) => (
+                    <label
+                      key={mod.key}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.6rem 0.85rem',
+                        backgroundColor: 'var(--background-alt, #f8fafc)',
+                        color: 'var(--text-main, #0f172a)',
+                        borderRadius: '6px',
+                        border: '1.5px solid var(--surface-border, #cbd5e1)',
+                        fontSize: '0.85rem',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                      }}
+                    >
+                      <span style={{ fontWeight: 500 }}>{isBn ? mod.name : (mod.nameEn || mod.name)}</span>
+                      <input
+                        type="checkbox"
+                        checked={editAdminPermissions.includes(mod.key)}
+                        onChange={() => toggleEditPermission(mod.key)}
+                        style={{ accentColor: 'var(--color-primary, #059669)', width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', alignItems: 'center', marginTop: '1.75rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{
+                    flex: 1,
+                    maxWidth: '180px',
+                    height: '42px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 600,
+                  }}
+                  onClick={() => setActionDrawer((prev) => ({ ...prev, isOpen: false }))}
+                >
+                  {isBn ? 'বাতিল' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  disabled={isUpdatingPermissions}
+                  className="btn btn-primary"
+                  style={{
+                    flex: 1,
+                    maxWidth: '180px',
+                    height: '42px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 700,
+                  }}
+                  onClick={handleSaveAdminPermissions}
+                >
+                  {isUpdatingPermissions
+                    ? (isBn ? 'সংরক্ষণ হচ্ছে...' : 'Saving...')
+                    : (isBn ? 'পারমিশন সেভ করুন' : 'Save Permissions')}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {actionDrawer.type === 'add_super_admin' && (
+            <form onSubmit={handleCreateSuperAdmin}>
+              {/* 1. Admin Role Radio Selector */}
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--color-text, #0f172a)' }}>
+                  {isBn ? 'পদবী নির্বাচন করুন' : 'Select Role'}
+                </label>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  <label
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.65rem 1rem',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${newAdminRole === 'super_admin' ? 'var(--color-primary, #059669)' : '#94a3b8'}`,
+                      backgroundColor: newAdminRole === 'super_admin' ? 'rgba(5, 150, 105, 0.12)' : 'var(--surface, #ffffff)',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                      transition: 'all 0.2s ease',
+                      color: 'var(--text-main, #0f172a)',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="adminRole"
+                      value="super_admin"
+                      checked={newAdminRole === 'super_admin'}
+                      onChange={() => setNewAdminRole('super_admin')}
+                      style={{ accentColor: 'var(--color-primary, #059669)', width: '16px', height: '16px', cursor: 'pointer' }}
+                    />
+                    <span>{isBn ? 'সুপার এডমিন' : 'Super Admin'}</span>
+                  </label>
+
+                  <label
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.65rem 1rem',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${newAdminRole === 'admin' ? 'var(--color-primary, #059669)' : 'var(--surface-border, #94a3b8)'}`,
+                      backgroundColor: newAdminRole === 'admin' ? 'rgba(5, 150, 105, 0.12)' : 'var(--surface, #ffffff)',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                      transition: 'all 0.2s ease',
+                      color: 'var(--text-main, #0f172a)',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="adminRole"
+                      value="admin"
+                      checked={newAdminRole === 'admin'}
+                      onChange={() => {
+                        setNewAdminRole('admin');
+                        setSelectedPermissions((prev) =>
+                          prev.filter(
+                            (key) =>
+                              key !== PermissionModuleKey.SUPER_ADMIN_LIST &&
+                              key !== PermissionModuleKey.ADMIN_LIST &&
+                              key !== PermissionModuleKey.ACCOUNTS_DONATION_APPROVAL
+                          )
+                        );
+                      }}
+                      style={{ accentColor: 'var(--color-primary, #059669)', width: '16px', height: '16px', cursor: 'pointer' }}
+                    />
+                    <span>{isBn ? 'এডমিন' : 'Admin'}</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 1.1: Name with placeholder "এস. এম. ফারুক হাসান" and crisp visible border */}
+              <div className={styles.detailGroup}>
+                <label className={styles.detailLabel}>{isBn ? 'পূর্ণ নাম' : 'Full Name'}</label>
+                <input
+                  type="text"
+                  required
+                  value={newAdminName}
+                  onChange={(e) => setNewAdminName(e.target.value)}
+                  placeholder={isBn ? 'এস. এম. ফারুক হাসান' : 'S. M. Faruk Hasan'}
+                  style={{
+                    width: '100%',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '8px',
+                    border: '1.5px solid var(--surface-border, #94a3b8)',
+                    backgroundColor: 'var(--surface, #ffffff)',
+                    color: 'var(--text-main, #0f172a)',
+                    fontSize: '0.92rem',
+                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                  }}
+                />
+              </div>
+
+              {/* 1.1: Email with placeholder "hasan@sadaqahbd.com" and crisp visible border */}
+              <div className={styles.detailGroup}>
+                <label className={styles.detailLabel}>{isBn ? 'অফিসিয়াল ইমেইল' : 'Official Email'}</label>
+                <input
+                  type="email"
+                  required
+                  value={newAdminEmail}
+                  onChange={(e) => setNewAdminEmail(e.target.value)}
+                  placeholder="hasan@sadaqahbd.com"
+                  style={{
+                    width: '100%',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '8px',
+                    border: '1.5px solid var(--surface-border, #94a3b8)',
+                    backgroundColor: 'var(--surface, #ffffff)',
+                    color: 'var(--text-main, #0f172a)',
+                    fontSize: '0.92rem',
+                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                  }}
+                />
+              </div>
+
+              {/* Mobile Phone with crisp visible border */}
+              <div className={styles.detailGroup}>
+                <label className={styles.detailLabel}>{isBn ? 'মোবাইল নম্বর' : 'Mobile Phone'}</label>
+                <input
+                  type="tel"
+                  required
+                  value={newAdminPhone}
+                  onChange={(e) => setNewAdminPhone(e.target.value)}
+                  placeholder="017XXXXXXXX"
+                  style={{
+                    width: '100%',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '8px',
+                    border: '1.5px solid var(--surface-border, #94a3b8)',
+                    backgroundColor: 'var(--surface, #ffffff)',
+                    color: 'var(--text-main, #0f172a)',
+                    fontSize: '0.92rem',
+                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                  }}
+                />
+              </div>
+
+              {/* 1.2: Modular Access - full single section scroll, no internal scrollbar */}
+              <div style={{ marginTop: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.6rem' }}>
+                  {isBn ? 'মডিউলার অ্যাক্সেস নির্বাচন করুন' : 'Select Modular Access'} (
+                  {selectedPermissions.filter((k) => newAdminRole === 'super_admin' || !ALL_MODULES.find((m) => m.key === k)?.superAdminOnly).length}/
+                  {ALL_MODULES.filter((m) => newAdminRole === 'super_admin' || !m.superAdminOnly).length})
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {ALL_MODULES.filter((mod) => newAdminRole === 'super_admin' || !mod.superAdminOnly).map((mod) => (
+                    <label
+                      key={mod.key}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.6rem 0.85rem',
+                        backgroundColor: 'var(--background-alt, #f8fafc)',
+                        color: 'var(--text-main, #0f172a)',
+                        borderRadius: '6px',
+                        border: '1.5px solid var(--surface-border, #cbd5e1)',
+                        fontSize: '0.85rem',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                      }}
+                    >
+                      <span style={{ fontWeight: 500 }}>{isBn ? mod.name : (mod.nameEn || mod.name)}</span>
+                      <input
+                        type="checkbox"
+                        checked={selectedPermissions.includes(mod.key)}
+                        onChange={() => togglePermission(mod.key)}
+                        style={{ accentColor: 'var(--color-primary, #059669)', width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* 1.3 & 1.4: "বাতিল" and "সেভ করুন"/"Save" centered and equal size */}
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', alignItems: 'center', marginTop: '1.75rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{
+                    flex: 1,
+                    maxWidth: '180px',
+                    height: '42px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 600,
+                  }}
+                  onClick={() => setActionDrawer((prev) => ({ ...prev, isOpen: false }))}
+                >
+                  {isBn ? 'বাতিল' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="btn btn-primary"
+                  style={{
+                    flex: 1,
+                    maxWidth: '180px',
+                    height: '42px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 700,
+                  }}
+                >
+                  {actionLoading
+                    ? (isBn ? 'সংরক্ষণ হচ্ছে...' : 'Saving...')
+                    : (isBn ? 'সেভ করুন' : 'Save')}
+                </button>
+              </div>
+
+              {/* 3: Centered default password notice below the two buttons */}
+              <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.88rem', color: 'var(--color-text-muted, #64748b)', fontWeight: 500 }}>
+                {isBn ? 'ডিফল্ট পাসওয়ার্ডঃ pass1233' : 'Default password: pass1233'}
+              </div>
+            </form>
+          )}
+        </div>
+
+        {actionDrawer.type !== 'add_super_admin' && actionDrawer.type !== 'edit_permissions' && (
+          <div className={styles.actionDrawerFooter}>
+            <button
+              className="btn btn-outline"
+              style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+              onClick={() => setActionDrawer((prev) => ({ ...prev, isOpen: false }))}
+            >
+              বন্ধ করুন
+            </button>
+
+            <button
+              className="btn btn-outline"
+              style={{
+                padding: '0.5rem 1rem',
+                fontSize: '0.85rem',
+                color: '#ef4444',
+                borderColor: '#ef4444',
+              }}
+              disabled={actionLoading}
+              onClick={() => handleExecuteAction('reject')}
+            >
+              <XCircle size={16} /> প্রত্যাখ্যান
+            </button>
+
+            <button
+              className="btn btn-primary"
+              style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}
+              disabled={actionLoading}
+              onClick={() => handleExecuteAction('approve')}
+            >
+              <CheckCircle2 size={16} />
+              {actionLoading ? 'প্রসেসিং হচ্ছে...' : 'অনুমোদন নিশ্চিত করুন'}
+            </button>
           </div>
+        )}
+      </div>
+    </div>
+    </div>
+  );
+}
+
+// Helper to render grouped navigation items in Drawer
+function renderNavSections(
+  activeNav: string,
+  onSelect: (key: string) => void,
+  orgCount: number,
+  postCount: number,
+  donationCount: number,
+  userRole?: string,
+  isCollapsed?: boolean,
+  affiliationCount: number = 0,
+  allUsersCount: number = 0
+) {
+  return (
+    <>
+      {/* 1. Overview */}
+      <div className={styles.navSection}>
+        {!isCollapsed && <div className={styles.navSectionTitle}>মূল কন্ট্রোল</div>}
+        <button
+          className={`${styles.navItem} ${activeNav === 'overview' ? styles.navItemActive : ''}`}
+          onClick={() => onSelect('overview')}
+          title="ড্যাশবোর্ড ওভারভিউ"
+        >
+          <div className={styles.navItemContent}>
+            <ShieldCheck size={18} />
+            {!isCollapsed && <span className={styles.navItemText}>ড্যাশবোর্ড ওভারভিউ</span>}
+          </div>
+        </button>
+      </div>
+
+      {/* 2. User Management (Unified Staff & All Users) */}
+      <div className={styles.navSection}>
+        {!isCollapsed && <div className={styles.navSectionTitle}>ইউজার ব্যবস্থাপনা</div>}
+        <button
+          className={`${styles.navItem} ${activeNav === 'super_admins' ? styles.navItemActive : ''}`}
+          onClick={() => onSelect('super_admins')}
+          title="সুপার এডমিন ও স্টাফ তালিকা"
+        >
+          <div className={styles.navItemContent}>
+            <Users size={18} />
+            {!isCollapsed && (
+              <span className={styles.navItemText}>সুপার এডমিন ও স্টাফ তালিকা</span>
+            )}
+          </div>
+        </button>
+
+        <button
+          className={`${styles.navItem} ${activeNav === 'all_users' ? styles.navItemActive : ''}`}
+          onClick={() => onSelect('all_users')}
+          title="সকল ব্যবহারকারী অডিট"
+        >
+          <div className={styles.navItemContent}>
+            <SlidersHorizontal size={18} />
+            {!isCollapsed && <span className={styles.navItemText}>সকল ইউজার অডিট</span>}
+          </div>
+          {!isCollapsed && allUsersCount > 0 && <span className={styles.navBadge}>{allUsersCount}</span>}
+        </button>
+      </div>
+
+      {/* 3. Verifications & Approvals */}
+      <div className={styles.navSection}>
+        {!isCollapsed && <div className={styles.navSectionTitle}>যাচাই ও অনুমোদন কেন্দ্র</div>}
+        <button
+          className={`${styles.navItem} ${activeNav === 'org_requests' ? styles.navItemActive : ''}`}
+          onClick={() => onSelect('org_requests')}
+          title="প্রতিষ্ঠান ভেরিফিকেশন"
+        >
+          <div className={styles.navItemContent}>
+            <Building2 size={18} />
+            {!isCollapsed && <span className={styles.navItemText}>প্রতিষ্ঠান ছাড়পত্র</span>}
+          </div>
+          {!isCollapsed && orgCount > 0 && <span className={styles.navBadge}>{orgCount}</span>}
+        </button>
+
+        <button
+          className={`${styles.navItem} ${activeNav === 'affiliation_requests' ? styles.navItemActive : ''}`}
+          onClick={() => onSelect('affiliation_requests')}
+          title="শিক্ষক ও শিক্ষার্থী অনুমোদন"
+        >
+          <div className={styles.navItemContent}>
+            <UserCheck size={18} />
+            {!isCollapsed && <span className={styles.navItemText}>শিক্ষক ও শিক্ষার্থী ছাড়পত্র</span>}
+          </div>
+          {!isCollapsed && affiliationCount > 0 && <span className={styles.navBadge}>{affiliationCount}</span>}
+        </button>
+
+        <button
+          className={`${styles.navItem} ${activeNav === 'student_posts' ? styles.navItemActive : ''}`}
+          onClick={() => onSelect('student_posts')}
+          title="শিক্ষার্থী পোস্ট যাচাই"
+        >
+          <div className={styles.navItemContent}>
+            <GraduationCap size={18} />
+            {!isCollapsed && <span className={styles.navItemText}>শিক্ষার্থী পোস্ট যাচাই</span>}
+          </div>
+          {!isCollapsed && postCount > 0 && <span className={styles.navBadge}>{postCount}</span>}
+        </button>
+      </div>
+
+      {/* 4. Donors & Community */}
+      <div className={styles.navSection}>
+        {!isCollapsed && <div className={styles.navSectionTitle}>দাতা ও অনুদান</div>}
+        <button
+          className={`${styles.navItem} ${activeNav === 'donors' ? styles.navItemActive : ''}`}
+          onClick={() => onSelect('donors')}
+          title="ডোনার তালিকা"
+        >
+          <div className={styles.navItemContent}>
+            <Heart size={18} />
+            {!isCollapsed && <span className={styles.navItemText}>ডোনার তালিকা</span>}
+          </div>
+        </button>
+
+        <button
+          className={`${styles.navItem} ${activeNav === 'pending_donations' ? styles.navItemActive : ''}`}
+          onClick={() => onSelect('pending_donations')}
+          title="অনুদান পেমেন্ট যাচাই"
+        >
+          <div className={styles.navItemContent}>
+            <DollarSign size={18} />
+            {!isCollapsed && <span className={styles.navItemText}>অনুদান পেমেন্ট যাচাই</span>}
+          </div>
+          {!isCollapsed && donationCount > 0 && <span className={styles.navBadge}>{donationCount}</span>}
+        </button>
+      </div>
+
+      {/* 5. Master Admin Active Root Badge */}
+      {userRole === UserRole.MASTER_ADMIN && !isCollapsed && (
+        <div
+          style={{
+            marginTop: '1.25rem',
+            padding: '0.75rem 0.85rem',
+            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.1) 100%)',
+            border: '1px solid rgba(245, 158, 11, 0.35)',
+            borderRadius: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.6rem',
+            color: '#b45309',
+            fontSize: '0.8rem',
+            fontWeight: 800,
+          }}
+        >
+          <ShieldAlert size={18} color="#d97706" />
+          <span>👑 রুট মাস্টার এডমিন সক্রিয়</span>
         </div>
       )}
-    </div>
+    </>
   );
 }

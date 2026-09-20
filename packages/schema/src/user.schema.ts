@@ -7,6 +7,7 @@ export const RegisterUserSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
   fullName: z.string().min(2, 'Name must be at least 2 characters'),
   phone: z.string().min(10, 'Valid phone number is required'),
+  address: z.string().optional(),
   role: z.enum([
     UserRole.ORGANIZATION,
     UserRole.TEACHER,
@@ -22,6 +23,17 @@ export const SetPasswordSchema = z
   .object({
     password: z.string().min(8, 'Password must be at least 8 characters'),
     confirmPassword: z.string(),
+    role: z
+      .enum([
+        UserRole.ORGANIZATION,
+        UserRole.TEACHER,
+        UserRole.STUDENT,
+        UserRole.DONOR,
+      ])
+      .optional(),
+    fullName: z.string().optional(),
+    phone: z.string().optional(),
+    address: z.string().optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Passwords do not match',
@@ -44,9 +56,9 @@ export const ChangePasswordSchema = z
 export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>;
 
 export const CreateAdminUserSchema = z.object({
-  fullName: z.string().min(2),
-  email: z.string().email(),
-  phone: z.string().min(10),
+  fullName: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Valid email is required'),
+  phone: z.string().optional().nullable().or(z.literal('')),
   role: z.enum([UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ORGANIZATION]),
   permissions: z.array(ModulePermissionSchema).optional(),
 });
@@ -76,18 +88,6 @@ export type StudentVerificationProfileInput = z.infer<
   typeof StudentVerificationProfileSchema
 >;
 
-export const OrganizationProfileSchema = z.object({
-  orgName: z.string().min(3, 'Organization name is required'),
-  regNumber: z.string().optional(),
-  contactPerson: z.string().min(2),
-  contactPhone: z.string().min(10),
-  address: z.string().min(5),
-  documentUrl: z.string().url().optional(),
-});
-
-export type OrganizationProfileInput = z.infer<
-  typeof OrganizationProfileSchema
->;
 
 export const SyncProfileSchema = z.object({
   role: z

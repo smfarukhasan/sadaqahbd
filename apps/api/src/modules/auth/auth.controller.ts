@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
   Body,
   UseGuards,
   Headers,
@@ -25,17 +26,33 @@ export class AuthController {
     private readonly firebaseAdmin: FirebaseAdminService
   ) {}
 
+  @Post('check-availability')
+  async checkAvailability(@Body() body: { email?: string; phone?: string }) {
+    return this.authService.checkAvailability(body.email, body.phone);
+  }
+
+  @Post('master-login')
+  async masterLogin(@Body() body: { email?: string; password?: string }) {
+    return this.authService.masterLogin(body?.email, body?.password);
+  }
+
   @Post('sync-profile')
   async syncProfile(
     @Headers('authorization') authHeader: string,
-    @Body() body?: { role?: string }
+    @Body()
+    body?: {
+      role?: string;
+      fullName?: string;
+      phone?: string;
+      address?: string;
+    }
   ) {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new UnauthorizedException('Missing bearer token');
     }
     const token = authHeader.split('Bearer ')[1].trim();
     const decoded = await this.firebaseAdmin.verifyIdToken(token);
-    return this.authService.syncProfile(decoded, body?.role);
+    return this.authService.syncProfile(decoded, body?.role, body);
   }
 
   @Get('me')
@@ -62,5 +79,14 @@ export class AuthController {
   ) {
     const validated = ChangePasswordSchema.parse(body);
     return this.authService.changePassword(user, validated);
+  }
+
+  @Patch('profile')
+  @UseGuards(FirebaseAuthGuard)
+  async updateProfile(
+    @CurrentUser() user: any,
+    @Body() body: { fullName?: string; phone?: string; address?: string }
+  ) {
+    return this.authService.updateProfile(user.id, body);
   }
 }

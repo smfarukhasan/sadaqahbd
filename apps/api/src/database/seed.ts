@@ -17,7 +17,7 @@ export async function seedMasterAdmin() {
   if (existing.length === 0) {
     await db.insert(users).values({
       id: masterUserId,
-      firebaseUid: 'firebase-master-admin-root',
+      firebaseUid: '7HasyqiRFpWzwxfCnwzuVzo5Rxv1',
       email: masterEmail,
       phone: '+8801700000000',
       fullName: 'Master Admin Owner',

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { Link } from '../../i18n/routing';
 import styles from './page.module.css';
 import {
@@ -14,154 +14,145 @@ import {
   ArrowRight,
   CheckCircle2,
   Building2,
-  Clock,
-  Layers,
-  Search,
+  BookOpen,
+  UserCheck,
+  FileText,
+  BadgeCheck,
 } from 'lucide-react';
+import { getApiUrl } from '../../lib/api-config';
 
 export default function HomePage() {
   const t = useTranslations('Common');
-  const ledgerT = useTranslations('Ledger');
-  const postT = useTranslations('StudentPost');
+  const tHero = useTranslations('Hero');
+  const tLedger = useTranslations('Ledger');
+  const tPost = useTranslations('StudentPost');
+  const tHow = useTranslations('HowItWorks');
+  const locale = useLocale();
 
-  // Quick donation state
+  // Quick donation widget state
   const [quickAmount, setQuickAmount] = useState<number>(500);
   const [customAmount, setCustomAmount] = useState<string>('');
+  const [donationCategory, setDonationCategory] = useState<'direct' | 'general'>('general');
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
-  // Simulated live transparency data
-  const stats = {
-    totalDonated: '১,৪৫,০০০',
-    totalRandom: '৪৫,০০০',
-    totalDirect: '১,০০,০০০',
-    generalFundBalance: '২০,০০০',
-    studentsHelped: '২৮',
-    activeCampaigns: '১২',
-    directPercent: 69,
-    randomPercent: 31,
+  const formatNumber = (num: number) => {
+    return locale === 'bn' ? num.toLocaleString('bn-BD') : num.toLocaleString('en-US');
   };
 
-  const samplePosts = [
-    {
-      id: 'post-1',
-      studentName: 'রাকিবুল হাসান',
-      institution: 'ঢাকা বিশ্ববিদ্যালয় (রসায়ন বিভাগ)',
-      category: 'university',
-      title: 'সেমিস্টার ফি ও মেস খরচের জন্য জরুরি সহায়তা প্রয়োজন',
-      problemExcerpt:
-        'বাবার অসুস্থতার কারণে পরিবারের উপার্জন বন্ধ। চলতি সেমিস্টার ফি জমা না দিলে পরীক্ষায় বসা অনিশ্চিত।',
-      breakdown: [
-        { label: 'সেমিস্টার ফি', amount: '৫,০০০' },
-        { label: 'মেস খরচ', amount: '৩,৫০০' },
-      ],
-      requiredAmount: '৮,৫০০',
-      collectedAmount: '৫,০০০',
-      remainingAmount: '৩,৫০০',
-      progressPercent: 58,
-      isDoubleVerified: true,
-      urgent: true,
-      daysLeft: 5,
-    },
-    {
-      id: 'post-2',
-      studentName: 'সাদিয়া তাসনিম',
-      institution: 'রাজশাহী কলেজ (অর্থনীতি)',
-      category: 'college',
-      title: 'অনার্স ফাইনাল পরীক্ষার বই ও চিকিৎসা ব্যয়ের জন্য অনুদান',
-      problemExcerpt:
-        'পড়াশোনার পাশাপাশি টিউশনি করতাম, বর্তমানে টাইফয়েড আক্রান্ত হওয়ায় টিউশনি ও পড়াশোনা বাধাগ্রস্ত।',
-      breakdown: [
-        { label: 'চিকিৎসা ওষুধ', amount: '৩,২০০' },
-        { label: 'পরীক্ষার ফরম পূরণ', amount: '৩,০০০' },
-      ],
-      requiredAmount: '৬,২০০',
-      collectedAmount: '৬,২০০',
-      remainingAmount: '০',
-      progressPercent: 100,
-      isDoubleVerified: true,
-      urgent: false,
-      daysLeft: 0,
-    },
-    {
-      id: 'post-3',
-      studentName: 'আব্দুল্লাহ আল মামুন',
-      institution: 'দারুন্নাজাত সিদ্দিকিয়া কামিল মাদ্রাসা',
-      category: 'madrasa',
-      title: 'দাওরায়ে হাদিস পরীক্ষার কিতাব ও মেস খরচের আবেদন',
-      problemExcerpt:
-        'এতিম শিক্ষার্থী, কিতাবপত্র ক্রয় ও মেসের মাসিক খাবারের ফি বাবদ সাহায্য একান্ত কাম্য।',
-      breakdown: [
-        { label: 'কিতাবপত্র', amount: '৪,০০০' },
-        { label: 'মেস খাবার খরচ', amount: '৬,০০০' },
-      ],
-      requiredAmount: '১০,০০০',
-      collectedAmount: '৪,২০০',
-      remainingAmount: '৫,৮০০',
-      progressPercent: 42,
-      isDoubleVerified: true,
-      urgent: true,
-      daysLeft: 8,
-    },
-    {
-      id: 'post-4',
-      studentName: 'তাসলিমা আক্তার',
-      institution: 'চট্টগ্রাম পলিটেকনিক ইনস্টিটিউট',
-      category: 'university',
-      title: 'কম্পিউটার ল্যাব প্রজেক্ট ফি ও হোস্টেল চার্জ',
-      problemExcerpt:
-        '৬ষ্ঠ পর্বের ফাইনাল প্রজেক্টের হার্ডওয়্যার উপাদান ও হোস্টেলের ২ মাসের বকেয়া পরিশোধ প্রয়োজন।',
-      breakdown: [
-        { label: 'প্রজেক্ট কম্পোনেন্ট', amount: '৪,৫০০' },
-        { label: 'হোস্টেল বকেয়া', amount: '৩,০০০' },
-      ],
-      requiredAmount: '৭,৫০০',
-      collectedAmount: '৩,০০০',
-      remainingAmount: '৪,৫০০',
-      progressPercent: 40,
-      isDoubleVerified: true,
-      urgent: false,
-      daysLeft: 12,
-    },
-  ];
+  const [stats, setStats] = useState({
+    totalDonated: locale === 'bn' ? '০' : '0',
+    totalGeneral: locale === 'bn' ? '০' : '0',
+    totalDirect: locale === 'bn' ? '০' : '0',
+    generalFundBalance: locale === 'bn' ? '০' : '0',
+    directPercent: 0,
+    generalPercent: 0,
+  });
 
-  const filteredPosts =
-    activeCategory === 'all'
-      ? samplePosts
-      : samplePosts.filter((p) => p.category === activeCategory);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
 
-  const getEffectiveDonationAmount = () => {
+  React.useEffect(() => {
+    const apiUrl = getApiUrl();
+    // 1. Fetch live ledger stats
+    fetch(`${apiUrl}/donations/ledger-stats`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && typeof data.totalDonated === 'number') {
+          const donated = data.totalDonated;
+          const random = data.totalRandom;
+          const direct = data.totalDirect;
+          const poolBalance = data.randomFundPoolBalance;
+          const directPct = donated > 0 ? Math.round((direct / donated) * 100) : 0;
+          const generalPct = donated > 0 ? 100 - directPct : 0;
+          setStats({
+            totalDonated: formatNumber(donated),
+            totalGeneral: formatNumber(random),
+            totalDirect: formatNumber(direct),
+            generalFundBalance: formatNumber(poolBalance),
+            directPercent: directPct,
+            generalPercent: generalPct,
+          });
+        }
+      })
+      .catch((err) => console.error('Failed to load ledger stats', err));
+
+    // 2. Fetch live public verified posts
+    fetch(`${apiUrl}/posts/public`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const mapped = data.map((p) => {
+            const req = Number(p.totalRequiredAmount || 0);
+            const rec = Number(p.receivedAmount || 0);
+            const pct = req > 0 ? Math.min(100, Math.round((rec / req) * 100)) : 0;
+            return {
+              id: p.id,
+              studentName: p.studentName || 'শিক্ষার্থী',
+              avatarLetter: p.studentName ? p.studentName.charAt(0) : 'শ',
+              institution: p.orgName || 'অনুমোদিত শিক্ষা প্রতিষ্ঠান',
+              title: p.title,
+              problemExcerpt: p.problemDescription,
+              breakdown: Array.isArray(p.expenses)
+                ? p.expenses.map((e: any) => ({
+                    label: e.categoryName,
+                    amount: formatNumber(Number(e.amount)),
+                  }))
+                : [],
+              requiredAmount: formatNumber(req),
+              collectedAmount: formatNumber(rec),
+              progressPercent: pct,
+              isDoubleVerified: p.isDoubleVerified,
+            };
+          });
+          setPosts(mapped);
+        }
+      })
+      .catch((err) => console.error('Failed to load public posts', err))
+      .finally(() => setLoadingPosts(false));
+  }, [locale]);
+
+  const filteredPosts = posts;
+
+  const getEffectiveAmount = () => {
     if (customAmount && Number(customAmount) > 0) {
       return Number(customAmount);
     }
     return quickAmount;
   };
 
+  const getImpactDescription = (amt: number) => {
+    if (amt <= 300) return tHero('impact200');
+    if (amt <= 800) return tHero('impact500');
+    if (amt <= 1500) return tHero('impact1000');
+    if (amt <= 3500) return tHero('impact2500');
+    return tHero('impact5000');
+  };
+
+  const currentImpact = getImpactDescription(getEffectiveAmount());
+
   return (
     <div className={styles.homeContainer}>
       {/* ----------------------------------------------------
-          1. HERO SECTION (Device-Adaptive: 2-Col Desktop / Rich Mobile)
+          1. HERO SECTION
       ---------------------------------------------------- */}
       <section className={styles.heroSection}>
         <div className={`container ${styles.heroContainer}`}>
           {/* Left Column: Mission, Headlines & Trust Markers */}
           <div className={styles.heroLeft}>
             <div className={styles.badgePill}>
-              <Sparkles size={15} className={styles.sparkleIcon} />
-              <span>১০০% বিশ্বস্ত ও শিক্ষক-প্রতিষ্ঠান ডাবল-ভেরিফাইড</span>
+              <span className={styles.pulseDot} />
+              <Sparkles size={16} />
+              <span>{tHero('badge')}</span>
             </div>
 
             <h1 className={styles.heroTitle}>
-              অসহায় শিক্ষার্থীর উচ্চশিক্ষা নিশ্চিত হোক{' '}
+              {tHero('titlePrefix')}{' '}
               <span className={styles.highlightText}>
-                আপনার পবিত্র সাদাকাহে
+                {tHero('titleHighlight')}
               </span>
             </h1>
 
-            <p className={styles.heroSubtitle}>
-              সরাসরি শিক্ষক ও প্রতিষ্ঠান দ্বারা যাচাইকৃত শিক্ষার্থীদের পড়াশোনা,
-              টিউশন ও মেস খরচে সরাসরি অনুদান দিন। প্রতিটি টাকার হিসাব সম্পূর্ণ
-              উন্মুক্ত লেজারে দৃশ্যমান।
-            </p>
+            <p className={styles.heroSubtitle}>{tHero('description')}</p>
 
             <div className={styles.ctaGroup}>
               <Link href="/posts" className={styles.primaryCta}>
@@ -170,63 +161,86 @@ export default function HomePage() {
                 <ArrowRight size={18} />
               </Link>
               <Link href="/donate" className={styles.secondaryCta}>
-                <Heart size={20} className={styles.heartPulse} />
-                <span>{t('randomDonate')}</span>
+                <Heart size={18} />
+                <span>{t('generalDonate')}</span>
               </Link>
             </div>
 
-            {/* Micro Trust Indicators */}
-            <div className={styles.trustGrid}>
+            {/* Quick Micro-Metrics & Trust Guarantee */}
+            <div className={styles.heroTrustBar}>
               <div className={styles.trustItem}>
-                <CheckCircle2 size={18} className={styles.trustIcon} />
-                <div>
-                  <span className={styles.trustValue}>১০০%</span>
-                  <span className={styles.trustLabel}>সরাসরি ছাত্রপ্রাপ্তি</span>
+                <div className={styles.trustItemIcon}>
+                  <CheckCircle2 size={18} />
+                </div>
+                <div className={styles.trustTextGroup}>
+                  <span className={styles.trustHighlight}>১০০%</span>
+                  <span className={styles.trustSub}>{t('directAid')}</span>
                 </div>
               </div>
+
               <div className={styles.trustItem}>
-                <ShieldCheck size={18} className={styles.trustIcon} />
-                <div>
-                  <span className={styles.trustValue}>০%</span>
-                  <span className={styles.trustLabel}>প্ল্যাটফর্ম ফি</span>
+                <div className={styles.trustItemIcon}>
+                  <ShieldCheck size={18} />
+                </div>
+                <div className={styles.trustTextGroup}>
+                  <span className={styles.trustHighlight}>০%</span>
+                  <span className={styles.trustSub}>{t('zeroFee')}</span>
                 </div>
               </div>
+
               <div className={styles.trustItem}>
-                <Users size={18} className={styles.trustIcon} />
-                <div>
-                  <span className={styles.trustValue}>২৮+</span>
-                  <span className={styles.trustLabel}>সহায়তাপ্রাপ্ত শিক্ষার্থী</span>
+                <div className={styles.trustItemIcon}>
+                  <Users size={18} />
+                </div>
+                <div className={styles.trustTextGroup}>
+                  <span className={styles.trustHighlight}>২৮+</span>
+                  <span className={styles.trustSub}>{t('studentsHelpedCount')}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Right Column (Desktop & Tablet): Interactive Live Quick Donation Card */}
-          <div className={`${styles.heroRight} desktop-only`}>
-            <div className={styles.quickDonateCard}>
-              <div className={styles.cardGlow} />
-
-              <div className={styles.quickDonateHeader}>
-                <div className={styles.headerLeft}>
-                  <div className={styles.livePulseDot} />
-                  <span className={styles.quickDonateTag}>রিয়েলটাইম ফান্ড</span>
+          {/* Right Column: Interactive Giving Widget */}
+          <div className={styles.heroRight}>
+            <div className={styles.givingWidget}>
+              <div className={styles.widgetHeader}>
+                <div className={styles.liveIndicator}>
+                  <span className={styles.pulseDot} />
+                  <span>রিয়েলটাইম ফান্ড</span>
                 </div>
-                <span className={styles.ledgerShortcut}>
-                  ব্যালেন্স: ৳{stats.generalFundBalance}
-                </span>
+                <div className={styles.balancePill}>
+                  ব্যালেন্স: ৳ {stats.generalFundBalance}
+                </div>
               </div>
 
-              <h3 className={styles.quickDonateTitle}>
-                তাত্ক্ষণিক সাধারণ দান (General Fund)
-              </h3>
-              <p className={styles.quickDonateDesc}>
-                আপনার দেওয়া অনুদান স্বয়ংক্রিয়ভাবে সবচেয়ে জরুরি ও পিছিয়ে থাকা
-                শিক্ষার্থীদের ফি পরিশোধে যুক্ত হবে।
-              </p>
+              <h3 className={styles.widgetTitle}>{tHero('widgetTitle')}</h3>
+              <p className={styles.widgetDesc}>{tHero('widgetDesc')}</p>
 
-              {/* Amount Preset Buttons */}
-              <div className={styles.presetGrid}>
-                {[100, 500, 1000, 2000].map((amt) => (
+              {/* Category Selector */}
+              <div className={styles.categorySelector}>
+                <button
+                  type="button"
+                  onClick={() => setDonationCategory('general')}
+                  className={`${styles.categoryTab} ${
+                    donationCategory === 'general' ? styles.categoryTabActive : ''
+                  }`}
+                >
+                  {tHero('tabGeneral')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDonationCategory('direct')}
+                  className={`${styles.categoryTab} ${
+                    donationCategory === 'direct' ? styles.categoryTabActive : ''
+                  }`}
+                >
+                  {tHero('tabDirect')}
+                </button>
+              </div>
+
+              {/* Quick Amount Chips */}
+              <div className={styles.amountGrid}>
+                {[200, 500, 1000, 2500].map((amt) => (
                   <button
                     key={amt}
                     type="button"
@@ -234,9 +248,9 @@ export default function HomePage() {
                       setQuickAmount(amt);
                       setCustomAmount('');
                     }}
-                    className={`${styles.presetBtn} ${
-                      quickAmount === amt && !customAmount
-                        ? styles.presetBtnActive
+                    className={`${styles.amountChip} ${
+                      !customAmount && quickAmount === amt
+                        ? styles.amountChipActive
                         : ''
                     }`}
                   >
@@ -247,29 +261,47 @@ export default function HomePage() {
 
               {/* Custom Amount Input */}
               <div className={styles.customInputWrapper}>
-                <span className={styles.currencyPrefix}>৳</span>
+                <span className={styles.currencySymbol}>৳</span>
                 <input
                   type="number"
-                  placeholder="অন্য পরিমাণ লিখুন (যেমন: ২৫০০)"
+                  placeholder={tHero('otherAmountPlaceholder')}
                   value={customAmount}
-                  onChange={(e) => {
-                    setCustomAmount(e.target.value);
-                  }}
+                  onChange={(e) => setCustomAmount(e.target.value)}
                   className={styles.customInput}
                 />
               </div>
 
+              {/* Dynamic Impact Projection */}
+              <div className={styles.impactBox}>
+                <Sparkles size={18} className={styles.impactIcon} />
+                <div className={styles.impactContent}>
+                  <span className={styles.impactTitle}>{tHero('impactLabel')}</span>
+                  <span className={styles.impactText}>{currentImpact}</span>
+                </div>
+              </div>
+
+              {/* Action Button */}
               <Link
-                href={`/donate?amount=${getEffectiveDonationAmount()}`}
-                className={styles.quickDonateAction}
+                href={{
+                  pathname: '/donate',
+                  query: {
+                    amount: getEffectiveAmount(),
+                    type: donationCategory,
+                  },
+                }}
+                className={styles.widgetSubmitBtn}
               >
-                <Heart size={18} />
-                <span>৳{getEffectiveDonationAmount()} সাদাকাহ প্রদান করুন</span>
+                <Heart size={20} />
+                <span>
+                  {tHero('donateAction', {
+                    amount: getEffectiveAmount().toLocaleString(),
+                  })}
+                </span>
               </Link>
 
-              <div className={styles.quickDonateFooter}>
+              <div className={styles.widgetTrustNote}>
                 <ShieldCheck size={14} />
-                <span>নিরাপদ পেমেন্ট গেটওয়ে ও তাত্ক্ষণিক রসিদ</span>
+                <span>{tHero('securePaymentNotice')}</span>
               </div>
             </div>
           </div>
@@ -277,315 +309,340 @@ export default function HomePage() {
       </section>
 
       {/* ----------------------------------------------------
-          2. LIVE TRANSPARENCY LEDGER (Visual Gauge & Counters)
+          2. PUBLIC TRANSPARENCY LEDGER CARD
       ---------------------------------------------------- */}
-      <section className={styles.ledgerSection}>
-        <div className="container">
-          <div className={styles.ledgerCard}>
-            <div className={styles.ledgerHeaderRow}>
-              <div>
-                <div className={styles.sectionBadge}>
-                  <TrendingUp size={16} />
-                  <span>উন্মুক্ত হিসাব ও স্বচ্ছতা</span>
-                </div>
-                <h2 className={styles.ledgerMainTitle}>{ledgerT('title')}</h2>
+      <section className={`container ${styles.ledgerSection}`}>
+        <div className={styles.ledgerCard}>
+          <div className={styles.ledgerHeader}>
+            <div className={styles.ledgerHeaderLeft}>
+              <div className={styles.ledgerBadge}>
+                <TrendingUp size={16} />
+                <span>উন্মুক্ত হিসাব ও ১০০% স্বচ্ছতা</span>
               </div>
-              <Link href="/ledger" className={styles.viewLedgerLink}>
-                <span>সম্পূর্ণ অডিট লেজার</span>
-                <ArrowRight size={16} />
-              </Link>
+              <h2 className={styles.ledgerTitle}>{tLedger('title')}</h2>
+              <p className={styles.ledgerSubtitle}>{tLedger('subtitle')}</p>
             </div>
-
-            {/* 4 Stat Cards */}
-            <div className={styles.statsGrid}>
-              <div className={`${styles.statTile} ${styles.statTileTeal}`}>
-                <div className={styles.statIconBadge}>
-                  <TrendingUp size={22} />
-                </div>
-                <span className={styles.statLabel}>{ledgerT('totalDonated')}</span>
-                <span className={styles.statValue}>৳ {stats.totalDonated}</span>
-                <span className={styles.statSub}>সর্বমোট প্রাপ্ত সাহায্য</span>
-              </div>
-
-              <div className={`${styles.statTile} ${styles.statTileBlue}`}>
-                <div className={styles.statIconBadge}>
-                  <Sparkles size={22} />
-                </div>
-                <span className={styles.statLabel}>{ledgerT('totalRandom')}</span>
-                <span className={styles.statValue}>৳ {stats.totalRandom}</span>
-                <span className={styles.statSub}>র্যান্ডম পুল থেকে বণ্টন</span>
-              </div>
-
-              <div className={`${styles.statTile} ${styles.statTileIndigo}`}>
-                <div className={styles.statIconBadge}>
-                  <Users size={22} />
-                </div>
-                <span className={styles.statLabel}>{ledgerT('totalDirect')}</span>
-                <span className={styles.statValue}>৳ {stats.totalDirect}</span>
-                <span className={styles.statSub}>সরাসরি নির্বাচিত ছাত্রে</span>
-              </div>
-
-              <div className={`${styles.statTile} ${styles.statTileAmber}`}>
-                <div className={styles.statIconBadge}>
-                  <ShieldCheck size={22} />
-                </div>
-                <span className={styles.statLabel}>
-                  {ledgerT('generalFundBalance')}
-                </span>
-                <span className={styles.statValue}>
-                  ৳ {stats.generalFundBalance}
-                </span>
-                <span className={styles.statSub}>জরুরি সহায়তার জন্য সংরক্ষিত</span>
-              </div>
-            </div>
-
-            {/* Dual Distribution Visual Gauge Bar */}
-            <div className={styles.distributionBox}>
-              <div className={styles.distributionHeader}>
-                <span className={styles.distributionTitle}>
-                  অনুদানের বণ্টন অনুপাত (Distribution Ratio)
-                </span>
-                <div className={styles.distributionLegend}>
-                  <span className={styles.legendDirect}>
-                    ● সরাসরি দান ({stats.directPercent}%)
-                  </span>
-                  <span className={styles.legendRandom}>
-                    ● সাধারণ র্যান্ডম ফান্ড ({stats.randomPercent}%)
-                  </span>
-                </div>
-              </div>
-
-              <div className={styles.dualProgressBar}>
-                <div
-                  className={styles.directFill}
-                  style={{ width: `${stats.directPercent}%` }}
-                  title={`সরাসরি দান ${stats.directPercent}%`}
-                />
-                <div
-                  className={styles.randomFill}
-                  style={{ width: `${stats.randomPercent}%` }}
-                  title={`র্যান্ডম দান ${stats.randomPercent}%`}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ----------------------------------------------------
-          3. VERIFIED STUDENT AID REQUESTS (Filterable Cards)
-      ---------------------------------------------------- */}
-      <section className={styles.postsSection}>
-        <div className="container">
-          <div className={styles.sectionTopBar}>
-            <div>
-              <div className={styles.sectionBadge}>
-                <GraduationCap size={16} />
-                <span>যাচাইকৃত আবেদনসমূহ</span>
-              </div>
-              <h2 className={styles.sectionTitle}>
-                সহায়তাপ্রার্থী শিক্ষার্থীদের বর্তমান পোস্ট
-              </h2>
-              <p className={styles.sectionSubtitle}>
-                প্রতিটি আবেদন সংশ্লিষ্ট শিক্ষা প্রতিষ্ঠান ও দায়িত্বপ্রাপ্ত শিক্ষক
-                দ্বারা সত্যতা নিশ্চিতকৃত।
-              </p>
-            </div>
-
-            <Link href="/posts" className={styles.seeAllBtn}>
-              <span>সকল আবেদন দেখুন</span>
+            <Link href="/ledger" className={styles.ledgerLink}>
+              <span>{t('fullLedger')}</span>
               <ArrowRight size={16} />
             </Link>
           </div>
 
-          {/* Filter Tabs */}
-          <div className={styles.filterPillBar}>
-            <button
-              onClick={() => setActiveCategory('all')}
-              className={`${styles.filterPill} ${
-                activeCategory === 'all' ? styles.filterPillActive : ''
-              }`}
-            >
-              সকল আবেদন ({samplePosts.length})
-            </button>
-            <button
-              onClick={() => setActiveCategory('university')}
-              className={`${styles.filterPill} ${
-                activeCategory === 'university' ? styles.filterPillActive : ''
-              }`}
-            >
-              বিশ্ববিদ্যালয়
-            </button>
-            <button
-              onClick={() => setActiveCategory('college')}
-              className={`${styles.filterPill} ${
-                activeCategory === 'college' ? styles.filterPillActive : ''
-              }`}
-            >
-              কলেজ
-            </button>
-            <button
-              onClick={() => setActiveCategory('madrasa')}
-              className={`${styles.filterPill} ${
-                activeCategory === 'madrasa' ? styles.filterPillActive : ''
-              }`}
-            >
-              মাদ্রাসা
-            </button>
+          <div className={styles.statsGrid}>
+            <div className={styles.statItem}>
+              <div className={styles.statItemTop}>
+                <span className={styles.statLabel}>{tLedger('totalDonated')}</span>
+                <div className={`${styles.statIconSquare} ${styles.statIconPrimary}`}>
+                  <Heart size={20} />
+                </div>
+              </div>
+              <div className={styles.statValue}>৳ {stats.totalDonated}</div>
+              <div className={styles.statSub}>সর্বমোট প্রাপ্ত সহায়তা</div>
+            </div>
+
+            <div className={styles.statItem}>
+              <div className={styles.statItemTop}>
+                <span className={styles.statLabel}>{tLedger('totalRandom')}</span>
+                <div className={`${styles.statIconSquare} ${styles.statIconAccent}`}>
+                  <Sparkles size={20} />
+                </div>
+              </div>
+              <div className={styles.statValue}>৳ {stats.totalGeneral}</div>
+              <div className={styles.statSub}>কেন্দ্রীয় জরুরি ফান্ড পুল</div>
+            </div>
+
+            <div className={styles.statItem}>
+              <div className={styles.statItemTop}>
+                <span className={styles.statLabel}>{tLedger('totalDirect')}</span>
+                <div className={`${styles.statIconSquare} ${styles.statIconSecondary}`}>
+                  <Users size={20} />
+                </div>
+              </div>
+              <div className={styles.statValue}>৳ {stats.totalDirect}</div>
+              <div className={styles.statSub}>সরাসরি নির্বাচিত ছাত্রে বিতরণ</div>
+            </div>
+
+            <div className={styles.statItem}>
+              <div className={styles.statItemTop}>
+                <span className={styles.statLabel}>{tLedger('generalFundBalance')}</span>
+                <div className={`${styles.statIconSquare} ${styles.statIconDark}`}>
+                  <ShieldCheck size={20} />
+                </div>
+              </div>
+              <div className={styles.statValue}>৳ {stats.generalFundBalance}</div>
+              <div className={styles.statSub}>জরুরি সহায়তার জন্য সংরক্ষিত</div>
+            </div>
           </div>
 
-          {/* Posts Grid */}
-          <div className={styles.postsGrid}>
+          {/* Real-time Allocation Ratio Bar */}
+          <div className={styles.ratioContainer}>
+            <div className={styles.ratioHeader}>
+              <span className={styles.ratioTitle}>{tLedger('ratioTitle')}</span>
+              <div className={styles.ratioLegend}>
+                <span className={styles.legendDirect}>
+                  <span className={styles.legendDotDirect} />
+                  {tLedger('directPercentLabel', { percent: stats.directPercent })}
+                </span>
+                <span className={styles.legendGeneral}>
+                  <span className={styles.legendDotGeneral} />
+                  {tLedger('generalPercentLabel', { percent: stats.generalPercent })}
+                </span>
+              </div>
+            </div>
+            <div className={styles.splitBar}>
+              <div
+                className={styles.splitDirect}
+                style={{ width: `${stats.directPercent}%` }}
+              />
+              <div
+                className={styles.splitGeneral}
+                style={{ width: `${stats.generalPercent}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ----------------------------------------------------
+          3. VERIFIED CAMPAIGNS (Student Posts)
+      ---------------------------------------------------- */}
+      <section className={`container ${styles.campaignsSection}`}>
+        <div className={styles.sectionHeader}>
+          <div className={styles.sectionHeaderLeft}>
+            <div className={styles.sectionTag}>
+              <BadgeCheck size={16} />
+              <span>যাচাইকৃত আবেদনসমূহ</span>
+            </div>
+            <h2 className={styles.sectionTitle}>সহায়তাপ্রার্থী শিক্ষার্থীদের বর্তমান পোস্ট</h2>
+            <p className={styles.sectionDesc}>
+              প্রতিটি আবেদন সংশ্লিষ্ট শিক্ষা প্রতিষ্ঠান ও দায়িত্বপ্রাপ্ত শিক্ষক দ্বারা সরাসরি সত্যায়িত।
+            </p>
+          </div>
+          <Link href="/posts" className={styles.secondaryCta}>
+            <span>{t('viewAll')}</span>
+            <ArrowRight size={16} />
+          </Link>
+        </div>
+
+        {/* Category Filters */}
+        <div className={styles.categoryFilterRow}>
+          {[
+            { id: 'all', label: tPost('categoryAll') },
+            { id: 'university', label: tPost('categoryUniversity') },
+            { id: 'college', label: tPost('categoryCollege') },
+            { id: 'madrasa', label: tPost('categoryMadrasa') },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
+              className={`${styles.filterBtn} ${
+                activeCategory === cat.id ? styles.filterBtnActive : ''
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Campaign Cards Grid or Clean Empty State */}
+        {loadingPosts ? (
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+            লোড হচ্ছে...
+          </div>
+        ) : filteredPosts.length === 0 ? (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '3.5rem 1.5rem',
+              backgroundColor: 'var(--surface)',
+              borderRadius: 'var(--radius-xl)',
+              border: '1px solid var(--surface-border)',
+              maxWidth: '680px',
+              margin: '0 auto',
+            }}
+          >
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                color: 'var(--primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 1.25rem',
+              }}
+            >
+              <GraduationCap size={32} />
+            </div>
+            <h3
+              style={{
+                fontSize: '1.25rem',
+                fontWeight: '800',
+                color: 'var(--text-main)',
+                marginBottom: '0.5rem',
+              }}
+            >
+              বর্তমানে কোনো সক্রিয় আবেদন নেই
+            </h3>
+            <p
+              style={{
+                color: 'var(--text-muted)',
+                fontSize: '0.925rem',
+                lineHeight: '1.6',
+                marginBottom: '1.5rem',
+              }}
+            >
+              শিক্ষা প্রতিষ্ঠান ও সুপার এডমিন কর্তৃক নতুন শিক্ষার্থীদের আবেদন যাচাই শেষ হলে এখানে সরাসরি উন্মুক্ত হবে।
+            </p>
+            <Link
+              href="/donate"
+              className={styles.primaryCta}
+              style={{ display: 'inline-flex', padding: '0.75rem 1.5rem', textDecoration: 'none' }}
+            >
+              <Heart size={18} />
+              <span>সাধারণ শিক্ষা তহবিলে দান করুন</span>
+            </Link>
+          </div>
+        ) : (
+          <div className={styles.cardsGrid}>
             {filteredPosts.map((post) => (
-              <div key={post.id} className={styles.postCard}>
-                {/* Header: Student Info & Badges */}
-                <div className={styles.postCardHeader}>
-                  <div className={styles.studentAvatar}>
-                    {post.studentName.charAt(0)}
-                  </div>
-                  <div className={styles.studentMeta}>
-                    <div className={styles.studentNameRow}>
-                      <span className={styles.studentName}>
-                        {post.studentName}
+              <article key={post.id} className={styles.campaignCard}>
+                <div className={styles.cardHeader}>
+                  <div className={styles.studentAvatarRow}>
+                    <div className={styles.studentAvatar}>{post.avatarLetter}</div>
+                    <div className={styles.studentMeta}>
+                      <span className={styles.studentName}>{post.studentName}</span>
+                      <span className={styles.institutionTag}>
+                        <Building2 size={13} />
+                        {post.institution}
                       </span>
-                      {post.isDoubleVerified && (
-                        <span
-                          className={styles.verifiedTag}
-                          title="শিক্ষক ও প্রতিষ্ঠান প্রধান দ্বারা ভেরিফাইড"
-                        >
-                          <ShieldCheck size={13} />
-                          <span>ভেরিফাইড</span>
-                        </span>
-                      )}
                     </div>
-                    <span className={styles.institutionName}>
-                      <Building2 size={13} />
-                      <span>{post.institution}</span>
-                    </span>
                   </div>
+                  {post.isDoubleVerified && (
+                    <div className={styles.verifiedPill} title="শিক্ষক ও প্রতিষ্ঠান অনুমোদিত">
+                      <ShieldCheck size={13} />
+                      <span>{t('verified')}</span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Post Title & Excerpt */}
-                <h3 className={styles.postCardTitle}>{post.title}</h3>
-                <p className={styles.postExcerpt}>{post.problemExcerpt}</p>
+                <h3 className={styles.cardTitle}>{post.title}</h3>
+                <p className={styles.cardExcerpt}>{post.problemExcerpt}</p>
 
-                {/* Expense Breakdown Tags */}
-                <div className={styles.breakdownList}>
-                  {post.breakdown.map((item, idx) => (
-                    <span key={idx} className={styles.breakdownTag}>
-                      {item.label}: <strong>৳{item.amount}</strong>
+                {/* Itemized Expenses Breakdown */}
+                <div className={styles.breakdownRow}>
+                  {post.breakdown.map((item: any, idx: number) => (
+                    <span key={idx} className={styles.breakdownChip}>
+                      {item.label}: ৳{item.amount}
                     </span>
                   ))}
                 </div>
 
-                {/* Progress Bar & Amount Breakdown */}
-                <div className={styles.progressBlock}>
-                  <div className={styles.progressBarWrapper}>
+                {/* Progress Section */}
+                <div className={styles.progressSection}>
+                  <div className={styles.progressHeader}>
+                    <span className={styles.collectedAmount}>
+                      {tPost('received')}: ৳{post.collectedAmount} ({post.progressPercent}%)
+                    </span>
+                    <span className={styles.targetAmount}>
+                      {tPost('totalRequired')}: ৳{post.requiredAmount}
+                    </span>
+                  </div>
+                  <div className={styles.progressBarContainer}>
                     <div
                       className={styles.progressBarFill}
                       style={{ width: `${Math.min(post.progressPercent, 100)}%` }}
                     />
                   </div>
-                  <div className={styles.amountDetailsRow}>
-                    <div>
-                      <span className={styles.amountLabel}>সংগৃহীত: </span>
-                      <span className={styles.amountValueCollected}>
-                        ৳{post.collectedAmount}
-                      </span>
-                    </div>
-                    <div className={styles.percentBadge}>
-                      {post.progressPercent}%
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <span className={styles.amountLabel}>বাকি: </span>
-                      <span className={styles.amountValueRemaining}>
-                        ৳{post.remainingAmount}
-                      </span>
-                    </div>
-                  </div>
                 </div>
 
-                {/* Card Action Buttons */}
-                <div className={styles.postActions}>
+                {/* Card Footer */}
+                <div className={styles.cardFooter}>
+                  <div className={styles.completedBadge}>
+                    <CheckCircle2 size={14} />
+                    <span>যাচাইকৃত</span>
+                  </div>
+
                   <Link
-                    href={`/posts/${post.id}`}
-                    className={styles.btnDetails}
+                    href={{
+                      pathname: '/donate',
+                      query: { postId: post.id },
+                    }}
+                    className={styles.cardDonateBtn}
                   >
-                    বিবরণ দেখুন
-                  </Link>
-                  <Link
-                    href={`/donate?postId=${post.id}`}
-                    className={styles.btnDonate}
-                  >
-                    <Heart size={16} />
-                    <span>সহায়তা দিন</span>
+                    <Heart size={15} />
+                    <span>{tPost('supportNow')}</span>
                   </Link>
                 </div>
-              </div>
+              </article>
             ))}
+          </div>
+        )}
+      </section>
+
+      {/* ----------------------------------------------------
+          4. HOW IT WORKS (Transparency Workflow)
+      ---------------------------------------------------- */}
+      <section className={`container ${styles.howSection}`}>
+        <div className={styles.howHeader}>
+          <h2 className={styles.howTitle}>{tHow('title')}</h2>
+          <p className={styles.howSubtitle}>{tHow('subtitle')}</p>
+        </div>
+
+        <div className={styles.stepsGrid}>
+          <div className={styles.stepCard}>
+            <div className={styles.stepIconContainer}>
+              <FileText size={24} />
+            </div>
+            <h3 className={styles.stepTitle}>{tHow('step1Title')}</h3>
+            <p className={styles.stepDesc}>{tHow('step1Desc')}</p>
+          </div>
+
+          <div className={styles.stepCard}>
+            <div className={styles.stepIconContainer}>
+              <UserCheck size={24} />
+            </div>
+            <h3 className={styles.stepTitle}>{tHow('step2Title')}</h3>
+            <p className={styles.stepDesc}>{tHow('step2Desc')}</p>
+          </div>
+
+          <div className={styles.stepCard}>
+            <div className={styles.stepIconContainer}>
+              <Building2 size={24} />
+            </div>
+            <h3 className={styles.stepTitle}>{tHow('step3Title')}</h3>
+            <p className={styles.stepDesc}>{tHow('step3Desc')}</p>
+          </div>
+
+          <div className={styles.stepCard}>
+            <div className={styles.stepIconContainer}>
+              <Heart size={24} />
+            </div>
+            <h3 className={styles.stepTitle}>{tHow('step4Title')}</h3>
+            <p className={styles.stepDesc}>{tHow('step4Desc')}</p>
           </div>
         </div>
       </section>
 
       {/* ----------------------------------------------------
-          4. WHY SADAQAHBD / 3 PILLARS OF TRUST
+          5. CTA BANNER
       ---------------------------------------------------- */}
-      <section className={styles.pillarsSection}>
-        <div className="container">
-          <div className={styles.pillarsHeader}>
-            <div className={styles.sectionBadge}>
-              <ShieldCheck size={16} />
-              <span>নিরাপত্তা ও বিশ্বাসযোগ্যতা</span>
-            </div>
-            <h2 className={styles.pillarsTitle}>
-              কেন সাদাকাহ বিডি শতভাগ বিশ্বস্ত ও স্বচ্ছ?
-            </h2>
-            <p className={styles.pillarsSubtitle}>
-              প্রথাগত অনুদানের অনিশ্চয়তা দূর করে আধুনিক প্রযুক্তি ও জবাবদিহিতার
-              সমন্বয়।
-            </p>
-          </div>
-
-          <div className={styles.pillarsGrid}>
-            <div className={styles.pillarCard}>
-              <div className={styles.pillarIconCircle}>
-                <ShieldCheck size={28} />
-              </div>
-              <h3 className={styles.pillarTitle}>১. দ্বৈত স্তর ভেরিফিকেশন</h3>
-              <p className={styles.pillarDesc}>
-                কোনো মধ্যস্বত্বভোগী নয়। প্রতিটি শিক্ষার্থীর আবেদন সংশ্লিষ্ট শিক্ষা
-                প্রতিষ্ঠানের শিক্ষক ও প্রশাসন দ্বারা সরাসরি যাচাইপূর্বক অনুমোদন
-                পেলে তবেই পোস্ট লাইভ হয়।
-              </p>
-            </div>
-
-            <div className={styles.pillarCard}>
-              <div className={styles.pillarIconCircle}>
-                <CheckCircle2 size={28} />
-              </div>
-              <h3 className={styles.pillarTitle}>২. জিরো হিডেন চার্জ (০%)</h3>
-              <p className={styles.pillarDesc}>
-                আপনার অনুদানের ১০০% অর্থই সরাসরি শিক্ষার্থীর নির্দিষ্ট খরচে
-                হস্তান্তরিত হয়। প্ল্যাটফর্ম পরিচালনা বাবদ কোনো প্রকার কমিশন বা
-                হিডেন ফি কাটা হয় না।
-              </p>
-            </div>
-
-            <div className={styles.pillarCard}>
-              <div className={styles.pillarIconCircle}>
-                <TrendingUp size={28} />
-              </div>
-              <h3 className={styles.pillarTitle}>৩. উন্মুক্ত রিয়েলটাইম লেজার</h3>
-              <p className={styles.pillarDesc}>
-                প্রতিটি দানকারী নিজের অনুদানের টাকার অবস্থান ট্র্যাক করতে পারেন।
-                কার জন্য কত টাকা এসেছে এবং কখন তা শিক্ষার্থীকে দেওয়া হয়েছে — সবই
-                লেজারে স্পষ্ট।
-              </p>
-            </div>
-          </div>
+      <section className="container">
+        <div className={styles.ctaBanner}>
+          <h2 className={styles.ctaBannerTitle}>
+            একটি শিক্ষার্থীর ভবিষ্যৎ বদলে দিতে আপনার সামান্য সাদাকাহই যথেষ্ট
+          </h2>
+          <p className={styles.ctaBannerText}>
+            টাকার অভাবে যাতে কোনো মেধাবী শিক্ষার্থীর পড়াশোনা বন্ধ না হয়ে যায়। আজই যেকোনো পরিমাণ সাদাকাহ প্রদান করে শিক্ষার আলো ছড়াতে অংশীদার হোন।
+          </p>
+          <Link href="/donate" className={styles.ctaBannerBtn}>
+            <Heart size={20} />
+            <span>এখনই সাধারণ তহবিলে দান করুন</span>
+          </Link>
         </div>
       </section>
     </div>
   );
 }
-

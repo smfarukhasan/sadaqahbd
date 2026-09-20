@@ -11,15 +11,20 @@ export class MasterAdminGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const { user } = context.switchToHttp().getRequest();
 
-    if (
-      !user ||
-      user.role !== UserRole.MASTER_ADMIN ||
-      user.email.toLowerCase() !== 'admin@sadaqahbd.com'
-    ) {
-      throw new ForbiddenException(
-        'Access denied: This endpoint is restricted strictly to the Master Admin'
-      );
+    if (!user) {
+      throw new ForbiddenException('Access denied: Authentication required');
     }
+
+    if (
+      user.role === UserRole.MASTER_ADMIN ||
+      user.role === UserRole.SUPER_ADMIN
+    ) {
+      return true;
+    }
+
+    throw new ForbiddenException(
+      'Access denied: This endpoint is restricted strictly to Master and Super Admins'
+    );
 
     return true;
   }

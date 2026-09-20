@@ -3,41 +3,101 @@
 import React from "react";
 import Link from "next/link";
 import { useTranslations, useLocale } from "next-intl";
-import { ShieldCheck, CheckCircle2, User, Building, Heart, ArrowLeft } from "lucide-react";
+import { ShieldCheck, CheckCircle2, User, Building, Heart, ArrowLeft, PlusCircle } from "lucide-react";
+import { useAuthStore } from "../../../../lib/auth-store";
 
-// Mock post detail for demonstration
-const mockPostDetail = {
-  id: "post-1",
-  title: "মেডিকেল ৪র্থ বর্ষের টিউশন ও হোস্টেল ফি",
-  studentName: "রাফিয়া আক্তার",
-  institution: "ময়মনসিংহ মেডিকেল কলেজ",
-  department: "এমবিবিএস (৪র্থ বর্ষ)",
-  session: "২০২১-২০২২",
-  description:
-    "আমার বাবা একজন ক্ষুদ্র কৃষক। গত মাসে স্ট্রোক করার পর থেকে তিনি সম্পূর্ণ শয্যাশায়ী এবং পরিবারের একমাত্র উপার্জন বন্ধ হয়ে গেছে। পরিবারে ছোট দুটি ভাই-বোন রয়েছে। আমার ৪র্থ বর্ষের চূড়ান্ত পরীক্ষা সন্নিকটে, যার জন্য বিশ্ববিদ্যালয়ের বকেয়া টিউশন ফি ও হোস্টেল চার্জ পরিশোধ করা জরুরি। আপনাদের সাদাকাহ ও জাকাত ফান্ড থেকে সহায়তা পেলে আমার শিক্ষা জীবন রক্ষা পাবে।",
-  totalRequired: 45000,
-  collectedAmount: 28000,
-  remainingAmount: 17000,
-  isDoubleVerified: true,
-  verifiedByTeacher: "ড. মো. রফিকুল ইসলাম (সহযোগী অধ্যাপক)",
-  verifiedByOrg: "ময়মনসিংহ মেডিকেল কলেজ প্রশাসন",
-  expenses: [
-    { id: "exp-1", category: "বিশ্ববিদ্যালয় সেমিস্টার ও পরীক্ষা ফি", amount: 24000 },
-    { id: "exp-2", category: "হোস্টেল বকেয়া ও মিল চার্জ", amount: 14000 },
-    { id: "exp-3", category: "মেডিকেল ক্লিনিক্যাল বই ও সরঞ্জাম", amount: 7000 },
-  ],
-};
+import { useParams } from "next/navigation";
 
-export default function PostDetailPage() {
+import { getApiUrl } from '../../../../lib/api-config';
+
+export default function PostDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = React.use(params);
   const locale = useLocale();
   const t = useTranslations("StudentPost");
   const tCommon = useTranslations("Common");
   const tDonation = useTranslations("Donation");
+  const user = useAuthStore((s: any) => s.user);
 
-  const post = mockPostDetail;
+  const [post, setPost] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    if (!id) return;
+    const apiUrl = getApiUrl();
+    fetch(`${apiUrl}/posts/${id}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Not found");
+        return res.json();
+      })
+      .then((data) => {
+        const req = Number(data.totalRequiredAmount || 0);
+        const rec = Number(data.receivedAmount || 0);
+        const rem = Number(data.remainingAmount || Math.max(0, req - rec));
+        setPost({
+          id: data.id,
+          title: data.title,
+          studentName: data.studentName || "শিক্ষার্থী",
+          institution: data.orgName || "অনুমোদিত শিক্ষা প্রতিষ্ঠান",
+          department: "শিক্ষার্থী",
+          session: "",
+          description: data.problemDescription,
+          totalRequired: req,
+          collectedAmount: rec,
+          remainingAmount: rem,
+          isDoubleVerified: data.isDoubleVerified,
+          verifiedByTeacher: data.isTeacherVerified ? "সংশ্লিষ্ট শিক্ষক দ্বারা সত্যায়িত" : null,
+          verifiedByOrg: data.isOrgVerified ? (data.orgName || "অনুমোদিত প্রতিষ্ঠান") : null,
+          expenses: Array.isArray(data.expenses)
+            ? data.expenses.map((e: any, idx: number) => ({
+                id: `exp-${idx}`,
+                category: e.categoryName,
+                amount: Number(e.amount),
+              }))
+            : [],
+        });
+      })
+      .catch((err) => {
+        console.error("Failed to load post", err);
+        setPost(null);
+      })
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="container" style={{ paddingTop: "5rem", textAlign: "center", color: "var(--text-muted)" }}>
+        লোড হচ্ছে...
+      </div>
+    );
+  }
+
+  if (!post) {
+    return (
+      <div className="container" style={{ paddingTop: "5rem", textAlign: "center" }}>
+        <h2 style={{ fontSize: "1.5rem", fontWeight: "800", marginBottom: "1rem" }}>
+          আবেদনটি খুঁজে পাওয়া যায়নি
+        </h2>
+        <p style={{ color: "var(--text-muted)", marginBottom: "1.5rem" }}>
+          অনুরোধকৃত আবেদনটি মুছে ফেলা হয়েছে অথবা এখনো জনসাধারণের জন্য অনুমোদিত হয়নি।
+        </p>
+        <Link
+          href={`/${locale}/posts`}
+          className="btn btn-primary"
+          style={{ display: "inline-flex", padding: "0.65rem 1.25rem", textDecoration: "none" }}
+        >
+          সব পোস্ট দেখুন
+        </Link>
+      </div>
+    );
+  }
+
   const progressPercent = Math.min(
     100,
-    Math.round((post.collectedAmount / post.totalRequired) * 100)
+    post.totalRequired > 0 ? Math.round((post.collectedAmount / post.totalRequired) * 100) : 0
   );
 
   return (
@@ -74,8 +134,9 @@ export default function PostDetailPage() {
                     alignItems: "center",
                     gap: "0.35rem",
                     padding: "0.35rem 0.75rem",
-                    backgroundColor: "rgba(13, 148, 136, 0.12)",
-                    color: "var(--color-primary)",
+                    backgroundColor: "var(--primary-light)",
+                    color: "var(--primary-dark)",
+                    border: "1px solid rgba(5, 150, 105, 0.28)",
                     borderRadius: "var(--radius-full)",
                     fontSize: "0.85rem",
                     fontWeight: "600",
@@ -87,7 +148,7 @@ export default function PostDetailPage() {
               )}
             </div>
 
-            <h1 style={{ fontSize: "1.85rem", fontWeight: "800", color: "var(--color-primary-dark)", lineHeight: "1.3" }}>
+            <h1 style={{ fontSize: "1.85rem", fontWeight: "800", color: "var(--text-main)", lineHeight: "1.3" }}>
               {post.title}
             </h1>
           </div>
@@ -146,9 +207,9 @@ export default function PostDetailPage() {
             </h2>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              {post.expenses.map((expense, idx) => (
+              {post.expenses.map((expense: any, idx: number) => (
                 <div
-                  key={expense.id}
+                  key={expense.id || idx}
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
@@ -250,26 +311,58 @@ export default function PostDetailPage() {
               </div>
             </div>
 
-            <Link
-              href={`/${locale}/donate?postId=${post.id}&amount=${post.remainingAmount}`}
-              className="btn btn-primary"
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: "0.5rem",
-                width: "100%",
-                padding: "0.9rem",
-                fontSize: "1.1rem",
-                fontWeight: "700",
-                textDecoration: "none",
-                borderRadius: "var(--radius-md)",
-                boxShadow: "var(--shadow-sm)",
-              }}
-            >
-              <Heart size={20} fill="currentColor" />
-              {tDonation("title")}
-            </Link>
+            {user?.role === 'student' ? (
+              <div
+                style={{
+                  padding: '1.25rem',
+                  backgroundColor: 'rgba(13, 148, 136, 0.08)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid rgba(13, 148, 136, 0.3)',
+                  textAlign: 'center',
+                }}
+              >
+                <p style={{ fontSize: '0.9rem', color: 'var(--color-primary-dark)', fontWeight: '700', marginBottom: '0.75rem' }}>
+                  শিক্ষার্থী অ্যাকাউন্ট থেকে অনুদান প্রদান প্রযোজ্য নয়। আপনি শিক্ষা সহায়তার আবেদন করতে পারেন।
+                </p>
+                <Link
+                  href="/posts/create"
+                  className="btn btn-primary"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    padding: '0.6rem 1.25rem',
+                    fontSize: '0.9rem',
+                    textDecoration: 'none',
+                    fontWeight: '700',
+                  }}
+                >
+                  <PlusCircle size={16} />
+                  নতুন আবেদন তৈরি করুন
+                </Link>
+              </div>
+            ) : (
+              <Link
+                href={`/${locale}/donate?postId=${post.id}&amount=${post.remainingAmount}`}
+                className="btn btn-primary"
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  width: "100%",
+                  padding: "0.9rem",
+                  fontSize: "1.1rem",
+                  fontWeight: "700",
+                  textDecoration: "none",
+                  borderRadius: "var(--radius-md)",
+                  boxShadow: "var(--shadow-sm)",
+                }}
+              >
+                <Heart size={20} fill="currentColor" />
+                {tDonation("title")}
+              </Link>
+            )}
 
             <div style={{ marginTop: "1.25rem", textAlign: "center" }}>
               <p style={{ fontSize: "0.825rem", color: "var(--color-text-muted)" }}>

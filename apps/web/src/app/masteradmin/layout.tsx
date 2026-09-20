@@ -1,5 +1,6 @@
 import React from 'react';
 import '../globals.css';
+import AuthInitializer from '../../components/layout/AuthInitializer';
 
 export const metadata = {
   title: 'Master Admin Gateway | Sadaqahbd',
@@ -14,6 +15,7 @@ export default function MasterAdminRootLayout({
   return (
     <html lang="en">
       <body style={{ backgroundColor: '#0f172a', minHeight: '100vh', color: '#f8fafc' }}>
+        <AuthInitializer />
         {children}
       </body>
     </html>

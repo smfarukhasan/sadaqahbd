@@ -3,6 +3,9 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '../../i18n/routing';
+import AuthInitializer from '../../components/layout/AuthInitializer';
+import SuspendedAccountGuard from '../../components/auth/SuspendedAccountGuard';
+import MandatorySetupGuard from '../../components/auth/MandatorySetupGuard';
 import Navbar from '../../components/layout/Navbar';
 import AppHeader from '../../components/layout/AppHeader';
 import BottomNav from '../../components/layout/BottomNav';
@@ -35,9 +38,17 @@ export default async function LocaleLayout({
           name="viewport"
           content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
         />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('sadaqahbd_theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})()`,
+          }}
+        />
       </head>
       <body>
         <NextIntlClientProvider messages={messages}>
+          <AuthInitializer />
+          <SuspendedAccountGuard />
+          <MandatorySetupGuard />
           <AppHeader />
           <Navbar />
           <main className="safe-bottom-padding">{children}</main>
@@ -48,4 +59,3 @@ export default async function LocaleLayout({
     </html>
   );
 }
-

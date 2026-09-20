@@ -3,21 +3,23 @@
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 50;
+  z-index: 90;
   display: flex;
   align-items: center;
   justify-content: space-around;
-  height: 64px;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-top: 1px solid var(--surface-border-subtle);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  min-height: 68px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-top: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: 0 -6px 24px rgba(15, 23, 42, 0.06);
+  padding-bottom: env(safe-area-inset-bottom, 12px);
+  padding-top: 6px;
 }
 
 [data-theme="dark"] .bottomNav {
-  background: rgba(17, 24, 39, 0.94);
+  background: rgba(17, 26, 40, 0.96);
+  border-top-color: rgba(30, 45, 66, 0.85);
 }
 
 .tab {
@@ -26,10 +28,9 @@
   align-items: center;
   justify-content: center;
   flex: 1;
-  height: 100%;
   color: var(--text-muted);
-  gap: 3px;
-  transition: all 0.15s ease;
+  gap: 4px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 4px 0;
   -webkit-tap-highlight-color: transparent;
   text-decoration: none;
@@ -44,27 +45,32 @@
 
 .activeDot {
   position: absolute;
-  bottom: -4px;
-  width: 4px;
-  height: 4px;
+  bottom: -5px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background-color: var(--primary);
+  box-shadow: 0 0 8px var(--primary);
 }
 
 .tabActive {
   color: var(--primary);
+}
+
+.tabActive .tabLabel {
   font-weight: 700;
+  color: var(--primary-dark);
 }
 
 .tabLabel {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
 .donateHighlight {
   position: relative;
-  top: -14px;
+  top: -18px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -75,13 +81,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #0d9488 0%, #059669 100%);
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
   color: #ffffff;
-  box-shadow: 0 4px 16px -1px rgba(13, 148, 136, 0.45), 0 0 0 4px var(--surface);
-  transition: transform 0.15s ease;
+  box-shadow: 0 8px 20px -2px rgba(5, 150, 105, 0.45), 0 0 0 5px var(--surface);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .heartPulse {
@@ -102,9 +108,8 @@
 }
 
 .donateLabel {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--primary);
-  margin-top: 2px;
+  margin-top: 4px;
 }
-

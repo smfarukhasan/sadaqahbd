@@ -279,4 +279,40 @@ export class DonationsService {
 
     return history;
   }
+
+  async listPendingDonations() {
+    const list = await this.db
+      .select({
+        id: donations.id,
+        donorId: donations.donorId,
+        donorName: users.fullName,
+        donorEmail: users.email,
+        donorPhone: users.phone,
+        postId: donations.postId,
+        postTitle: studentPosts.title,
+        amount: donations.amount,
+        isRandom: donations.isRandom,
+        paymentMethod: donations.paymentMethod,
+        trxId: donations.transactionReference,
+        donorNote: donations.donorNote,
+        status: donations.status,
+        createdAt: donations.createdAt,
+      })
+      .from(donations)
+      .leftJoin(users, eq(donations.donorId, users.id))
+      .leftJoin(studentPosts, eq(donations.postId, studentPosts.id))
+      .where(eq(donations.status, DonationStatus.PENDING))
+      .orderBy(desc(donations.createdAt));
+
+    return list.map((d) => ({
+      ...d,
+      amount: Number(d.amount),
+      donorName: d.donorName || 'অজ্ঞাত দাতা (Anonymous)',
+      type: d.isRandom ? 'random' : 'direct',
+      studentName: d.postTitle || 'সাধারণ শিক্ষা তহবিল',
+      method: d.paymentMethod,
+      time: d.createdAt ? new Date(d.createdAt).toLocaleString('bn-BD') : '',
+    }));
+  }
 }
+

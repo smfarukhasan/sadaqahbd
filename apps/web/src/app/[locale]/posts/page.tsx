@@ -1,203 +1,243 @@
 'use client';
 
-import React from "react";
-import Link from "next/link";
-import { useTranslations, useLocale } from "next-intl";
-import { CheckCircle2, ShieldCheck, Heart, ArrowRight } from "lucide-react";
+import React, { useState } from 'react';
+import { useTranslations, useLocale } from 'next-intl';
+import { Link } from '../../../i18n/routing';
+import styles from './page.module.css';
+import {
+  CheckCircle2,
+  ShieldCheck,
+  Heart,
+  ArrowRight,
+  GraduationCap,
+  Building2,
+} from 'lucide-react';
 
-// Mock/Initial verified posts data for demonstration before DB connection
-const mockPosts = [
-  {
-    id: "post-1",
-    title: "মেডিকেল ৪র্থ বর্ষের টিউশন ও হোস্টেল ফি",
-    studentName: "রাফিয়া আক্তার",
-    institution: "ময়মনসিংহ মেডিকেল কলেজ",
-    description: "পিতার আকস্মিক অসুস্থতার কারণে পরিবারের আর্থিক অবস্থা ভেঙে পড়েছে। আগামী পরীক্ষার ফি এবং হোস্টেল খরচের জন্য সহায়তা প্রয়োজন।",
-    totalRequired: 45000,
-    collectedAmount: 28000,
-    remainingAmount: 17000,
-    isDoubleVerified: true,
-  },
-  {
-    id: "post-2",
-    title: "ডিপ্লোমা ইন কম্পিউটার ইঞ্জিনিয়ারিং সেমিস্টার ও ল্যাব ফি",
-    studentName: "তানভীর আহমেদ",
-    institution: "ঢাকা পলিটেকনিক ইনস্টিটিউট",
-    description: "পিতা দিনমজুর, সেমিস্টার পরীক্ষার রেজিস্ট্রেশন ও ব্যবহারিক খাতা কেনার ফি প্রদানে অক্ষম।",
-    totalRequired: 22000,
-    collectedAmount: 15500,
-    remainingAmount: 6500,
-    isDoubleVerified: true,
-  },
-  {
-    id: "post-3",
-    title: "অনার্স শেষ বর্ষের সেমিস্টার ও গবেষণা ফি",
-    studentName: "আব্দুল্লাহ আল মামুন",
-    institution: "রাজশাহী বিশ্ববিদ্যালয়",
-    description: "পরিবারে একমাত্র উপার্জনক্ষম ব্যক্তি বড় ভাই কর্মহীন হয়ে পড়ায় শেষ বর্ষের সেমিস্টার ফি আটকে আছে।",
-    totalRequired: 18000,
-    collectedAmount: 6000,
-    remainingAmount: 12000,
-    isDoubleVerified: false,
-  }
-];
+import { getApiUrl } from '../../../lib/api-config';
 
 export default function PostsPage() {
   const locale = useLocale();
-  const t = useTranslations("StudentPost");
-  const tCommon = useTranslations("Common");
+  const t = useTranslations('StudentPost');
+  const tCommon = useTranslations('Common');
+  const [selectedFilter, setSelectedFilter] = useState('all');
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  React.useEffect(() => {
+    const apiUrl = getApiUrl();
+    fetch(`${apiUrl}/posts/public`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const mapped = data.map((p) => {
+            const req = Number(p.totalRequiredAmount || 0);
+            const rec = Number(p.receivedAmount || 0);
+            const rem = Number(p.remainingAmount || (req - rec));
+            return {
+              id: p.id,
+              title: p.title,
+              titleEn: p.title,
+              studentName: p.studentName || 'শিক্ষার্থী',
+              studentNameEn: p.studentName || 'Student',
+              avatarLetter: p.studentName ? p.studentName.charAt(0) : 'শ',
+              avatarLetterEn: p.studentName ? p.studentName.charAt(0).toUpperCase() : 'S',
+              category: 'general',
+              institution: p.orgName || 'অনুমোদিত শিক্ষা প্রতিষ্ঠান',
+              institutionEn: p.orgName || 'Approved Institution',
+              description: p.problemDescription,
+              descriptionEn: p.problemDescription,
+              totalRequired: req,
+              collectedAmount: rec,
+              remainingAmount: rem,
+              isDoubleVerified: p.isDoubleVerified,
+            };
+          });
+          setPosts(mapped);
+        }
+      })
+      .catch((err) => console.error('Failed to load posts', err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filteredPosts = posts;
 
   return (
-    <div className="container" style={{ paddingTop: "2.5rem", paddingBottom: "5rem" }}>
+    <div className={`container ${styles.container}`}>
       {/* Page Header */}
-      <div style={{ textAlign: "center", maxWidth: "700px", margin: "0 auto 3rem auto" }}>
-        <h1 style={{ fontSize: "2.25rem", fontWeight: "800", color: "var(--color-primary-dark)", marginBottom: "0.75rem" }}>
-          {tCommon("explorePosts")}
-        </h1>
-        <p style={{ color: "var(--color-text-muted)", fontSize: "1.05rem", lineHeight: "1.6" }}>
-          প্রতিটি অনুদান পৌঁছে যাক প্রকৃত অভাবী শিক্ষার্থীদের শিক্ষা জীবন সুরক্ষায়। স্বচ্ছতা ও শিক্ষক-প্রতিষ্ঠানের যাচাইকৃত তথ্যের নিশ্চয়তা।
+      <div className={styles.pageHeader}>
+        <div className={styles.badge}>
+          <ShieldCheck size={16} />
+          <span>{tCommon('verified')}</span>
+        </div>
+        <h1 className={styles.title}>{tCommon('explorePosts')}</h1>
+        <p className={styles.subtitle}>
+          {locale === 'bn'
+            ? 'প্রতিটি অনুদান পৌঁছে যাক প্রকৃত অভাবী শিক্ষার্থীদের শিক্ষা জীবন সুরক্ষায়। স্বচ্ছতা ও শিক্ষক-প্রতিষ্ঠানের যাচাইকৃত তথ্যের নিশ্চয়তা।'
+            : 'Ensuring your charitable aid reaches deserving students directly. Verified by institutional leadership with 100% public ledger transparency.'}
         </p>
       </div>
 
-      {/* Posts Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "1.75rem" }}>
-        {mockPosts.map((post) => {
-          const progressPercent = Math.min(100, Math.round((post.collectedAmount / post.totalRequired) * 100));
+      {/* Filter Chips */}
+      <div className={styles.filterRow}>
+        {[
+          { id: 'all', label: t('categoryAll') },
+          { id: 'medical', label: locale === 'bn' ? 'মেডিকেল' : 'Medical' },
+          { id: 'polytechnic', label: t('categoryPolytechnic') },
+          { id: 'madrasa', label: t('categoryMadrasa') },
+        ].map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            onClick={() => setSelectedFilter(f.id)}
+            className={`${styles.filterChip} ${
+              selectedFilter === f.id ? styles.filterChipActive : ''
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Posts Grid or Empty State */}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '4rem 1rem', color: 'var(--text-muted)' }}>
+          লোড হচ্ছে...
+        </div>
+      ) : filteredPosts.length === 0 ? (
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '4rem 2rem',
+            backgroundColor: 'var(--surface)',
+            borderRadius: 'var(--radius-xl)',
+            border: '1px solid var(--surface-border)',
+            maxWidth: '600px',
+            margin: '2rem auto',
+          }}
+        >
+          <div
+            style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              backgroundColor: 'rgba(5, 150, 105, 0.1)',
+              color: 'var(--primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.25rem',
+            }}
+          >
+            <GraduationCap size={32} />
+          </div>
+          <h2 style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+            বর্তমানে কোনো সক্রিয় আবেদন নেই
+          </h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.925rem', lineHeight: '1.6', marginBottom: '1.5rem' }}>
+            যাচাই প্রক্রিয়া সম্পন্ন হওয়ার সাথে সাথে শিক্ষার্থীদের পোস্ট এখানে দৃশ্যমান হবে।
+          </p>
+          <Link
+            href="/donate"
+            className="btn btn-primary"
+            style={{ display: 'inline-flex', padding: '0.75rem 1.5rem', fontWeight: '700', textDecoration: 'none' }}
+          >
+            <Heart size={18} style={{ marginRight: '0.5rem' }} />
+            <span>সাধারণ শিক্ষা তহবিলে দান করুন</span>
+          </Link>
+        </div>
+      ) : (
+        <div className={styles.grid}>
+        {filteredPosts.map((post) => {
+          const progressPercent = Math.min(
+            100,
+            Math.round((post.collectedAmount / post.totalRequired) * 100)
+          );
+
+          const title = locale === 'bn' ? post.title : post.titleEn;
+          const studentName = locale === 'bn' ? post.studentName : post.studentNameEn;
+          const avatar = locale === 'bn' ? post.avatarLetter : post.avatarLetterEn;
+          const institution = locale === 'bn' ? post.institution : post.institutionEn;
+          const description = locale === 'bn' ? post.description : post.descriptionEn;
 
           return (
-            <div
-              key={post.id}
-              className="card"
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between",
-                padding: "1.5rem",
-                borderRadius: "var(--radius-lg)",
-                border: "1px solid var(--color-border)",
-                backgroundColor: "var(--color-surface)",
-                boxShadow: "var(--shadow-sm)",
-                transition: "transform 0.2s ease, box-shadow 0.2s ease",
-              }}
-            >
+            <article key={post.id} className={styles.card}>
               <div>
-                {/* Verification Badge */}
-                <div style={{ marginBottom: "0.85rem" }}>
-                  {post.isDoubleVerified ? (
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "0.4rem",
-                        padding: "0.3rem 0.65rem",
-                        backgroundColor: "rgba(13, 148, 136, 0.12)",
-                        color: "var(--color-primary)",
-                        borderRadius: "var(--radius-full)",
-                        fontSize: "0.8rem",
-                        fontWeight: "600",
-                      }}
-                    >
-                      <ShieldCheck size={16} />
-                      {t("doubleVerifiedBadge")}
-                    </span>
-                  ) : (
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "0.4rem",
-                        padding: "0.3rem 0.65rem",
-                        backgroundColor: "rgba(59, 130, 246, 0.12)",
-                        color: "#2563eb",
-                        borderRadius: "var(--radius-full)",
-                        fontSize: "0.8rem",
-                        fontWeight: "600",
-                      }}
-                    >
-                      <CheckCircle2 size={16} />
-                      {t("orgVerifiedBadge")}
-                    </span>
-                  )}
+                {/* Header */}
+                <div className={styles.cardHeader}>
+                  <div className={styles.studentInfo}>
+                    <div className={styles.avatar}>{avatar}</div>
+                    <div className={styles.studentMeta}>
+                      <span className={styles.studentName}>{studentName}</span>
+                      <span className={styles.institution}>
+                        <Building2 size={12} style={{ display: 'inline', marginRight: 4 }} />
+                        {institution}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className={styles.verifiedBadge}>
+                    <ShieldCheck size={13} />
+                    <span>{t('doubleVerifiedBadge')}</span>
+                  </div>
                 </div>
 
-                {/* Post Title */}
-                <h2 style={{ fontSize: "1.25rem", fontWeight: "700", marginBottom: "0.4rem", color: "var(--color-text)" }}>
-                  <Link href={`/${locale}/posts/${post.id}`} style={{ textDecoration: "none", color: "inherit" }}>
-                    {post.title}
-                  </Link>
-                </h2>
-
-                {/* Student details */}
-                <p style={{ fontSize: "0.9rem", color: "var(--color-primary-dark)", fontWeight: "600", marginBottom: "0.75rem" }}>
-                  {post.studentName} • <span style={{ color: "var(--color-text-muted)", fontWeight: "400" }}>{post.institution}</span>
-                </p>
-
-                {/* Description excerpt */}
-                <p style={{ fontSize: "0.925rem", color: "var(--color-text-muted)", lineHeight: "1.55", marginBottom: "1.5rem" }}>
-                  {post.description}
-                </p>
+                {/* Title & Excerpt */}
+                <h2 className={styles.cardTitle}>{title}</h2>
+                <p className={styles.cardDesc}>{description}</p>
               </div>
 
-              {/* Progress & Financial Breakdown */}
+              {/* Progress & Financial Info */}
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem", marginBottom: "0.35rem", fontWeight: "600" }}>
-                  <span style={{ color: "var(--color-primary)" }}>{t("received")}: ৳{post.collectedAmount.toLocaleString()}</span>
-                  <span style={{ color: "var(--color-text-muted)" }}>{progressPercent}%</span>
+                <div className={styles.progressHeader}>
+                  <span className={styles.collectedText}>
+                    {t('received')}: ৳{post.collectedAmount.toLocaleString()}
+                  </span>
+                  <span className={styles.percentageText}>{progressPercent}%</span>
                 </div>
 
-                {/* Progress Bar */}
-                <div style={{ width: "100%", height: "8px", backgroundColor: "var(--color-border)", borderRadius: "var(--radius-full)", overflow: "hidden", marginBottom: "0.85rem" }}>
+                <div className={styles.progressBarTrack}>
                   <div
-                    style={{
-                      width: `${progressPercent}%`,
-                      height: "100%",
-                      backgroundColor: "var(--color-primary)",
-                      borderRadius: "var(--radius-full)",
-                      transition: "width 0.5s ease",
-                    }}
+                    className={styles.progressBarFill}
+                    style={{ width: `${progressPercent}%` }}
                   />
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.825rem", color: "var(--color-text-muted)", marginBottom: "1.25rem" }}>
-                  <span>{t("totalRequired")}: ৳{post.totalRequired.toLocaleString()}</span>
-                  <span style={{ color: "var(--color-accent)", fontWeight: "600" }}>
-                    {t("remaining")}: ৳{post.remainingAmount.toLocaleString()}
+                <div className={styles.targetRow}>
+                  <span>
+                    {t('totalRequired')}: ৳{post.totalRequired.toLocaleString()}
+                  </span>
+                  <span className={styles.remainingText}>
+                    {t('remaining')}: ৳{post.remainingAmount.toLocaleString()}
                   </span>
                 </div>
 
                 {/* Action Buttons */}
-                <div style={{ display: "flex", gap: "0.75rem" }}>
+                <div className={styles.actionsRow}>
                   <Link
-                    href={`/${locale}/donate?postId=${post.id}&amount=${post.remainingAmount}`}
-                    className="btn btn-primary"
-                    style={{
-                      flex: 1,
-                      justifyContent: "center",
-                      textDecoration: "none",
-                      padding: "0.65rem 1rem",
-                      fontSize: "0.95rem",
+                    href={{
+                      pathname: '/donate',
+                      query: { postId: post.id, amount: post.remainingAmount },
                     }}
+                    className={styles.donateBtn}
                   >
-                    <Heart size={16} fill="currentColor" />
-                    {tCommon("donateNow")}
+                    <Heart size={16} />
+                    <span>{tCommon('donateNow')}</span>
                   </Link>
+
                   <Link
-                    href={`/${locale}/posts/${post.id}`}
-                    className="btn btn-outline"
-                    style={{
-                      padding: "0.65rem 0.85rem",
-                      textDecoration: "none",
-                      color: "var(--color-text)",
-                    }}
+                    href={`/posts/${post.id}`}
+                    className={styles.detailsBtn}
+                    title={tCommon('view')}
                   >
                     <ArrowRight size={18} />
                   </Link>
                 </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            </article>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

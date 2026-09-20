@@ -23,11 +23,16 @@ export const organizations = mysqlTable(
     registrationNumber: varchar('registration_number', { length: 100 }),
     contactPerson: varchar('contact_person', { length: 150 }).notNull(),
     contactPhone: varchar('contact_phone', { length: 20 }).notNull(),
+    email: varchar('email', { length: 255 }),
+    type: varchar('type', { length: 100 }),
+    description: text('description'),
     address: text('address').notNull(),
     documentUrl: text('document_url'),
     status: mysqlEnum('status', ['pending', 'active', 'rejected'])
       .default('pending')
       .notNull(),
+    isRequestedByMember: boolean('is_requested_by_member').default(false).notNull(),
+    requestedByUserId: varchar('requested_by_user_id', { length: 36 }),
     verifiedBy: varchar('verified_by', { length: 36 }),
     verifiedAt: timestamp('verified_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -51,6 +56,7 @@ export const users = mysqlTable(
     email: varchar('email', { length: 255 }).notNull().unique(),
     phone: varchar('phone', { length: 20 }),
     fullName: varchar('full_name', { length: 150 }).notNull(),
+    address: text('address'),
     role: mysqlEnum('role', [
       'master_admin',
       'super_admin',
@@ -77,6 +83,7 @@ export const users = mysqlTable(
   (table) => [
     uniqueIndex('user_firebase_uid_idx').on(table.firebaseUid),
     uniqueIndex('user_email_idx').on(table.email),
+    uniqueIndex('user_phone_idx').on(table.phone),
     index('user_role_idx').on(table.role),
     index('user_org_idx').on(table.organizationId),
   ]
@@ -117,21 +124,30 @@ export const studentProfiles = mysqlTable(
       .notNull()
       .unique()
       .references(() => users.id, { onDelete: 'cascade' }),
+    organizationId: varchar('organization_id', { length: 36 })
+      .references(() => organizations.id),
     address: text('address').notNull(),
     institutionName: varchar('institution_name', { length: 255 }).notNull(),
     studentClassRoll: varchar('student_class_roll', { length: 100 }).notNull(),
     nidOrBirthCertificateNumber: varchar('nid_birth_number', {
       length: 100,
-    }).notNull(),
-    nidOrBirthCertificateUrl: text('nid_birth_url').notNull(),
-    photoUrl: text('photo_url').notNull(),
+    }),
+    nidOrBirthCertificateUrl: text('nid_birth_url'),
+    photoUrl: text('photo_url'),
     verificationStatus: mysqlEnum('verification_status', [
       'pending',
+      'pending_org',
+      'pending_admin',
       'verified',
       'rejected',
     ])
-      .default('pending')
+      .default('pending_org')
       .notNull(),
+    orgApprovedBy: varchar('org_approved_by', { length: 36 }),
+    orgApprovedAt: timestamp('org_approved_at'),
+    adminApprovedBy: varchar('admin_approved_by', { length: 36 }),
+    adminApprovedAt: timestamp('admin_approved_at'),
+    rejectionReason: text('rejection_reason'),
     verifiedByOrgUserId: varchar('verified_by_org_user_id', { length: 36 }),
     verifiedAt: timestamp('verified_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -139,6 +155,47 @@ export const studentProfiles = mysqlTable(
   },
   (table) => [
     index('student_profile_status_idx').on(table.verificationStatus),
+    index('student_profile_org_idx').on(table.organizationId),
+  ]
+);
+
+// ----------------------------------------------------
+// 4.1 Teacher Profiles Table
+// ----------------------------------------------------
+export const teacherProfiles = mysqlTable(
+  'teacher_profiles',
+  {
+    id: varchar('id', { length: 36 }).primaryKey(),
+    userId: varchar('user_id', { length: 36 })
+      .notNull()
+      .unique()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    organizationId: varchar('organization_id', { length: 36 })
+      .notNull()
+      .references(() => organizations.id),
+    department: varchar('department', { length: 100 }),
+    designation: varchar('designation', { length: 100 }),
+    employeeId: varchar('employee_id', { length: 50 }),
+    verificationStatus: mysqlEnum('verification_status', [
+      'pending',
+      'pending_org',
+      'pending_admin',
+      'verified',
+      'rejected',
+    ])
+      .default('pending_org')
+      .notNull(),
+    orgApprovedBy: varchar('org_approved_by', { length: 36 }),
+    orgApprovedAt: timestamp('org_approved_at'),
+    adminApprovedBy: varchar('admin_approved_by', { length: 36 }),
+    adminApprovedAt: timestamp('admin_approved_at'),
+    rejectionReason: text('rejection_reason'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    index('teacher_profile_status_idx').on(table.verificationStatus),
+    index('teacher_profile_org_idx').on(table.organizationId),
   ]
 );
 
@@ -298,6 +355,46 @@ export const complaints = mysqlTable(
 );
 
 // ----------------------------------------------------
+// 10. Notifications Table
+// ----------------------------------------------------
+export const notifications = mysqlTable(
+  'notifications',
+  {
+    id: varchar('id', { length: 36 }).primaryKey(),
+    recipientUserId: varchar('recipient_user_id', { length: 36 }).references(
+      () => users.id,
+      { onDelete: 'cascade' }
+    ),
+    recipientRole: mysqlEnum('recipient_role', [
+      'master_admin',
+      'super_admin',
+      'admin',
+      'organization',
+      'teacher',
+      'student',
+      'donor',
+    ]),
+    recipientOrgId: varchar('recipient_org_id', { length: 36 }).references(
+      () => organizations.id
+    ),
+    titleBn: varchar('title_bn', { length: 255 }).notNull(),
+    titleEn: varchar('title_en', { length: 255 }).notNull(),
+    messageBn: text('message_bn').notNull(),
+    messageEn: text('message_en').notNull(),
+    type: varchar('type', { length: 50 }).notNull(),
+    link: varchar('link', { length: 255 }),
+    isRead: boolean('is_read').default(false).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('notif_recipient_user_idx').on(table.recipientUserId),
+    index('notif_recipient_role_idx').on(table.recipientRole),
+    index('notif_recipient_org_idx').on(table.recipientOrgId),
+    index('notif_read_idx').on(table.isRead),
+  ]
+);
+
+// ----------------------------------------------------
 // Drizzle Relations
 // ----------------------------------------------------
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -310,14 +407,21 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     fields: [users.id],
     references: [studentProfiles.userId],
   }),
+  teacherProfile: one(teacherProfiles, {
+    fields: [users.id],
+    references: [teacherProfiles.userId],
+  }),
   posts: many(studentPosts),
   donations: many(donations),
   complaints: many(complaints),
+  notifications: many(notifications),
 }));
 
 export const organizationsRelations = relations(organizations, ({ many }) => ({
   users: many(users),
   posts: many(studentPosts),
+  teachers: many(teacherProfiles),
+  students: many(studentProfiles),
 }));
 
 export const studentPostsRelations = relations(

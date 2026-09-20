@@ -29,6 +29,13 @@ export class DonationsController {
     return this.donationsService.getTransparencyLedgerStats();
   }
 
+  @Get('pending')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN)
+  async listPendingDonations() {
+    return this.donationsService.listPendingDonations();
+  }
+
   @Post()
   @UseGuards(FirebaseAuthGuard)
   async submitDonation(

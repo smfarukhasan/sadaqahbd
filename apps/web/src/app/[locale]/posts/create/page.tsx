@@ -2,9 +2,20 @@
 
 import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { useRouter } from '../../../../i18n/routing';
+import { Link, useRouter } from '../../../../i18n/routing';
 import styles from './page.module.css';
-import { Plus, Trash2, Send, Calculator, AlertCircle, CheckCircle } from 'lucide-react';
+import {
+  Plus,
+  Trash2,
+  Send,
+  Calculator,
+  AlertCircle,
+  CheckCircle,
+  GraduationCap,
+} from 'lucide-react';
+import { useAuthStore } from '../../../../lib/auth-store';
+import { auth } from '../../../../lib/firebase';
+import { getApiUrl } from '../../../../lib/api-config';
 
 interface ExpenseItem {
   id: string;
@@ -16,6 +27,9 @@ export default function CreatePostPage() {
   const t = useTranslations('StudentPost');
   const commonT = useTranslations('Common');
   const router = useRouter();
+
+  const user = useAuthStore((s) => s.user);
+  const loadingAuth = useAuthStore((s) => s.loading);
 
   const [title, setTitle] = useState('');
   const [problemDescription, setProblemDescription] = useState('');
@@ -75,19 +89,156 @@ export default function CreatePostPage() {
     setLoading(true);
 
     try {
-      // API call to POST /posts
-      setTimeout(() => {
-        setLoading(false);
-        setSuccess(
-          'আপনার আবেদনটি সফলভাবে জমা হয়েছে! এটি এখন প্রতিষ্ঠান ও শিক্ষকের ভেরিফিকেশনের জন্য অপেক্ষমান।'
-        );
-        setTimeout(() => router.push('/posts'), 1500);
-      }, 800);
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error('আপনার সেশন মেয়াদোত্তীর্ণ হয়েছে। পুনরায় লগইন করুন।');
+      }
+
+      const apiUrl = getApiUrl();
+
+      const res = await fetch(`${apiUrl}/posts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title,
+          problemDescription,
+          expenses: expenses.map((e) => ({
+            categoryName: e.categoryName,
+            amount: parseFloat(e.amount),
+          })),
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || 'পোস্ট জমা দিতে সমস্যা হয়েছে');
+      }
+
+      setLoading(false);
+      setSuccess(
+        'আপনার আবেদনটি সফলভাবে জমা হয়েছে! এটি এখন প্রতিষ্ঠান ও শিক্ষকের ভেরিফিকেশনের জন্য অপেক্ষমান।'
+      );
+      setTimeout(() => router.push('/portal'), 1600);
     } catch (err: any) {
       setError(err.message || 'পোস্ট জমা দিতে সমস্যা হয়েছে');
       setLoading(false);
     }
   };
+
+  // Role Protection Check: Must be logged in as a student
+  if (!loadingAuth && !user) {
+    return (
+      <div className="container" style={{ padding: '4rem 1rem', textAlign: 'center' }}>
+        <div
+          style={{
+            maxWidth: '480px',
+            margin: '0 auto',
+            padding: '2.5rem 2rem',
+            backgroundColor: 'var(--surface)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--surface-border)',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <GraduationCap
+            size={44}
+            color="var(--primary)"
+            style={{ marginBottom: '1rem' }}
+          />
+          <h2
+            style={{
+              fontSize: '1.4rem',
+              fontWeight: '800',
+              marginBottom: '0.5rem',
+              color: 'var(--text-main)',
+            }}
+          >
+            শিক্ষার্থী লগইন আবশ্যক
+          </h2>
+          <p
+            style={{
+              color: 'var(--text-muted)',
+              marginBottom: '1.5rem',
+              fontSize: '0.9rem',
+              lineHeight: '1.5',
+            }}
+          >
+            আর্থিক সহায়তার আবেদন তৈরি করার জন্য অনুগ্রহ করে আপনার শিক্ষার্থী অ্যাকাউন্ট দিয়ে লগইন করুন।
+          </p>
+          <Link
+            href="/login"
+            className={styles.submitBtn}
+            style={{ textDecoration: 'none', display: 'inline-flex' }}
+          >
+            লগইন পেজে যান
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!loadingAuth && user && user.role !== 'student') {
+    const roleTitle =
+      user.role === 'donor'
+        ? 'দাতা (Donor)'
+        : user.role === 'teacher'
+        ? 'শিক্ষক (Teacher)'
+        : user.role === 'organization'
+        ? 'শিক্ষা প্রতিষ্ঠান (Organization)'
+        : 'এডমিন (Admin)';
+
+    return (
+      <div className="container" style={{ padding: '4rem 1rem', textAlign: 'center' }}>
+        <div
+          style={{
+            maxWidth: '520px',
+            margin: '0 auto',
+            padding: '2.5rem 2rem',
+            backgroundColor: 'var(--surface)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--surface-border)',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <AlertCircle
+            size={44}
+            color="var(--accent)"
+            style={{ marginBottom: '1rem' }}
+          />
+          <h2
+            style={{
+              fontSize: '1.35rem',
+              fontWeight: '800',
+              marginBottom: '0.5rem',
+              color: 'var(--text-main)',
+            }}
+          >
+            শিক্ষার্থী অ্যাকাউন্ট প্রয়োজন
+          </h2>
+          <p
+            style={{
+              color: 'var(--text-muted)',
+              marginBottom: '1.5rem',
+              fontSize: '0.9rem',
+              lineHeight: '1.5',
+            }}
+          >
+            আপনি বর্তমানে <strong>{user.fullName}</strong> হিসেবে {roleTitle} অ্যাকাউন্টে লগইন আছেন। শুধুমাত্র শিক্ষার্থীদের অ্যাকাউন্টের মাধ্যমে আর্থিক সহায়তার আবেদন পোস্ট করা যায়।
+          </p>
+          <Link
+            href="/portal"
+            className={styles.submitBtn}
+            style={{ textDecoration: 'none', display: 'inline-flex' }}
+          >
+            আমার ড্যাশবোর্ডে যান
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container" style={{ padding: '2rem 1rem' }}>
@@ -115,7 +266,6 @@ export default function CreatePostPage() {
         )}
 
         <form onSubmit={handleSubmit} className={styles.form}>
-          {/* Post Title */}
           <div className={styles.field}>
             <label>{t('titleLabel')}</label>
             <input
@@ -123,11 +273,10 @@ export default function CreatePostPage() {
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="যেমন: ৩য় বর্ষের সেমিস্টার পরীক্ষা ও মেস ভাড়ার জন্য অনুদান"
+              placeholder="যেমন: ৩য় সেমিস্টার ডিপ্লোমা ইঞ্জিনিয়ারিং টিউশন ফি ও মেস চার্জ"
             />
           </div>
 
-          {/* Problem Description */}
           <div className={styles.field}>
             <label>{t('problemLabel')}</label>
             <textarea
@@ -135,72 +284,67 @@ export default function CreatePostPage() {
               rows={4}
               value={problemDescription}
               onChange={(e) => setProblemDescription(e.target.value)}
-              placeholder="আপনার পারিবারিক আর্থিক অবস্থা এবং কেন এই অনুদান প্রয়োজন তা বিস্তারিত তুলে ধরুন..."
+              placeholder="আপনার আর্থিক সমস্যা এবং কেন এই অনুদান প্রয়োজন তা বিস্তারিত উল্লেখ করুন..."
             />
           </div>
 
-          {/* Itemized Expenses Breakdown */}
-          <div className={styles.expensesSection}>
-            <div className={styles.expensesHeader}>
-              <Calculator size={20} className={styles.calcIcon} />
-              <h3>{t('expensesTitle')}</h3>
+          <div className={styles.expenseSection}>
+            <div className={styles.expenseHeader}>
+              <div className={styles.calcIcon}>
+                <Calculator size={18} />
+                <span>{t('expensesTitle')}</span>
+              </div>
+              <button
+                type="button"
+                onClick={addExpenseRow}
+                className={styles.addBtn}
+              >
+                <Plus size={16} /> {t('addExpenseRow')}
+              </button>
             </div>
 
             <div className={styles.expenseList}>
-              {expenses.map((expense, idx) => (
-                <div key={expense.id} className={styles.expenseRow}>
-                  <div className={styles.categoryInput}>
+              {expenses.map((item, idx) => (
+                <div key={item.id} className={styles.expenseRow}>
+                  <div className={styles.rowInputs}>
                     <input
                       type="text"
                       required
-                      placeholder={`খাত #${idx + 1} (যেমন: টিউশন ফি)`}
-                      value={expense.categoryName}
+                      placeholder={`খাত #${idx + 1} (যেমন: টিউশন ফি, হোস্টেল চার্জ)`}
+                      value={item.categoryName}
                       onChange={(e) =>
-                        updateExpenseRow(
-                          expense.id,
-                          'categoryName',
-                          e.target.value
-                        )
+                        updateExpenseRow(item.id, 'categoryName', e.target.value)
                       }
                     />
-                  </div>
-                  <div className={styles.amountInput}>
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      placeholder="টাকা (৳)"
-                      value={expense.amount}
-                      onChange={(e) =>
-                        updateExpenseRow(expense.id, 'amount', e.target.value)
-                      }
-                    />
+                    <div className={styles.amountInputWrapper}>
+                      <span>৳</span>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        placeholder="পরিমাণ"
+                        value={item.amount}
+                        onChange={(e) =>
+                          updateExpenseRow(item.id, 'amount', e.target.value)
+                        }
+                      />
+                    </div>
                   </div>
                   {expenses.length > 1 && (
                     <button
                       type="button"
-                      onClick={() => removeExpenseRow(expense.id)}
+                      onClick={() => removeExpenseRow(item.id)}
                       className={styles.removeBtn}
-                      title="খাতটি বাদ দিন"
+                      title="মুছে ফেলুন"
                     >
-                      <Trash2 size={18} />
+                      <Trash2 size={16} />
                     </button>
                   )}
                 </div>
               ))}
             </div>
 
-            <button
-              type="button"
-              onClick={addExpenseRow}
-              className={styles.addBtn}
-            >
-              <Plus size={16} />
-              <span>{t('addExpense')}</span>
-            </button>
-
-            {/* Total Calculation Display */}
-            <div className={styles.totalBar}>
+            <div className={styles.totalRow}>
               <span>{t('totalRequired')}:</span>
               <strong>৳ {totalRequired.toLocaleString('bn-BD')}</strong>
             </div>
@@ -213,7 +357,7 @@ export default function CreatePostPage() {
           >
             <Send size={18} />
             <span>
-              {loading ? commonT('loading') : 'আবেদন জমা দিন'}
+              {loading ? commonT('loading') : t('submitForVerification')}
             </span>
           </button>
         </form>

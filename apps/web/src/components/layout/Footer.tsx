@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useTranslations } from 'next-intl';
-import { Link } from '../../i18n/routing';
+import { Link, usePathname } from '../../i18n/routing';
 import styles from './Footer.module.css';
 import {
   HeartHandshake,
@@ -13,10 +13,17 @@ import {
   Phone,
   FileCheck,
 } from 'lucide-react';
+import { isPanelRoute } from '../../lib/is-panel-route';
 
 export default function Footer() {
   const t = useTranslations('Common');
   const navT = useTranslations('Nav');
+  const pathname = usePathname();
+
+  // Dedicated User Panels (Admin, Student, Teacher, Org, Donor, MasterAdmin) have their own separate executive portal UI
+  if (isPanelRoute(pathname)) {
+    return null;
+  }
 
   return (
     <footer className={`${styles.footer} desktop-only`}>

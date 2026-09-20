@@ -4,22 +4,40 @@ import React from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { Link, usePathname, useRouter } from '../../i18n/routing';
 import styles from './AppHeader.module.css';
-import { HeartHandshake, Bell, Globe, User } from 'lucide-react';
+import { HeartHandshake, User } from 'lucide-react';
+
+import { LogOut } from 'lucide-react';
+import { useAuthStore, getRoleDashboardPath } from '../../lib/auth-store';
+import { isPanelRoute } from '../../lib/is-panel-route';
 
 export default function AppHeader() {
   const t = useTranslations('Common');
   const locale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+
+  const isMandatorySetup = pathname.includes('/set-password') || (user && !user.isPasswordSet);
+
+  // Dedicated User Panels (Admin, Student, Teacher, Org, Donor, MasterAdmin) have their own separate executive portal UI
+  if (isPanelRoute(pathname)) {
+    return null;
+  }
 
   const toggleLanguage = () => {
     const nextLocale = locale === 'bn' ? 'en' : 'bn';
     router.replace(pathname, { locale: nextLocale });
   };
 
+  const handleLogout = async () => {
+    await logout();
+    router.push('/login');
+  };
+
   return (
     <header className={`${styles.appHeader} mobile-only`}>
-      <Link href="/" className={styles.brand}>
+      <Link href={isMandatorySetup ? '/set-password' : '/'} className={styles.brand}>
         <div className={styles.brandIconWrapper}>
           <HeartHandshake size={18} />
         </div>
@@ -28,31 +46,38 @@ export default function AppHeader() {
 
       <div className={styles.rightActions}>
         <button
+          type="button"
           onClick={toggleLanguage}
           className={styles.langPill}
-          title={t('language')}
-          aria-label={t('language')}
+          title={locale === 'bn' ? 'Switch to English (EN)' : 'বাংলায় দেখুন (BN)'}
+          aria-label="Toggle BN / EN language"
         >
-          <Globe size={13} />
-          <span>{locale === 'bn' ? 'EN' : 'বাং'}</span>
+          <span className={`${styles.langTag} ${locale === 'bn' ? styles.langActive : styles.langInactive}`}>BN</span>
+          <span className={styles.langDivider}>/</span>
+          <span className={`${styles.langTag} ${locale === 'en' ? styles.langActive : styles.langInactive}`}>EN</span>
         </button>
 
-        <Link
-          href="/portal"
-          className={styles.iconBtn}
-          aria-label="Notifications"
-        >
-          <Bell size={18} />
-          <span className={styles.notificationDot} />
-        </Link>
-
-        <Link
-          href="/login"
-          className={`${styles.iconBtn} ${styles.profileBtn}`}
-          aria-label="Account"
-        >
-          <User size={18} />
-        </Link>
+        {isMandatorySetup ? (
+          <button
+            onClick={handleLogout}
+            className={styles.iconBtn}
+            title={locale === 'bn' ? 'লগআউট' : 'Logout'}
+            aria-label="Logout"
+            style={{ color: '#ef4444' }}
+          >
+            <LogOut size={18} />
+          </button>
+        ) : (
+          <Link
+            href={user ? (getRoleDashboardPath(user.role) as any) : '/login'}
+            className={`${styles.iconBtn} ${styles.profileBtn}`}
+            aria-label="Account"
+            title={user ? (locale === 'bn' ? 'ড্যাশবোর্ডে প্রবেশ করুন' : 'Go to Dashboard') : (locale === 'bn' ? 'লগইন করুন' : 'Login')}
+          >
+            <User size={18} />
+            {user && <span className={styles.activeDot} />}
+          </Link>
+        )}
       </div>
     </header>
   );

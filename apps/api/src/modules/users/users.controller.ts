@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
   Delete,
   Body,
   Param,
@@ -49,6 +50,23 @@ export class UsersController {
     return this.usersService.createGeneralUser(user, validated);
   }
 
+  @Get('org-requests')
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async listOrgRequests() {
+    return this.usersService.listPendingOrgRequests();
+  }
+
+  @Post('org/:id/verify')
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async verifyOrganization(
+    @CurrentUser() user: any,
+    @Param('id') orgId: string,
+    @Body() body: any
+  ) {
+    const approved = body?.approved !== false && body?.approved !== 'false';
+    return this.usersService.verifyOrganization(orgId, user, approved, body?.reason, body);
+  }
+
   @Get('by-role/:role')
   async listByRole(
     @CurrentUser() user: any,
@@ -84,4 +102,66 @@ export class UsersController {
   ) {
     return this.usersService.verifyStudentProfile(studentId, user, approved);
   }
+
+  @Get('org-teachers')
+  @Roles(UserRole.ORGANIZATION, UserRole.SUPER_ADMIN, UserRole.MASTER_ADMIN)
+  async listOrgTeachers(@CurrentUser() user: any) {
+    return this.usersService.listOrgTeachers(user);
+  }
+
+  @Post('teacher/:id/verify')
+  @Roles(UserRole.ORGANIZATION, UserRole.SUPER_ADMIN, UserRole.MASTER_ADMIN)
+  async verifyTeacher(
+    @CurrentUser() user: any,
+    @Param('id') teacherId: string,
+    @Body('approved') approved: boolean
+  ) {
+    return this.usersService.verifyTeacher(user, teacherId, approved);
+  }
+
+  @Post('affiliate')
+  async applyAffiliation(
+    @CurrentUser() user: any,
+    @Body()
+    body: {
+      organizationId: string;
+      department?: string;
+      designation?: string;
+      employeeId?: string;
+      studentClassRoll?: string;
+      address?: string;
+      phone?: string;
+    }
+  ) {
+    return this.usersService.applyAffiliation(user, body);
+  }
+
+  @Get('my-affiliation')
+  async getMyAffiliation(@CurrentUser() user: any) {
+    return this.usersService.getMyAffiliation(user);
+  }
+
+  @Get('pending-affiliations')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.MASTER_ADMIN, UserRole.ADMIN)
+  async listPendingAdminAffiliations() {
+    return this.usersService.listPendingAdminAffiliations();
+  }
+
+  @Patch('affiliations/:role/:id/review')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.MASTER_ADMIN, UserRole.ADMIN)
+  async reviewAdminAffiliation(
+    @CurrentUser() user: any,
+    @Param('role') role: 'teacher' | 'student',
+    @Param('id') id: string,
+    @Body() body: { approved: boolean; reason?: string }
+  ) {
+    return this.usersService.reviewAdminAffiliation(
+      user,
+      role,
+      id,
+      body.approved,
+      body.reason
+    );
+  }
 }
+

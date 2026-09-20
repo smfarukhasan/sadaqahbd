@@ -7,6 +7,7 @@ import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import fastifyHelmet from '@fastify/helmet';
 import { Logger } from '@nestjs/common';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -15,20 +16,20 @@ async function bootstrap() {
     new FastifyAdapter({ logger: false })
   );
 
+  // Global Exception Filter (Intercepts Zod, DB, Firebase, and unhandled errors into friendly JSON)
+  app.useGlobalFilters(new AllExceptionsFilter());
+
   // Security Headers
   await app.register(fastifyHelmet as any, {
     contentSecurityPolicy: false,
   });
 
-  // CORS
+  // CORS (Permits localhost, LAN IP, mobile apps, and custom test domains)
   app.enableCors({
-    origin: [
-      process.env.FRONTEND_URL || 'http://localhost:3000',
-      'http://127.0.0.1:3000',
-    ],
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
   });
 
   // Global Prefix

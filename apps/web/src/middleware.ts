@@ -16,5 +16,5 @@ export default function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/(bn|en)/:path*', '/masteradmin/:path*'],
+  matcher: ['/((?!api|_next|_vercel|.*\\..*).*)'],
 };

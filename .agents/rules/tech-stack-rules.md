@@ -23,6 +23,8 @@ always_on: true
 4. **নিশ্ছিদ্র সিকিউরিটি ও হ্যাকার আক্রমণ প্রতিরোধ (Bulletproof Security):** Firebase Managed Auth (পাসওয়ার্ড গুগলের সিকিউর ভল্টে থাকবে), OWASP Top 10 সুরক্ষা, Drizzle parameterized queries, Helmet, Throttler, Imunify360 ফ্রেন্ডলি কোড, এবং strictly `httpOnly` secure cookies।
 5. **রিসোর্স সাশ্রয়ী ও লাইটওয়েট অ্যাপ (Lightweight & CloudLinux LVE Friendly):** মেমোরি বাজেট <১৫০ এমবি, নো ডকার, Next.js Standalone মোড, লো-কানেকশন ডিবি পুলিং।
 6. **১০০% দ্বিভাষিক (বাংলা ও ইংরেজি) সাপোর্ট (Full Bilingual i18n):** পুরো অ্যাপে বাংলা (`bn`) ও ইংরেজি (`en`) সমর্থন। কোডে কোনো হার্ডকোডেড স্ট্রিং থাকবে না — সবকিছু `next-intl` ডিকশনারি দিয়ে লোড হবে।
+7. **বাধ্যতামূলক `utf8mb4` চারসেট ও কলেশন (Strict utf8mb4 Database Rule):** ডেটাবেজ, প্রতিটি নতুন টেবিল, টেক্সট কলাম এবং কানেকশন পুলে অবশ্যই `utf8mb4` এবং `utf8mb4_unicode_ci` নিশ্চিত করতে হবে। বাংলা ইউনিকোড ক্যারেক্টার ও ইমোজির নিখুঁত সংরক্ষণে অন্য কোনো এনকোডিং গ্রহণযোগ্য নয়।
+8. **প্রোডাকশন-গ্রেড ক্লিন UI ও ইন্টারনাল/ডেভ টেক্সট সম্পূর্ণ নিষিদ্ধ (Zero Dev/Internal Notes in UI):** ইউজার-ফেসিং কোনো স্ক্রিন, ফর্ম, পেজ বা মডালে কোনো ধরনের ইন্টারনাল ডেভেলপমেন্ট নোট, আর্কিটেকচারাল কারণ বা ব্যাকএন্ড পলিসির অপ্রয়োজনীয় টেক্সট দেখানো সম্পূর্ণ নিষিদ্ধ। ইন্টারফেস হবে ১০০% প্রফেশনাল ও টু-দ্য-পয়েন্ট।
 
 ## Core Tech Stack:
 - **Frontend:** Next.js (App Router, Strict TS, Standalone output) + Adaptive UI Architecture (Bottom Nav for Mobile, Top Navbar for Desktop) + Firebase Modular SDK (`firebase/auth`, `firebase/messaging`) + RSC + Zustand + TanStack Query + React Hook Form + Zod + shadcn/ui + Radix UI + CSS Modules & CSS Variables + CVA + TanStack Virtual + Motion + next-intl (বাংলা ও ইংরেজি) + @react-pdf/renderer.

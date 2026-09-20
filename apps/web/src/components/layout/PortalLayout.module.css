@@ -1,0 +1,517 @@
+/* ====================================================
+   Universal Dedicated Portal Layout with Sidebar Drawer
+   Matches Sadaqahbd Emerald Brand Standards (#059669)
+   For Student, Teacher, Organization, Donor & Admin Portals
+==================================================== */
+
+.portalRoot {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--background, #f8fafc);
+  color: var(--text-main, #0f172a);
+}
+
+/* ----------------------------------------------------
+   Top Executive Header
+---------------------------------------------------- */
+.topHeader {
+  background-color: var(--surface, #ffffff);
+  border-bottom: 1px solid var(--surface-border, #e2e8f0);
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.topHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.mobileMenuToggle {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--surface-border, #e2e8f0);
+  border-radius: var(--radius-sm, 10px);
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary, #059669);
+  cursor: pointer;
+}
+
+.portalBrand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+}
+
+.brandIconWrapper {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm, 10px);
+  background: linear-gradient(135deg, var(--primary, #059669) 0%, var(--primary-hover, #047857) 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px var(--primary-glow, rgba(5, 150, 105, 0.25));
+}
+
+.brandTextGroup {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.brandName {
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--text-main, #0f172a);
+  letter-spacing: -0.01em;
+}
+
+.roleBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--primary, #059669);
+}
+
+.topHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  background-color: var(--background-alt, #f1f5f9);
+  border: 1px solid var(--surface-border, #e2e8f0);
+  color: var(--text-body, #334155);
+  border-radius: var(--radius-md, 14px);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.actionBtn:hover {
+  background-color: var(--surface-border, #e2e8f0);
+  color: var(--text-main, #0f172a);
+}
+
+.langGlobe {
+  color: var(--primary, #059669);
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+
+.langTag {
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.langActive {
+  color: var(--primary, #059669);
+  font-weight: 800;
+}
+
+.langInactive {
+  color: var(--text-muted, #94a3b8);
+  font-weight: 500;
+  opacity: 0.65;
+}
+
+.langDivider {
+  color: var(--surface-border, #cbd5e1);
+  font-size: 0.72rem;
+  font-weight: 400;
+  margin: 0 0.02rem;
+  user-select: none;
+}
+
+.websiteBtn {
+  color: var(--primary, #059669);
+  background-color: var(--primary-light, #ecfdf5);
+  border-color: var(--primary-subtle, #d1fae5);
+}
+
+.websiteBtn:hover {
+  background-color: var(--primary-subtle, #d1fae5);
+  color: var(--primary-hover, #047857);
+}
+
+.websiteBtnIcon {
+  flex-shrink: 0;
+}
+
+.websiteBtnText {
+  display: inline;
+}
+
+.profileBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.75rem;
+  background-color: var(--background-alt, #f8fafc);
+  border: 1px solid var(--surface-border, #e2e8f0);
+  color: var(--text-main, #0f172a);
+  border-radius: var(--radius-full, 9999px);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.profileBtn:hover {
+  border-color: var(--primary, #059669);
+  background-color: var(--primary-light, #ecfdf5);
+  color: var(--primary-dark, #065f46);
+}
+
+.profileAvatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary, #059669), var(--primary-hover, #047857));
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drawerFooter {
+  padding: 0.85rem;
+  border-top: 1px solid var(--surface-border, #e2e8f0);
+  margin-top: auto;
+  background-color: var(--surface, #ffffff);
+  position: sticky;
+  bottom: 0;
+}
+
+.drawerLogoutBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.85rem;
+  background-color: var(--danger-light, #fef2f2);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-sm, 10px);
+  color: var(--danger, #ef4444);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  justify-content: flex-start;
+}
+
+.drawerLogoutBtn:hover {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}
+
+.sidebarDrawerCollapsed .drawerFooter {
+  padding: 0.85rem 0.4rem;
+}
+
+.sidebarDrawerCollapsed .drawerLogoutBtn {
+  justify-content: center;
+  padding: 0.65rem;
+}
+
+.logoutBtn {
+  background-color: var(--danger-light, #fef2f2);
+  border-color: rgba(239, 68, 68, 0.2);
+  color: var(--danger, #ef4444);
+}
+
+.logoutBtn:hover {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}
+
+/* ----------------------------------------------------
+   Main Workspace Container (Sidebar + Content)
+---------------------------------------------------- */
+.workspaceLayout {
+  display: flex;
+  flex: 1;
+  position: relative;
+  width: 100%;
+}
+
+/* ----------------------------------------------------
+   Desktop Collapsible Sidebar Drawer
+---------------------------------------------------- */
+.sidebarDrawer {
+  width: 280px;
+  background-color: var(--surface, #ffffff);
+  border-right: 1px solid var(--surface-border, #e2e8f0);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: sticky;
+  top: 64px;
+  height: calc(100vh - 64px);
+  z-index: 40;
+}
+
+.sidebarDrawerCollapsed {
+  width: 76px;
+}
+
+.sidebarHeader {
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--surface-border, #e2e8f0);
+  min-height: 64px;
+}
+
+.sidebarDrawerCollapsed .sidebarHeader {
+  padding: 0.85rem 0.5rem;
+  justify-content: center;
+}
+
+.collapseToggleBtn {
+  background: transparent;
+  border: 1px solid var(--surface-border, #e2e8f0);
+  border-radius: var(--radius-sm, 10px);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.collapseToggleBtn:hover {
+  background-color: var(--background-alt, #f1f5f9);
+  color: var(--text-main, #0f172a);
+}
+
+/* User Profile Card inside Drawer Header */
+.userProfileCard {
+  margin: 0;
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+}
+
+.userAvatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary, #059669), var(--primary-hover, #047857));
+  color: #ffffff;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px var(--primary-glow, rgba(5, 150, 105, 0.2));
+}
+
+.userInfo {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.userName {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text-main, #0f172a);
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.userEmail {
+  font-size: 0.72rem;
+  color: var(--text-muted, #64748b);
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+/* Navigation List */
+.navSection {
+  padding: 0.75rem 0.5rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.navSectionTitle {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--text-subtle, #94a3b8);
+  letter-spacing: 0.08em;
+  padding: 0 0.5rem 0.5rem;
+  white-space: nowrap;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius-sm, 10px);
+  border: none;
+  background: transparent;
+  color: var(--text-body, #475569);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  margin-bottom: 0.25rem;
+  text-decoration: none;
+}
+
+.navItem:hover {
+  background-color: var(--background-alt, #f1f5f9);
+  color: var(--text-main, #0f172a);
+}
+
+.navItemActive {
+  background-color: var(--primary-light, #ecfdf5);
+  color: var(--primary, #059669);
+  font-weight: 700;
+  border-left: 3px solid var(--primary, #059669);
+}
+
+.navItemActive:hover {
+  background-color: var(--primary-subtle, #d1fae5);
+  color: var(--primary-hover, #047857);
+}
+
+.navItemContent {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  overflow: hidden;
+}
+
+.navItemText {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.navBadge {
+  background-color: var(--accent, #f59e0b);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  line-height: 1;
+}
+
+/* ----------------------------------------------------
+   Mobile Off-Canvas Drawer
+---------------------------------------------------- */
+.drawerOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+}
+
+.mobileDrawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 290px;
+  background-color: var(--surface, #ffffff);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+  transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.mobileDrawerOpen {
+  transform: translateX(0);
+}
+
+.drawerOverlayOpen {
+  display: block;
+}
+
+/* ----------------------------------------------------
+   Main Workspace Content Canvas
+---------------------------------------------------- */
+.mainContent {
+  flex: 1;
+  background-color: var(--background, #f8fafc);
+  min-width: 0;
+  padding: 2rem 1.5rem 5rem;
+}
+
+@media (max-width: 768px) {
+  .sidebarDrawer {
+    display: none;
+  }
+  .mobileMenuToggle {
+    display: flex;
+  }
+  .mainContent {
+    padding: 1.25rem 1rem 4rem;
+  }
+  .websiteBtn {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+  }
+  .websiteBtnText {
+    display: none;
+  }
+}
