@@ -20,6 +20,7 @@ import { getApiUrl } from '../../../lib/api-config';
 import AffiliationApplyModal from '../../../components/portal/AffiliationApplyModal';
 import VerificationStatusView from '../../../components/portal/VerificationStatusView';
 import StudentApplicationForm from '../../../components/portal/StudentApplicationForm';
+import UserProfileModal from '../../../components/profile/UserProfileModal';
 
 export default function StudentDashboardPage() {
   const locale = useLocale();
@@ -33,12 +34,48 @@ export default function StudentDashboardPage() {
   const [studentPosts, setStudentPosts] = useState<any[]>([]);
   const [affiliationData, setAffiliationData] = useState<{
     hasAffiliated: boolean;
-    status: 'unapplied' | 'pending_org' | 'pending_admin' | 'verified' | 'rejected';
+    status: 'unapplied' | 'pending_org' | 'pending_admin' | 'verified' | 'active' | 'rejected';
     profile: any;
     organization: any;
   } | null>(null);
   const [isAffiliationModalOpen, setIsAffiliationModalOpen] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
+
+  // Student Profile Completion Gate State
+  const [studentProfileData, setStudentProfileData] = useState<any>(null);
+  const [showIncompleteProfileModal, setShowIncompleteProfileModal] = useState(false);
+  const [missingFieldsList, setMissingFieldsList] = useState<string[]>([]);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  // Profile validation function
+  const handleOpenApplicationForm = (customProfileData?: any) => {
+    const profData = customProfileData || studentProfileData;
+    const u = profData?.user || user;
+    const p = profData?.profile;
+
+    const missing: string[] = [];
+    if (!u?.fullName?.trim()) missing.push(locale === 'bn' ? 'শিক্ষার্থীর পূর্ণ নাম' : 'Student Full Name');
+    if (!p?.fatherName?.trim()) missing.push(locale === 'bn' ? 'পিতার নাম' : "Father's Name");
+    if (!p?.className?.trim()) missing.push(locale === 'bn' ? 'শ্রেণি / ক্লাস' : 'Class / Grade');
+    if (!p?.department?.trim()) missing.push(locale === 'bn' ? 'বিভাগ / গ্রুপ' : 'Department / Group');
+    if (!p?.rollNumber?.trim() && !p?.studentClassRoll?.trim()) missing.push(locale === 'bn' ? 'রোল নম্বর' : 'Roll Number');
+    if (!p?.dateOfBirth?.trim()) missing.push(locale === 'bn' ? 'জন্ম তারিখ' : 'Date of Birth');
+    if (!p?.nidOrBirthCertificateNumber?.trim()) missing.push(locale === 'bn' ? 'জন্মনিবন্ধন নম্বর / NID' : 'Birth Certificate / NID No');
+    if (!p?.permanentAddress?.trim()) missing.push(locale === 'bn' ? 'স্থায়ী ঠিকানা' : 'Permanent Address');
+    if (!p?.presentAddress?.trim() && !u?.address?.trim()) missing.push(locale === 'bn' ? 'বর্তমান ঠিকানা' : 'Present Address');
+    if (!p?.guardianName?.trim()) missing.push(locale === 'bn' ? 'অভিভাবকের নাম' : "Guardian's Name");
+    if (!p?.guardianRelationship?.trim()) missing.push(locale === 'bn' ? 'অভিভাবকের সাথে সম্পর্ক' : 'Relationship with Guardian');
+    if (!p?.guardianPhone?.trim()) missing.push(locale === 'bn' ? 'অভিভাবকের ফোন নম্বর' : "Guardian's Phone");
+
+    if (missing.length > 0) {
+      setMissingFieldsList(missing);
+      setShowIncompleteProfileModal(true);
+      return false;
+    }
+
+    setIsCreatingPost(true);
+    return true;
+  };
 
   // Check URL query parameters to auto-open application creation
   useEffect(() => {
@@ -47,12 +84,18 @@ export default function StudentDashboardPage() {
       if (params.get('tab') === 'applications') {
         setActiveNav('applications');
       }
-      if (params.get('action') === 'new' || params.get('action') === 'new_post') {
-        setActiveNav('applications');
-        setIsCreatingPost(true);
-      }
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && studentProfileData) {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('action') === 'new' || params.get('action') === 'new_post') {
+        setActiveNav('applications');
+        handleOpenApplicationForm(studentProfileData);
+      }
+    }
+  }, [studentProfileData]);
 
   // Student complaint state
   const [complaintSubject, setComplaintSubject] = useState('');
@@ -80,28 +123,38 @@ export default function StudentDashboardPage() {
       const apiUrl = getApiUrl();
       const headers = { Authorization: `Bearer ${token}` };
 
-      // 1. Fetch Affiliation status
-      try {
-        const affRes = await fetch(`${apiUrl}/users/my-affiliation`, { headers });
-        if (affRes.ok) {
-          const affData = await affRes.json();
-          setAffiliationData(affData);
-        }
-      } catch (err) {
-        console.error('Failed to load student affiliation status:', err);
+      // Parallelize fetching affiliation status, student posts, and full profile
+      const [affRes, postsRes, profRes] = await Promise.all([
+        fetch(`${apiUrl}/users/my-affiliation`, { headers }).catch((err) => {
+          console.error('Failed to load student affiliation status:', err);
+          return null;
+        }),
+        fetch(`${apiUrl}/posts/my-posts`, { headers }).catch((err) => {
+          console.error('Failed to load student posts:', err);
+          return null;
+        }),
+        fetch(`${apiUrl}/users/my-student-profile`, { headers }).catch((err) => {
+          console.error('Failed to load student full profile:', err);
+          return null;
+        }),
+      ]);
+
+      if (affRes && affRes.ok) {
+        const affData = await affRes.json().catch(() => null);
+        if (affData) setAffiliationData(affData);
       }
 
-      // 2. Fetch Student posts
-      try {
-        const res = await fetch(`${apiUrl}/posts/my-posts`, { headers });
-        if (res.ok) {
-          setStudentPosts(await res.json());
-        }
-      } catch (err) {
-        console.error('Failed to load student posts', err);
+      if (postsRes && postsRes.ok) {
+        const postsData = await postsRes.json().catch(() => null);
+        if (Array.isArray(postsData)) setStudentPosts(postsData);
+      }
+
+      if (profRes && profRes.ok) {
+        const profJson = await profRes.json().catch(() => null);
+        if (profJson) setStudentProfileData(profJson);
       }
     } catch (err) {
-      console.error('Failed to load student posts', err);
+      console.error('Failed to load student portal data:', err);
     } finally {
       setLoadingData(false);
     }
@@ -110,13 +163,15 @@ export default function StudentDashboardPage() {
   useEffect(() => {
     if (user && user.role === 'student') {
       loadData();
-      // Live polling every 6 seconds if not verified
-      const timer = setInterval(() => {
-        loadData();
-      }, 6000);
-      return () => clearInterval(timer);
+      // Only live poll if unverified (waiting for institution or admin review)
+      if (affiliationData?.status !== 'verified') {
+        const timer = setInterval(() => {
+          loadData();
+        }, 8000);
+        return () => clearInterval(timer);
+      }
     }
-  }, [firebaseUser, user]);
+  }, [firebaseUser, user, affiliationData?.status]);
 
   const handleComplaintSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,6 +212,8 @@ export default function StudentDashboardPage() {
     }
   };
 
+  const isVerified = affiliationData?.status === 'verified';
+
   if (loadingAuth || !user) {
     return (
       <div className="container" style={{ paddingTop: '6rem', textAlign: 'center' }}>
@@ -167,8 +224,6 @@ export default function StudentDashboardPage() {
 
   const totalReq = studentPosts.reduce((acc, p) => acc + Number(p.totalRequiredAmount || 0), 0);
   const totalRec = studentPosts.reduce((acc, p) => acc + Number(p.receivedAmount || 0), 0);
-
-  const isVerified = affiliationData?.status === 'verified';
 
   const navItems: PortalNavItem[] = isVerified
     ? [
@@ -206,7 +261,94 @@ export default function StudentDashboardPage() {
       onNavSelect={(id: any) => setActiveNav(id)}
     >
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-        {!isVerified ? (
+        {loadingData && !affiliationData ? (
+          <div style={{ padding: '1.5rem 0' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginBottom: '2rem',
+                gap: '1rem',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    height: '28px',
+                    width: '240px',
+                    backgroundColor: 'var(--surface-border, #e2e8f0)',
+                    borderRadius: '8px',
+                    marginBottom: '8px',
+                  }}
+                />
+                <div
+                  style={{
+                    height: '16px',
+                    width: '320px',
+                    backgroundColor: 'var(--surface-border-subtle, #f1f5f9)',
+                    borderRadius: '6px',
+                  }}
+                />
+              </div>
+              <div
+                style={{
+                  height: '42px',
+                  width: '160px',
+                  backgroundColor: 'var(--surface-border, #e2e8f0)',
+                  borderRadius: '999px',
+                }}
+              />
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: '1.25rem',
+                marginBottom: '2.5rem',
+              }}
+            >
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  style={{
+                    height: '115px',
+                    backgroundColor: 'var(--surface, #ffffff)',
+                    border: '1px solid var(--surface-border, #e2e8f0)',
+                    borderRadius: '16px',
+                    padding: '1.25rem',
+                  }}
+                >
+                  <div
+                    style={{
+                      height: '14px',
+                      width: '60%',
+                      backgroundColor: 'var(--surface-border-subtle, #f1f5f9)',
+                      borderRadius: '4px',
+                      marginBottom: '12px',
+                    }}
+                  />
+                  <div
+                    style={{
+                      height: '26px',
+                      width: '40%',
+                      backgroundColor: 'var(--surface-border, #e2e8f0)',
+                      borderRadius: '6px',
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div
+              style={{
+                height: '240px',
+                backgroundColor: 'var(--surface, #ffffff)',
+                border: '1px solid var(--surface-border, #e2e8f0)',
+                borderRadius: '16px',
+              }}
+            />
+          </div>
+        ) : !isVerified ? (
           <VerificationStatusView
             status={affiliationData?.status || 'unapplied'}
             role="student"
@@ -358,13 +500,14 @@ export default function StudentDashboardPage() {
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
                     শিক্ষা সহায়তার জন্য নতুন আবেদন দাখিল করুন।
                   </p>
-                  <Link
-                    href="/posts/create"
+                  <button
+                    type="button"
+                    onClick={() => handleOpenApplicationForm()}
                     className="btn btn-primary"
-                    style={{ display: 'inline-flex', padding: '0.55rem 1.25rem', fontSize: '0.85rem', fontWeight: '700', textDecoration: 'none' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', padding: '0.55rem 1.25rem', fontSize: '0.85rem', fontWeight: '700', border: 'none', borderRadius: '8px', cursor: 'pointer', background: '#059669', color: '#fff' }}
                   >
-                    <PlusCircle size={16} style={{ marginRight: '0.4rem' }} /> আবেদন তৈরি করুন
-                  </Link>
+                    <PlusCircle size={16} style={{ marginRight: '0.4rem' }} /> {locale === 'bn' ? 'আবেদন তৈরি করুন' : 'Create Application'}
+                  </button>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -439,7 +582,7 @@ export default function StudentDashboardPage() {
 
                   <button
                     type="button"
-                    onClick={() => setIsCreatingPost(true)}
+                    onClick={() => handleOpenApplicationForm()}
                     className="btn btn-primary"
                     style={{
                       display: 'inline-flex',
@@ -447,7 +590,7 @@ export default function StudentDashboardPage() {
                       gap: '0.5rem',
                       padding: '0.65rem 1.25rem',
                       fontWeight: '700',
-                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                      background: '#059669',
                       boxShadow: '0 4px 12px -2px rgba(5, 150, 105, 0.4)',
                       border: 'none',
                       borderRadius: 'var(--radius-md, 8px)',
@@ -456,7 +599,7 @@ export default function StudentDashboardPage() {
                     }}
                   >
                     <PlusCircle size={18} />
-                    <span>নতুন আবেদন তৈরি করুন</span>
+                    <span>{locale === 'bn' ? 'নতুন আবেদন তৈরি করুন' : 'Create New Application'}</span>
                   </button>
                 </div>
 
@@ -757,6 +900,136 @@ export default function StudentDashboardPage() {
             loadData();
           }}
           initialData={affiliationData?.profile}
+        />
+
+        {/* Incomplete Profile Alert Modal */}
+        {showIncompleteProfileModal && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem',
+            }}
+            onClick={() => setShowIncompleteProfileModal(false)}
+          >
+            <div
+              style={{
+                backgroundColor: 'var(--surface, #ffffff)',
+                borderRadius: '16px',
+                maxWidth: '480px',
+                width: '100%',
+                padding: '1.75rem',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
+                border: '1px solid var(--surface-border, #e2e8f0)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+                <div
+                  style={{
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: '50%',
+                    backgroundColor: '#fffbeb',
+                    color: '#d97706',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 0.75rem',
+                    border: '1px solid #fde68a',
+                  }}
+                >
+                  <AlertCircle size={32} />
+                </div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', margin: '0 0 0.4rem' }}>
+                  {locale === 'bn' ? 'প্রোফাইল অসম্পূর্ণ রয়েছে' : 'Profile Incomplete'}
+                </h3>
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-muted, #64748b)', margin: 0, lineHeight: 1.5 }}>
+                  {locale === 'bn'
+                    ? 'শিক্ষা সহায়তার আবেদন তৈরির পূর্বে আপনার প্রোফাইলের সকল আবশ্যক তথ্য পূরণ করা বাধ্যতামূলক।'
+                    : 'All mandatory profile fields must be completed before submitting an educational assistance application.'}
+                </p>
+              </div>
+
+              {missingFieldsList.length > 0 && (
+                <div
+                  style={{
+                    backgroundColor: 'var(--background, #f8fafc)',
+                    borderRadius: '10px',
+                    padding: '1rem',
+                    marginBottom: '1.5rem',
+                    border: '1px solid var(--surface-border, #e2e8f0)',
+                  }}
+                >
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#dc2626', marginBottom: '0.5rem' }}>
+                    {locale === 'bn' ? 'অনুপস্থিত প্রয়োজনীয় তথ্যসমূহ:' : 'Missing Required Information:'}
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.85rem', color: 'var(--text-main, #334155)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.35rem' }}>
+                    {missingFieldsList.map((item, idx) => (
+                      <li key={idx} style={{ fontWeight: 600 }}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowIncompleteProfileModal(false)}
+                  style={{
+                    padding: '0.6rem 1.15rem',
+                    borderRadius: '8px',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    border: '1px solid #cbd5e1',
+                    background: 'transparent',
+                    color: '#475569',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {locale === 'bn' ? 'পরে করব' : 'Later'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowIncompleteProfileModal(false);
+                    setIsProfileModalOpen(true);
+                  }}
+                  style={{
+                    padding: '0.6rem 1.25rem',
+                    borderRadius: '8px',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    border: 'none',
+                    background: '#059669',
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(5, 150, 105, 0.3)',
+                  }}
+                >
+                  {locale === 'bn' ? 'প্রোফাইল সম্পূর্ণ করুন' : 'Complete Profile'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* User Profile Modal */}
+        <UserProfileModal
+          isOpen={isProfileModalOpen}
+          onClose={() => {
+            setIsProfileModalOpen(false);
+            loadData();
+          }}
         />
       </div>
     </PortalLayout>

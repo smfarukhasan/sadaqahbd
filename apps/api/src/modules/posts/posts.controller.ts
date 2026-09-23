@@ -4,6 +4,7 @@ import {
   Get,
   Body,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { PostsService } from './posts.service';
@@ -55,8 +56,8 @@ export class PostsController {
   }
 
   @Get(':id')
-  async getDetails(@Param('id') id: string) {
-    return this.postsService.getPostDetails(id);
+  async getDetails(@Param('id') id: string, @Query('donorId') donorId?: string) {
+    return this.postsService.getPostDetails(id, donorId);
   }
 
   @Post()

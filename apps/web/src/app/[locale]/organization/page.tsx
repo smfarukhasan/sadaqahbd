@@ -16,6 +16,7 @@ import {
   GraduationCap,
   XCircle,
   AlertCircle,
+  Eye,
 } from 'lucide-react';
 import { useAuthStore, getRoleDashboardPath } from '../../../lib/auth-store';
 import PortalLayout, { PortalNavItem } from '../../../components/layout/PortalLayout';
@@ -24,6 +25,7 @@ import EReceiptModal, { ReceiptData } from '../../../components/portal/EReceiptM
 import OrganizationApplyModal from '../../../components/portal/OrganizationApplyModal';
 import DonationLedgerTable from '../../../components/portal/DonationLedgerTable';
 import VerificationStatusView from '../../../components/portal/VerificationStatusView';
+import StudentDetailsModal from '../../../components/portal/StudentDetailsModal';
 
 export default function OrganizationDashboardPage() {
   const locale = useLocale();
@@ -48,6 +50,7 @@ export default function OrganizationDashboardPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [feedback, setFeedback] = useState('');
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptData | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
   // Role Protection Guard
   useEffect(() => {
@@ -63,50 +66,40 @@ export default function OrganizationDashboardPage() {
   const loadData = async () => {
     if (!firebaseUser || !user) return;
     try {
-      setLoadingData(true);
       const token = await firebaseUser.getIdToken();
       const apiUrl = getApiUrl();
       const headers = { Authorization: `Bearer ${token}` };
 
-      // 1. Fetch organization verification status
-      try {
-        const statusRes = await fetch(`${apiUrl}/organizations/my-status`, { headers });
-        if (statusRes.ok) {
-          const sData = await statusRes.json();
-          setOrgStatusData(sData);
-        }
-      } catch (err) {
-        console.error('Failed to load org status:', err);
+      // Parallelize fetching all organization datasets for maximum speed
+      const [statusRes, affRes, teachersRes, postsRes] = await Promise.all([
+        fetch(`${apiUrl}/organizations/my-status`, { headers }).catch((err) => {
+          console.error('Failed to load org status:', err);
+          return null;
+        }),
+        fetch(`${apiUrl}/organizations/pending-affiliations`, { headers }).catch((err) => {
+          console.error('Failed to load pending affiliations:', err);
+          return null;
+        }),
+        fetch(`${apiUrl}/users/org-teachers`, { headers }).catch(() => null),
+        fetch(`${apiUrl}/posts/org-pending`, { headers }).catch(() => null),
+      ]);
+
+      if (statusRes && statusRes.ok) {
+        const sData = await statusRes.json().catch(() => null);
+        if (sData) setOrgStatusData(sData);
       }
-
-      // 2. Fetch pending teacher and student affiliations
-      try {
-        const affRes = await fetch(`${apiUrl}/organizations/pending-affiliations`, { headers });
-        if (affRes.ok) {
-          const affData = await affRes.json();
-          setPendingAffiliations(affData || { teachers: [], students: [] });
-        }
-      } catch (err) {
-        console.error('Failed to load pending affiliations:', err);
+      if (affRes && affRes.ok) {
+        const affData = await affRes.json().catch(() => null);
+        if (affData) setPendingAffiliations(affData);
       }
-
-      // 3. Fetch teachers affiliated with this organization
-      try {
-        const teachersRes = await fetch(`${apiUrl}/users/org-teachers`, { headers });
-        if (teachersRes.ok) {
-          const teachersData = await teachersRes.json();
-          setOrgTeachers(Array.isArray(teachersData) ? teachersData : []);
-        }
-      } catch (err) {}
-
-      // 4. Fetch student posts pending institutional clearance
-      try {
-        const postsRes = await fetch(`${apiUrl}/posts/org-pending`, { headers });
-        if (postsRes.ok) {
-          const postsData = await postsRes.json();
-          setOrgPendingPosts(Array.isArray(postsData) ? postsData : []);
-        }
-      } catch (err) {}
+      if (teachersRes && teachersRes.ok) {
+        const teachersData = await teachersRes.json().catch(() => null);
+        if (Array.isArray(teachersData)) setOrgTeachers(teachersData);
+      }
+      if (postsRes && postsRes.ok) {
+        const postsData = await postsRes.json().catch(() => null);
+        if (Array.isArray(postsData)) setOrgPendingPosts(postsData);
+      }
     } catch (err) {
       console.error('Failed to load organization data:', err);
     } finally {
@@ -117,13 +110,15 @@ export default function OrganizationDashboardPage() {
   useEffect(() => {
     if (user && user.role === 'organization') {
       loadData();
-      // Live polling every 6 seconds if organization is pending or unapplied
-      const timer = setInterval(() => {
-        loadData();
-      }, 6000);
-      return () => clearInterval(timer);
+      // Live polling every 8 seconds only if organization is not yet active
+      if (orgStatusData?.status !== 'active') {
+        const timer = setInterval(() => {
+          loadData();
+        }, 8000);
+        return () => clearInterval(timer);
+      }
     }
-  }, [user, firebaseUser]);
+  }, [user, firebaseUser, orgStatusData?.status]);
 
   // Handle reviewing pending teacher/student affiliation (Stage 1)
   const handleReviewAffiliation = async (role: 'teacher' | 'student', id: string, approved: boolean) => {
@@ -208,6 +203,8 @@ export default function OrganizationDashboardPage() {
     }
   };
 
+  const isOrgActive = orgStatusData?.status === 'active';
+
   if (loadingAuth || !user) {
     return (
       <div className="container" style={{ padding: '6rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -215,8 +212,6 @@ export default function OrganizationDashboardPage() {
       </div>
     );
   }
-
-  const isOrgActive = orgStatusData?.status === 'active';
   const pendingAffiliationsCount =
     (pendingAffiliations.teachers?.length || 0) + (pendingAffiliations.students?.length || 0);
 
@@ -264,32 +259,15 @@ export default function OrganizationDashboardPage() {
       onNavSelect={(id: any) => setActiveTab(id)}
     >
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-        {/* Section Header (Only shown when organization is active/unlocked) */}
-        {isOrgActive && (
-          <div style={{ marginBottom: '1.5rem' }}>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-              {activeTab === 'affiliations'
-                ? (locale === 'bn' ? 'শিক্ষক ও শিক্ষার্থী অন্তর্ভুক্তি অনুমোদন' : 'Teacher & Student Affiliation Clearances')
-                : activeTab === 'clearances'
-                ? (locale === 'bn' ? 'শিক্ষার্থী পোস্ট প্রাতিষ্ঠানিক ছাড়পত্র' : 'Student Clearances')
-                : activeTab === 'teachers'
-                ? (locale === 'bn' ? 'প্রতিষ্ঠানের শিক্ষক তালিকা' : 'Affiliated Teachers')
-                : (locale === 'bn' ? 'প্রাতিষ্ঠানিক অনুদান লেজার' : 'Donation Ledger')}
-            </h1>
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
-              {activeTab === 'affiliations'
-                ? (locale === 'bn' ? 'আপনার প্রতিষ্ঠানের সাথে যুক্ত হতে আবেদনকারী শিক্ষক ও শিক্ষার্থীদের যাচাই করে অনুমোদন প্রদান করুন' : 'Verify and approve teachers and students requesting to affiliate with your institution')
-                : activeTab === 'clearances'
-                ? (locale === 'bn' ? 'শিক্ষার্থীর নিয়মিত ছাত্রত্ব যাচাই করে কেন্দ্রীয় অনুমোদনের জন্য প্রাতিষ্ঠানিক ছাড়পত্র প্রদান করুন' : 'Verify bona fide student status to provide institutional clearance')
-                : activeTab === 'teachers'
-                ? (locale === 'bn' ? 'প্রতিষ্ঠানের অনুমোদিত শিক্ষক তালিকা' : 'Manage affiliated teachers and invitation clearance codes')
-                : (locale === 'bn' ? 'শিক্ষা প্রতিষ্ঠানের অনুকূলে গৃহীত তহবিল ও অনুদান তদারকি' : 'Audit and monitor institutional funds and student grant allocations')}
-            </p>
+        {loadingData && !orgStatusData ? (
+          <div style={{ padding: '1.5rem 0' }}>
+            <div style={{ height: '28px', width: '260px', backgroundColor: 'var(--surface-border, #e2e8f0)', borderRadius: '8px', marginBottom: '10px' }} />
+            <div style={{ height: '16px', width: '360px', backgroundColor: 'var(--surface-border-subtle, #f1f5f9)', borderRadius: '6px', marginBottom: '2rem' }} />
+            <div style={{ height: '260px', backgroundColor: 'var(--surface, #ffffff)', border: '1px solid var(--surface-border, #e2e8f0)', borderRadius: '16px' }} />
           </div>
-        )}
-
-        {/* Feedback Toast Banner */}
-        {feedback && (
+        ) : (
+          <>
+            {feedback && (
           <div
             style={{
               padding: '1rem 1.25rem',
@@ -478,7 +456,27 @@ export default function OrganizationDashboardPage() {
                             </div>
                           </div>
 
-                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedStudentId(sItem.profileId || sItem.userId)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0.55rem 0.95rem',
+                                fontSize: '0.85rem',
+                                fontWeight: 700,
+                                background: '#eff6ff',
+                                color: '#1d4ed8',
+                                border: '1px solid #bfdbfe',
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <Eye size={16} />
+                              {locale === 'bn' ? 'বিস্তারিত' : 'Details'}
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleReviewAffiliation('student', sItem.profileId, true)}
@@ -765,6 +763,8 @@ export default function OrganizationDashboardPage() {
             )}
           </>
         )}
+      </>
+    )}
 
         {/* E-Receipt Modal */}
         {selectedReceipt && (
@@ -780,6 +780,15 @@ export default function OrganizationDashboardPage() {
             loadData();
           }}
           initialData={orgStatusData?.organization}
+        />
+
+        {/* Student Details Modal */}
+        <StudentDetailsModal
+          isOpen={!!selectedStudentId}
+          studentId={selectedStudentId}
+          onClose={() => setSelectedStudentId(null)}
+          isBn={locale === 'bn'}
+          onStudentUpdated={loadData}
         />
       </div>
     </PortalLayout>

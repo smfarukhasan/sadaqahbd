@@ -149,7 +149,7 @@
   height: 90px;
   aspect-ratio: 3 / 4;
   border-radius: 10px;
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  background: #059669;
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -478,7 +478,7 @@
 
 .progressBarFill {
   height: 100%;
-  background: linear-gradient(90deg, #059669 0%, #10b981 100%);
+  background: #059669;
   border-radius: var(--radius-full);
   transition: width 0.4s ease;
 }
@@ -538,7 +538,7 @@
   gap: 0.65rem;
   padding: 1rem 1.5rem;
   border-radius: var(--radius-full);
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  background: #059669;
   color: #ffffff;
   font-size: 1.1rem;
   font-weight: 800;
@@ -551,7 +551,7 @@
 .donateActionBtn:hover {
   transform: translateY(-2px);
   box-shadow: 0 12px 28px -4px rgba(5, 150, 105, 0.55);
-  background: linear-gradient(135deg, #047857 0%, #064e3b 100%);
+  background: #047857;
 }
 
 .trustPointsList {
@@ -616,4 +616,118 @@
   .totalValue {
     font-size: 1.2rem;
   }
+}
+
+/* ----------------------------------------------------
+   Transparent Fund Breakdown & Donor Contribution Styles
+---------------------------------------------------- */
+.fundBreakdownGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+
+.fundBreakdownCard {
+  background: var(--background, #f8fafc);
+  border: 1px solid var(--surface-border, #e2e8f0);
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.fundBreakdownCardPrimary {
+  border-left: 4px solid #059669;
+}
+
+.fundBreakdownCardSecondary {
+  border-left: 4px solid #3b82f6;
+}
+
+.fundCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-main, #0f172a);
+}
+
+.fundCardAmount {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--text-main, #0f172a);
+  margin: 0.25rem 0;
+}
+
+.fundCardSubtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+}
+
+.donorHistoryList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.donorHistoryItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.15rem;
+  background: var(--background, #f8fafc);
+  border: 1px solid var(--surface-border, #e2e8f0);
+  border-radius: 10px;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.donorHistoryLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.donorTrxId {
+  font-size: 0.78rem;
+  font-family: monospace;
+  color: var(--text-muted, #64748b);
+}
+
+.donorHistoryRight {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.donorAmountBadge {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #059669;
+}
+
+.profileMetaChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.profileChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--surface-border, #cbd5e1);
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-main, #334155);
 }

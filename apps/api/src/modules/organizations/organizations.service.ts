@@ -371,12 +371,81 @@ export class OrganizationsService {
         });
       }
 
-      return {
-        success: true,
-        message: approved
-          ? 'শিক্ষার্থীকে সফলভাবে প্রাথমিক অনুমোদন দেওয়া হয়েছে। এখন এডমিন চূড়ান্ত অনুমোদন দেবেন।'
-          : 'শিক্ষার্থীর আবেদন বাতিল করা হয়েছে।',
-      };
+        return {
+          success: true,
+          message: approved
+            ? 'শিক্ষার্থীকে সফলভাবে প্রাথমিক অনুমোদন দেওয়া হয়েছে। এখন এডমিন চূড়ান্ত অনুমোদন দেবেন।'
+            : 'শিক্ষার্থীর আবেদন বাতিল করা হয়েছে।',
+        };
+      }
     }
+
+  async correctStudentBeforeApproval(
+    currentUser: any,
+    profileId: string,
+    updateData: any
+  ) {
+    const orgId = currentUser.organizationId;
+    if (!orgId) {
+      throw new ForbiddenException('আপনার অ্যাকাউন্টটি কোনো অনুমোদিত প্রতিষ্ঠানের সাথে যুক্ত নয়।');
+    }
+
+    const [student] = await this.database
+      .select({ profile: studentProfiles, user: users })
+      .from(studentProfiles)
+      .innerJoin(users, eq(studentProfiles.userId, users.id))
+      .where(and(eq(studentProfiles.id, profileId), eq(studentProfiles.organizationId, orgId)))
+      .limit(1);
+
+    if (!student) throw new NotFoundException('শিক্ষার্থী প্রোফাইল পাওয়া যায়নি।');
+
+    if (student.profile.orgApprovedAt || student.profile.verificationStatus === 'verified') {
+      throw new BadRequestException('প্রতিষ্ঠান ইতিমধ্যে অনুমোদন সম্পন্ন করেছে বিধায় আর সংশোধন করা সম্ভব নয়।');
+    }
+
+    // 1. Update user fields
+    const userUpdates: any = {};
+    if (updateData.fullName && typeof updateData.fullName === 'string' && updateData.fullName.trim()) {
+      userUpdates.fullName = updateData.fullName.trim();
+    }
+    if (Object.keys(userUpdates).length > 0) {
+      await this.database.update(users).set(userUpdates).where(eq(users.id, student.user.id));
+    }
+
+    // 2. Update student profile fields
+    const profileUpdates: any = {};
+    if (updateData.fatherName !== undefined) profileUpdates.fatherName = (updateData.fatherName || '').trim() || null;
+    if (updateData.className !== undefined) profileUpdates.className = (updateData.className || '').trim() || null;
+    if (updateData.department !== undefined) profileUpdates.department = (updateData.department || '').trim() || null;
+    if (updateData.rollNumber !== undefined) {
+      profileUpdates.rollNumber = (updateData.rollNumber || '').trim() || null;
+      profileUpdates.studentClassRoll = (updateData.rollNumber || '').trim() || null;
+    }
+    if (updateData.dateOfBirth !== undefined) profileUpdates.dateOfBirth = (updateData.dateOfBirth || '').trim() || null;
+    if (updateData.nidOrBirthCertificateNumber !== undefined) {
+      profileUpdates.nidOrBirthCertificateNumber = (updateData.nidOrBirthCertificateNumber || '').trim() || null;
+    }
+    if (updateData.permanentAddress !== undefined) profileUpdates.permanentAddress = (updateData.permanentAddress || '').trim() || null;
+    if (updateData.presentAddress !== undefined) {
+      profileUpdates.presentAddress = (updateData.presentAddress || '').trim() || null;
+      profileUpdates.address = (updateData.presentAddress || '').trim() || null;
+    }
+    if (updateData.guardianName !== undefined) profileUpdates.guardianName = (updateData.guardianName || '').trim() || null;
+    if (updateData.guardianPhone !== undefined) profileUpdates.guardianPhone = (updateData.guardianPhone || '').trim() || null;
+    if (updateData.guardianRelationship !== undefined) profileUpdates.guardianRelationship = (updateData.guardianRelationship || '').trim() || null;
+    if (updateData.guardianAddress !== undefined) profileUpdates.guardianAddress = (updateData.guardianAddress || '').trim() || null;
+    if (updateData.bloodGroup !== undefined) profileUpdates.bloodGroup = (updateData.bloodGroup || '').trim() || null;
+
+    if (Object.keys(profileUpdates).length > 0) {
+      await this.database
+        .update(studentProfiles)
+        .set(profileUpdates)
+        .where(eq(studentProfiles.id, profileId));
+    }
+
+    return {
+      success: true,
+      message: 'শিক্ষার্থীর তথ্য সফলভাবে সংশোধন করা হয়েছে।',
+    };
   }
 }

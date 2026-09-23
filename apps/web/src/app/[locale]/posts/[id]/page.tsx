@@ -20,6 +20,7 @@ import {
   BadgeCheck,
   Sparkles,
   Award,
+  GraduationCap,
 } from "lucide-react";
 import { useAuthStore } from "../../../../lib/auth-store";
 import { getApiUrl } from '../../../../lib/api-config';
@@ -52,7 +53,8 @@ export default function PostDetailPage({
   React.useEffect(() => {
     if (!id) return;
     const apiUrl = getApiUrl();
-    fetch(`${apiUrl}/posts/${id}`)
+    const donorQuery = user?.id ? `?donorId=${user.id}` : '';
+    fetch(`${apiUrl}/posts/${id}${donorQuery}`)
       .then((res) => {
         if (!res.ok) throw new Error("Not found");
         return res.json();
@@ -64,19 +66,37 @@ export default function PostDetailPage({
         setPost({
           id: data.id,
           title: data.title,
-          studentName: data.studentName || (isBn ? "শিক্ষার্থী" : "Student"),
+          studentName: data.studentFullName || data.studentName || (isBn ? "শিক্ষার্থী" : "Student"),
           studentPhotoUrl: data.studentPhotoUrl || null,
           institution: data.orgName || data.studentInstitutionName || (isBn ? "অনুমোদিত শিক্ষা প্রতিষ্ঠান" : "Approved Educational Institution"),
           orgAddress: data.orgAddress || null,
-          department: data.studentClassDepartment || data.studentRoll || (isBn ? "শিক্ষার্থী" : "Student"),
+          className: data.studentClassName || "",
+          department: data.studentDepartment || "",
+          rollNumber: data.studentRoll || data.studentClassRoll || "",
+          fatherName: data.studentFatherName || data.fatherName || "",
+          bloodGroup: data.studentBloodGroup || "",
+          dateOfBirth: data.studentDateOfBirth || "",
+          permanentAddress: data.studentPermanentAddress || "",
+          presentAddress: data.studentPresentAddress || data.studentAddress || data.address || "",
+          classDepartment: data.studentClassDepartment || "",
           session: data.durationText || "",
           description: data.problemDescription,
           totalRequired: req,
           collectedAmount: rec,
           remainingAmount: rem,
           isDoubleVerified: data.isDoubleVerified,
-          verifiedByTeacher: data.isTeacherVerified ? (isBn ? "সংশ্লিষ্ট শিক্ষক দ্বারা সরেজমিনে সত্যায়িত" : "Verified by Department Teacher") : null,
-          verifiedByOrg: data.isOrgVerified ? (data.orgName || (isBn ? "অনুমোদিত শিক্ষা প্রতিষ্ঠান" : "Approved Institution")) : null,
+          isTeacherVerified: data.isTeacherVerified,
+          isOrgVerified: data.isOrgVerified,
+          teacherVerifierName: data.teacherVerifierName,
+          orgVerifierName: data.orgVerifierName,
+          adminModificationReason: data.adminModificationReason,
+          fundingBreakdown: data.fundingBreakdown || {
+            directDonationsTotal: 0,
+            directDonationsCount: 0,
+            randomPoolAllocationsTotal: 0,
+            randomPoolAllocationsCount: 0,
+          },
+          myDonations: Array.isArray(data.myDonations) ? data.myDonations : [],
           expenses: Array.isArray(data.expenses)
             ? data.expenses.map((e: any, idx: number) => ({
                 id: `exp-${idx}`,
@@ -92,7 +112,7 @@ export default function PostDetailPage({
         setPost(null);
       })
       .finally(() => setLoading(false));
-  }, [id, isBn]);
+  }, [id, isBn, user?.id]);
 
   if (loading) {
     return (
@@ -156,13 +176,8 @@ export default function PostDetailPage({
       <div className={styles.layoutGrid}>
         {/* Left Column: Full Details */}
         <div className={styles.mainColumn}>
-          {/* 1. Hero Title & Student Profile Card */}
+          {/* 1. Student Profile Card */}
           <div className={styles.heroCard}>
-            <div className={styles.titleArea}>
-              <h1 className={styles.postMainTitle}>{post.title}</h1>
-            </div>
-
-            {/* Student & Institution Profile Card */}
             <div className={styles.studentProfileBox}>
               {post.studentPhotoUrl ? (
                 <img
@@ -176,15 +191,20 @@ export default function PostDetailPage({
                 </div>
               )}
 
-              <div className={styles.studentInfo}>
+              <div className={styles.studentInfo} style={{ flex: 1 }}>
                 <div className={styles.studentNameRow}>
                   <span className={styles.studentName}>{post.studentName}</span>
-                  {post.isDoubleVerified && (
+                  {post.isDoubleVerified ? (
                     <span className={styles.verifiedBadgeSmall}>
                       <BadgeCheck size={13} />
-                      <span>{isBn ? "শিক্ষক ও প্রতিষ্ঠান সত্যায়িত" : "Teacher & Org Verified"}</span>
+                      <span>{isBn ? "দ্বৈত ভেরিফাইড শিক্ষার্থী" : "Double Verified Student"}</span>
                     </span>
-                  )}
+                  ) : post.isOrgVerified ? (
+                    <span className={styles.verifiedBadgeSmall}>
+                      <ShieldCheck size={13} />
+                      <span>{isBn ? "প্রতিষ্ঠান সত্যায়িত" : "Org Verified"}</span>
+                    </span>
+                  ) : null}
                 </div>
 
                 <div className={styles.institutionRow}>
@@ -192,17 +212,46 @@ export default function PostDetailPage({
                   <span>{post.institution}</span>
                 </div>
 
-                <div className={styles.metaSubRow}>
-                  {post.orgAddress && (
-                    <span className={styles.metaItem}>
-                      <MapPin size={13} />
-                      <span>{post.orgAddress}</span>
+                {post.orgAddress && (
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
+                    <MapPin size={13} />
+                    <span>{post.orgAddress}</span>
+                  </div>
+                )}
+
+                {/* Profile Meta Badges */}
+                <div className={styles.profileMetaChips}>
+                  {(post.className || post.classDepartment) && (
+                    <span className={styles.profileChip}>
+                      <GraduationCap size={13} color="#059669" />
+                      <span>{isBn ? "শ্রেণি: " : "Class: "}<strong>{post.className || post.classDepartment}</strong></span>
                     </span>
                   )}
                   {post.department && (
-                    <span className={styles.metaItem}>
-                      <User size={13} />
-                      <span>{isBn ? `শ্রেণি/বিভাগ/রোল: ${post.department}` : `Class/Dept/Roll: ${post.department}`}</span>
+                    <span className={styles.profileChip}>
+                      <span>{isBn ? "বিভাগ: " : "Dept: "}<strong>{post.department}</strong></span>
+                    </span>
+                  )}
+                  {post.rollNumber && (
+                    <span className={styles.profileChip}>
+                      <span>{isBn ? "রোল: " : "Roll: "}<strong>{post.rollNumber}</strong></span>
+                    </span>
+                  )}
+                  {post.fatherName && (
+                    <span className={styles.profileChip}>
+                      <span>{isBn ? "পিতা: " : "Father: "}<strong>{post.fatherName}</strong></span>
+                    </span>
+                  )}
+                  {post.bloodGroup && (
+                    <span className={styles.profileChip} style={{ color: '#e11d48', borderColor: '#fecdd3', background: '#fff1f2' }}>
+                      <Heart size={12} fill="#e11d48" />
+                      <span><strong>{post.bloodGroup}</strong></span>
+                    </span>
+                  )}
+                  {post.presentAddress && (
+                    <span className={styles.profileChip}>
+                      <MapPin size={12} color="#64748b" />
+                      <span>{post.presentAddress}</span>
                     </span>
                   )}
                 </div>
@@ -210,23 +259,37 @@ export default function PostDetailPage({
             </div>
           </div>
 
-          {/* 2. Detailed Problem Statement */}
+          {/* 2. Active Application: Post Title, Story & Itemized Expenses */}
           <div className={styles.contentCard}>
+            <div style={{ marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0.65rem', background: '#ecfdf5', color: '#059669', borderRadius: '12px', border: '1px solid #a7f3d0' }}>
+                  {isBn ? 'সক্রিয় শিক্ষা সহায়তা আবেদন' : 'Active Assistance Campaign'}
+                </span>
+                {post.session && (
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Calendar size={13} color="#059669" />
+                    <strong>{post.session}</strong>
+                  </span>
+                )}
+              </div>
+              <h1 className={styles.postMainTitle} style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800 }}>
+                {post.title}
+              </h1>
+            </div>
+
             <div className={styles.cardSectionHeader}>
-              <FileText size={20} color="var(--primary, #059669)" />
+              <FileText size={18} color="var(--primary, #059669)" />
               <h2 className={styles.cardSectionTitle}>
-                {isBn ? "আবেদনের প্রেক্ষাপট ও সম্পূর্ণ বিবরণ" : "Detailed Context & Problem Description"}
+                {isBn ? "আবেদনের বিবরণ ও পারিবারিক সংকট" : "Application Details & Hardship Story"}
               </h2>
             </div>
             <p className={styles.problemText}>{post.description}</p>
-          </div>
 
-          {/* 3. Itemized Expenses Breakdown */}
-          <div className={styles.contentCard}>
-            <div className={styles.cardSectionHeader}>
-              <Sparkles size={20} color="var(--primary, #059669)" />
+            <div className={styles.cardSectionHeader} style={{ marginTop: '1.5rem' }}>
+              <Sparkles size={18} color="var(--primary, #059669)" />
               <h2 className={styles.cardSectionTitle}>
-                {isBn ? "প্রয়োজনীয় খরচের সুনির্দিষ্ট হিসাব" : "Itemized Expense Breakdown"}
+                {isBn ? "প্রয়োজনীয় খরচের সুনির্দিষ্ট খাত ও হিসাব" : "Itemized Expense Breakdown"}
               </h2>
             </div>
 
@@ -254,7 +317,7 @@ export default function PostDetailPage({
             </div>
           </div>
 
-          {/* 4. Verification Audit Trail */}
+          {/* 3. Double Verification & Institutional Audit Trail */}
           <div className={styles.contentCard}>
             <div className={styles.cardSectionHeader}>
               <ShieldCheck size={20} color="var(--primary, #059669)" />
@@ -273,7 +336,11 @@ export default function PostDetailPage({
                     {isBn ? "১. শিক্ষক সরেজমিনে যাচাই" : "1. Faculty In-Person Verification"}
                   </div>
                   <div className={styles.auditText}>
-                    {post.verifiedByTeacher || (isBn ? "সংশ্লিষ্ট শিক্ষক দ্বারা যাচাইকৃত" : "Verified by faculty member")}
+                    {post.teacherVerifierName
+                      ? (isBn ? `যাচাইকারী শিক্ষক: ${post.teacherVerifierName}` : `Verified by Teacher: ${post.teacherVerifierName}`)
+                      : post.isTeacherVerified
+                      ? (isBn ? "সংশ্লিষ্ট শিক্ষক দ্বারা সরেজমিনে যাচাইকৃত" : "Verified in-person by faculty teacher")
+                      : (isBn ? "যাচাই প্রক্রিয়াধীন" : "Verification in progress")}
                   </div>
                 </div>
               </div>
@@ -287,19 +354,30 @@ export default function PostDetailPage({
                     {isBn ? "২. প্রতিষ্ঠান প্রধান অনুমোদন" : "2. Institutional Head Approval"}
                   </div>
                   <div className={styles.auditText}>
-                    {post.verifiedByOrg || (isBn ? "অনুমোদিত শিক্ষা প্রতিষ্ঠান প্রধান কর্তৃক প্রত্যয়িত" : "Certified by principal/head of institution")}
+                    {post.orgVerifierName
+                      ? (isBn ? `অনুমোদনকারী প্রধান: ${post.orgVerifierName} (${post.institution})` : `Approved by: ${post.orgVerifierName} (${post.institution})`)
+                      : post.isOrgVerified
+                      ? (isBn ? `${post.institution} প্রধান কর্তৃক প্রত্যয়িত` : `Certified by Head of ${post.institution}`)
+                      : (isBn ? "প্রতিষ্ঠান অনুমোদনের অপেক্ষায়" : "Awaiting institutional approval")}
                   </div>
                 </div>
               </div>
             </div>
+
+            {post.adminModificationReason && (
+              <div style={{ marginTop: '1rem', padding: '0.85rem 1rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', fontSize: '0.82rem', color: '#92400e' }}>
+                <strong>{isBn ? "এডমিন কর্তৃক খরচের খাত সমন্বয় নোট: " : "Admin Adjustment Note: "}</strong>
+                {post.adminModificationReason}
+              </div>
+            )}
           </div>
 
-          {/* 5. Previous Applications & Historical Log */}
+          {/* 4. Student's Previous Aid Applications & Progress Accordion */}
           <div className={styles.contentCard}>
             <div className={styles.cardSectionHeader}>
               <History size={20} color="var(--primary, #059669)" />
               <h2 className={styles.cardSectionTitle}>
-                {isBn ? "শিক্ষার্থীর পূর্ববর্তী আবেদন ও অগ্রগতির বিবরণ" : "Previous Aid Requests & History"}
+                {isBn ? "শিক্ষার্থীর পূর্ববর্তী সহায়তা ও অগ্রগতির বিবরণ" : "Previous Aid Requests & Progress"}
               </h2>
             </div>
 
@@ -307,49 +385,52 @@ export default function PostDetailPage({
               <div className={styles.previousPostsContainer}>
                 {post.previousPosts.map((prev: any, idx: number) => {
                   const isExpanded = !!expandedPrevious[prev.id];
+                  const prevReq = Number(prev.totalRequiredAmount || 0);
+                  const prevRec = Number(prev.receivedAmount || 0);
+                  const prevPct = prevReq > 0 ? Math.min(100, Math.round((prevRec / prevReq) * 100)) : 0;
                   return (
                     <div key={prev.id || idx} className={styles.previousPostCard}>
-                      <div className={styles.prevHeader}>
-                        <h4 className={styles.prevTitle}>{prev.title}</h4>
-                        <div className={styles.prevMeta}>
-                          <Calendar size={13} />
-                          <span>{new Date(prev.createdAt).toLocaleDateString(isBn ? "bn-BD" : "en-US")}</span>
-                          <span style={{ fontWeight: 700, color: "var(--primary-dark, #047857)" }}>
-                            • ৳{Number(prev.totalRequiredAmount).toLocaleString(isBn ? "bn-BD" : "en-US")}
-                          </span>
+                      <div
+                        className={styles.prevHeader}
+                        onClick={() => toggleExpandPrevious(prev.id)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                          <div>
+                            <h4 className={styles.prevTitle} style={{ margin: '0 0 0.25rem', color: '#0f172a' }}>{prev.title}</h4>
+                            <div className={styles.prevMeta}>
+                              <Calendar size={13} />
+                              <span>{new Date(prev.createdAt).toLocaleDateString(isBn ? "bn-BD" : "en-US")}</span>
+                              <span style={{ fontWeight: 700, color: "var(--primary-dark, #047857)" }}>
+                                • বাজেট ৳{prevReq.toLocaleString(isBn ? "bn-BD" : "en-US")} (সংগৃহীত ৳{prevRec.toLocaleString(isBn ? "bn-BD" : "en-US")} — {prevPct}%)
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className={styles.prevExpandBtn}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          >
+                            {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                          </button>
                         </div>
                       </div>
 
-                      <div
-                        onClick={() => toggleExpandPrevious(prev.id)}
-                        className={styles.prevText}
-                        style={{
-                          display: isExpanded ? "block" : "-webkit-box",
-                          WebkitLineClamp: isExpanded ? undefined : 2,
-                          WebkitBoxOrient: "vertical",
-                          overflow: isExpanded ? "visible" : "hidden",
-                        }}
-                      >
-                        {prev.problemDescription}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => toggleExpandPrevious(prev.id)}
-                        className={styles.prevExpandBtn}
-                      >
-                        {isExpanded ? (
-                          <>
-                            <ChevronUp size={14} />
-                            <span>{isBn ? "সংক্ষিপ্ত করুন" : "Collapse"}</span>
-                          </>
-                        ) : (
-                          <>
-                            <ChevronDown size={14} />
-                            <span>{isBn ? "সম্পূর্ণ বর্ণনা পড়ুন" : "Read full description"}</span>
-                          </>
-                        )}
-                      </button>
+                      {isExpanded && (
+                        <div style={{ marginTop: '0.85rem', paddingTop: '0.85rem', borderTop: '1px dashed #e2e8f0' }}>
+                          <p style={{ fontSize: '0.88rem', color: '#475569', lineHeight: 1.6, margin: '0 0 0.75rem' }}>
+                            {prev.problemDescription}
+                          </p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: '#047857', fontWeight: 600 }}>
+                            <CheckCircle2 size={14} />
+                            <span>
+                              {prev.verificationStatus === 'approved'
+                                ? (isBn ? 'এই আবেদনটির সহায়তা সফলভাবে সম্পন্ন হয়েছিল।' : 'Aid disbursement completed.')
+                                : (isBn ? 'পূর্ববর্তী আবেদন স্থিতি: যাচাইকৃত' : 'Previous campaign status: Verified')}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -361,6 +442,115 @@ export default function PostDetailPage({
                   : "This is the student's first application on the platform."}
               </p>
             )}
+          </div>
+
+          {/* 5. Donor Contribution Log */}
+          <div className={styles.contentCard}>
+            <div className={styles.cardSectionHeader}>
+              <Heart size={20} color="#e11d48" />
+              <h2 className={styles.cardSectionTitle}>
+                {isBn ? "আপনার ব্যক্তিগত অনুদান ইতিহাস" : "Your Personal Contribution History"}
+              </h2>
+            </div>
+
+            {user ? (
+              post.myDonations && post.myDonations.length > 0 ? (
+                <div className={styles.donorHistoryList}>
+                  {post.myDonations.map((d: any) => (
+                    <div key={d.id} className={styles.donorHistoryItem}>
+                      <div className={styles.donorHistoryLeft}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <Calendar size={13} color="#64748b" />
+                          <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                            {new Date(d.createdAt).toLocaleDateString(isBn ? 'bn-BD' : 'en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: d.status === 'accepted' ? '#ecfdf5' : '#fffbeb', color: d.status === 'accepted' ? '#047857' : '#b45309', fontWeight: 700 }}>
+                            {d.status === 'accepted' ? (isBn ? 'গৃহীত' : 'Accepted') : (isBn ? 'অপেক্ষমাণ' : 'Pending')}
+                          </span>
+                        </div>
+                        <span className={styles.donorTrxId}>
+                          {isBn ? 'মাধ্যম: ' : 'Method: '}<strong>{d.paymentMethod}</strong> • {isBn ? 'ট্রানজেকশন আইডি: ' : 'Trx ID: '}<strong>{d.transactionReference}</strong>
+                        </span>
+                      </div>
+                      <div className={styles.donorHistoryRight}>
+                        <span className={styles.donorAmountBadge}>
+                          ৳{d.amount.toLocaleString(isBn ? 'bn-BD' : 'en-US')}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: '1rem', background: 'var(--background, #f8fafc)', borderRadius: '10px', border: '1px dashed #cbd5e1', textAlign: 'center' }}>
+                  <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+                    {isBn
+                      ? "আপনি এই শিক্ষা তহবিলে এখনো অনুদান দেননি। আপনার ক্ষুদ্র সহযোগিতাই হতে পারে এই শিক্ষার্থীর পড়াশোনা অব্যাহত রাখার চাবিকাঠি।"
+                      : "You have not donated to this campaign yet. Every small contribution helps."}
+                  </p>
+                </div>
+              )
+            ) : (
+              <div style={{ padding: '1rem', background: 'var(--background, #f8fafc)', borderRadius: '10px', border: '1px dashed #cbd5e1', textAlign: 'center' }}>
+                <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+                  {isBn
+                    ? "অনুদান দিয়ে আপনার ব্যক্তিগত অনুদান রেকর্ড দেখতে অনুগ্রহ করে লগইন করুন।"
+                    : "Log in to track your personal contribution history."}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* 6. Transparent Fund Source Breakdown: Direct vs Random Pool */}
+          <div className={styles.contentCard}>
+            <div className={styles.cardSectionHeader}>
+              <BadgeCheck size={20} color="var(--primary, #059669)" />
+              <h2 className={styles.cardSectionTitle}>
+                {isBn ? "অনুদানের স্বচ্ছ উৎস বিভাজন ও ফান্ডিং রেকর্ড" : "Transparent Fund Source Breakdown"}
+              </h2>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 1rem', lineHeight: 1.5 }}>
+              {isBn
+                ? "সাদাকাহ বিডি-র সম্পূর্ণ স্বচ্ছ হিসাব নীতি অনুযায়ী এই ক্যাম্পেইনে সরাসরি ডোনারদের অনুদান এবং সাধারণ র‍্যান্ডম অনুদান পুল থেকে প্রাপ্ত সহায়তার পৃথক হিসাব:"
+                : "Audited transparent breakdown showing direct donor gifts vs allocations disbursed from the general random pool:"}
+            </p>
+
+            <div className={styles.fundBreakdownGrid}>
+              <div className={`${styles.fundBreakdownCard} ${styles.fundBreakdownCardPrimary}`}>
+                <div className={styles.fundCardHeader}>
+                  <Heart size={16} color="#059669" />
+                  <span>{isBn ? "১. সরাসরি ডোনারদের অনুদান" : "1. Direct Public Donations"}</span>
+                </div>
+                <div className={styles.fundCardAmount} style={{ color: '#059669' }}>
+                  ৳{(post.fundingBreakdown?.directDonationsTotal || 0).toLocaleString(isBn ? 'bn-BD' : 'en-US')}
+                </div>
+                <div className={styles.fundCardSubtitle}>
+                  {isBn
+                    ? `মোট ${post.fundingBreakdown?.directDonationsCount || 0} জন শুভাকাঙ্ক্ষী সরাসরি দিয়েছেন`
+                    : `${post.fundingBreakdown?.directDonationsCount || 0} individual direct donors`}
+                </div>
+              </div>
+
+              <div className={`${styles.fundBreakdownCard} ${styles.fundBreakdownCardSecondary}`}>
+                <div className={styles.fundCardHeader}>
+                  <Sparkles size={16} color="#3b82f6" />
+                  <span>{isBn ? "২. র‍্যান্ডম ডোনেশন পুল থেকে প্রাপ্ত" : "2. Random Donation Pool Allocation"}</span>
+                </div>
+                <div className={styles.fundCardAmount} style={{ color: '#2563eb' }}>
+                  ৳{(post.fundingBreakdown?.randomPoolAllocationsTotal || 0).toLocaleString(isBn ? 'bn-BD' : 'en-US')}
+                </div>
+                <div className={styles.fundCardSubtitle}>
+                  {isBn
+                    ? `সুপার এডমিন কর্তৃক সাধারণ জরুরি ফান্ড থেকে ${post.fundingBreakdown?.randomPoolAllocationsCount || 0} কিস্তিতে বরাদ্দ`
+                    : `Disbursed from unearmarked random donation pool`}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

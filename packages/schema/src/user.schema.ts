@@ -45,7 +45,7 @@ export type SetPasswordInput = z.infer<typeof SetPasswordSchema>;
 export const ChangePasswordSchema = z
   .object({
     oldPassword: z.string().min(1, 'Current password is required'),
-    newPassword: z.string().min(8, 'New password must be at least 8 characters'),
+    newPassword: z.string().min(6, 'New password must be at least 6 characters'),
     confirmPassword: z.string(),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
@@ -86,6 +86,30 @@ export const StudentVerificationProfileSchema = z.object({
 
 export type StudentVerificationProfileInput = z.infer<
   typeof StudentVerificationProfileSchema
+>;
+
+export const UpdateStudentProfileSchema = z.object({
+  fullName: z.string().optional(),
+  phone: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  avatarUrl: z.string().optional().nullable(),
+  fatherName: z.string().optional().nullable(),
+  className: z.string().optional().nullable(),
+  department: z.string().optional().nullable(),
+  rollNumber: z.string().optional().nullable(),
+  dateOfBirth: z.string().optional().nullable(),
+  bloodGroup: z.string().optional().nullable(),
+  nidOrBirthCertificateNumber: z.string().optional().nullable(),
+  presentAddress: z.string().optional().nullable(),
+  permanentAddress: z.string().optional().nullable(),
+  guardianName: z.string().optional().nullable(),
+  guardianRelationship: z.string().optional().nullable(),
+  guardianPhone: z.string().optional().nullable(),
+  guardianAddress: z.string().optional().nullable(),
+});
+
+export type UpdateStudentProfileInput = z.infer<
+  typeof UpdateStudentProfileSchema
 >;
 
 

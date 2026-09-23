@@ -8,9 +8,11 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import fastifyHelmet from '@fastify/helmet';
 import { Logger } from '@nestjs/common';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { ensureStudentProfileColumns } from './database';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
+  await ensureStudentProfileColumns();
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({ logger: false, bodyLimit: 10485760 })

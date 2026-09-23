@@ -13,6 +13,8 @@ import {
   studentProfiles,
   users,
   organizations,
+  donations,
+  fundAllocations,
 } from '../../database';
 import { eq, and, or, isNull, desc, ne, sql } from 'drizzle-orm';
 import {
@@ -84,10 +86,10 @@ export class PostsService {
         isOrgVerified: false,
         isDoubleVerified: false,
         studentFullName: input.fullName || studentUser.fullName,
-        studentClassDepartment: input.classDepartment || profile[0]?.studentClassRoll,
-        fatherName: input.fatherName || null,
+        studentClassDepartment: input.classDepartment || [profile[0]?.className, profile[0]?.department, profile[0]?.rollNumber ? `রোল: ${profile[0]?.rollNumber}` : null].filter(Boolean).join(' • ') || profile[0]?.studentClassRoll,
+        fatherName: input.fatherName || profile[0]?.fatherName || null,
         phone: input.phone || studentUser.phone,
-        address: input.address || profile[0]?.address,
+        address: input.address || profile[0]?.presentAddress || profile[0]?.address || studentUser.address,
         startDate: input.startDate || null,
         endDate: input.endDate || null,
         durationText: input.durationText || null,
@@ -153,7 +155,7 @@ export class PostsService {
     };
   }
 
-  async getPostDetails(postId: string) {
+  async getPostDetails(postId: string, currentUserId?: string) {
     const post = await this.db
       .select({
         id: studentPosts.id,
@@ -166,8 +168,12 @@ export class PostsService {
         remainingAmount: studentPosts.remainingAmount,
         verificationStatus: studentPosts.verificationStatus,
         isTeacherVerified: studentPosts.isTeacherVerified,
+        teacherVerifiedBy: studentPosts.teacherVerifiedBy,
         isOrgVerified: studentPosts.isOrgVerified,
+        orgVerifiedBy: studentPosts.orgVerifiedBy,
         isDoubleVerified: studentPosts.isDoubleVerified,
+        superAdminApprovedBy: studentPosts.superAdminApprovedBy,
+        adminModificationReason: studentPosts.adminModificationReason,
         studentFullName: studentPosts.studentFullName,
         studentClassDepartment: studentPosts.studentClassDepartment,
         fatherName: studentPosts.fatherName,
@@ -178,13 +184,25 @@ export class PostsService {
         durationText: studentPosts.durationText,
         rejectionReason: studentPosts.rejectionReason,
         createdAt: studentPosts.createdAt,
+        updatedAt: studentPosts.updatedAt,
         studentName: users.fullName,
         studentPhone: users.phone,
         studentEmail: users.email,
         studentPhotoUrl: sql<string | null>`COALESCE(${studentProfiles.photoUrl}, ${users.avatarUrl})`,
-        studentRoll: studentProfiles.studentClassRoll,
+        studentRoll: studentProfiles.rollNumber,
+        studentClassRoll: studentProfiles.studentClassRoll,
+        studentClassName: studentProfiles.className,
+        studentDepartment: studentProfiles.department,
+        studentFatherName: studentProfiles.fatherName,
+        studentBloodGroup: studentProfiles.bloodGroup,
+        studentDateOfBirth: studentProfiles.dateOfBirth,
         studentAddress: studentProfiles.address,
+        studentPresentAddress: studentProfiles.presentAddress,
+        studentPermanentAddress: studentProfiles.permanentAddress,
         studentInstitutionName: studentProfiles.institutionName,
+        studentVerificationStatus: studentProfiles.verificationStatus,
+        studentOrgApprovedAt: studentProfiles.orgApprovedAt,
+        studentAdminApprovedAt: studentProfiles.adminApprovedAt,
         orgName: organizations.name,
         orgAddress: organizations.address,
       })
@@ -200,6 +218,68 @@ export class PostsService {
     }
 
     const target = post[0];
+
+    // Fetch verifier display names
+    let teacherVerifierName: string | null = null;
+    if (target.teacherVerifiedBy) {
+      const [tUser] = await this.db
+        .select({ fullName: users.fullName })
+        .from(users)
+        .where(eq(users.id, target.teacherVerifiedBy))
+        .limit(1);
+      teacherVerifierName = tUser?.fullName || null;
+    }
+
+    let orgVerifierName: string | null = null;
+    if (target.orgVerifiedBy) {
+      const [oUser] = await this.db
+        .select({ fullName: users.fullName })
+        .from(users)
+        .where(eq(users.id, target.orgVerifiedBy))
+        .limit(1);
+      orgVerifierName = oUser?.fullName || null;
+    }
+
+    // Transparent Fund Breakdown: Direct Donations vs Random Fund Allocations
+    const [directDonationsRes] = await this.db
+      .select({
+        total: sql<string>`COALESCE(SUM(${donations.amount}), '0.00')`,
+        count: sql<number>`COUNT(${donations.id})`,
+      })
+      .from(donations)
+      .where(
+        and(
+          eq(donations.postId, postId),
+          eq(donations.status, 'accepted'),
+          eq(donations.isRandom, false)
+        )
+      );
+
+    const [randomAllocationsRes] = await this.db
+      .select({
+        total: sql<string>`COALESCE(SUM(${fundAllocations.amount}), '0.00')`,
+        count: sql<number>`COUNT(${fundAllocations.id})`,
+      })
+      .from(fundAllocations)
+      .where(eq(fundAllocations.studentPostId, postId));
+
+    // Donor's personal contribution history on this campaign
+    let myDonations: any[] = [];
+    if (currentUserId) {
+      myDonations = await this.db
+        .select({
+          id: donations.id,
+          amount: donations.amount,
+          paymentMethod: donations.paymentMethod,
+          transactionReference: donations.transactionReference,
+          donorNote: donations.donorNote,
+          status: donations.status,
+          createdAt: donations.createdAt,
+        })
+        .from(donations)
+        .where(and(eq(donations.postId, postId), eq(donations.donorId, currentUserId)))
+        .orderBy(desc(donations.createdAt));
+    }
 
     const expenses = await this.db
       .select()
@@ -233,6 +313,18 @@ export class PostsService {
       totalRequiredAmount: Number(target.totalRequiredAmount),
       receivedAmount: Number(target.receivedAmount),
       remainingAmount: Number(target.remainingAmount),
+      teacherVerifierName,
+      orgVerifierName,
+      fundingBreakdown: {
+        directDonationsTotal: Number(directDonationsRes?.total || 0),
+        directDonationsCount: Number(directDonationsRes?.count || 0),
+        randomPoolAllocationsTotal: Number(randomAllocationsRes?.total || 0),
+        randomPoolAllocationsCount: Number(randomAllocationsRes?.count || 0),
+      },
+      myDonations: myDonations.map((d) => ({
+        ...d,
+        amount: Number(d.amount),
+      })),
       expenses: expenses.map((e) => ({
         id: e.id,
         categoryName: e.categoryName,

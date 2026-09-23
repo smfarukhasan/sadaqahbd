@@ -31,7 +31,7 @@
   width: 36px;
   height: 36px;
   border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  background: #059669;
   display: flex;
   align-items: center;
   justify-content: center;

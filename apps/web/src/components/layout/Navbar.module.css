@@ -34,7 +34,7 @@
   width: 44px;
   height: 44px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #059669 0%, #047857 60%, #064e3b 100%);
+  background: #059669;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -221,7 +221,7 @@
   font-size: 0.9rem;
   font-weight: 700;
   color: #ffffff;
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  background: #059669;
   border-radius: var(--radius-full);
   box-shadow: 0 6px 18px -3px rgba(5, 150, 105, 0.38);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -231,7 +231,7 @@
 .donateBtn:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 24px -3px rgba(5, 150, 105, 0.5);
-  background: linear-gradient(135deg, #047857 0%, #064e3b 100%);
+  background: #047857;
 }
 
 .loginBtn {
@@ -282,7 +282,7 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  background: #059669;
   color: #ffffff;
   display: flex;
   align-items: center;

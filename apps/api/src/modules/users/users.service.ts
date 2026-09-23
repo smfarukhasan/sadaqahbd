@@ -13,10 +13,11 @@ import {
   organizations,
   studentProfiles,
   teacherProfiles,
+  studentPosts,
 } from '../../database';
 import { FirebaseAdminService } from '../auth/firebase-admin.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { eq, and, or, isNull, desc, sql } from 'drizzle-orm';
+import { eq, and, or, isNull, desc, sql, ne } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import {
   CreateAdminUserInput,
@@ -180,6 +181,28 @@ export class UsersService {
         isPasswordSet: true,
         mustChangePassword: true,
       });
+
+      // Auto-create verified profile for students/teachers created directly by admin
+      if (input.role === UserRole.STUDENT) {
+        await this.db.insert(studentProfiles).values({
+          id: randomUUID(),
+          userId: newUserId,
+          organizationId: input.organizationId || null,
+          address: 'বাংলাদেশ',
+          institutionName: 'অনুমোদিত শিক্ষা প্রতিষ্ঠান',
+          studentClassRoll: 'নিয়মিত শিক্ষার্থী',
+          verificationStatus: 'verified',
+          adminApprovedAt: new Date(),
+        });
+      } else if (input.role === UserRole.TEACHER && input.organizationId) {
+        await this.db.insert(teacherProfiles).values({
+          id: randomUUID(),
+          userId: newUserId,
+          organizationId: input.organizationId,
+          verificationStatus: 'verified',
+          adminApprovedAt: new Date(),
+        });
+      }
 
       return {
         success: true,
@@ -670,10 +693,13 @@ export class UsersService {
         .where(eq(teacherProfiles.userId, currentUser.id))
         .limit(1);
 
+      const status = profile?.verificationStatus || 'unapplied';
+
       return {
         hasApplied: !!profile,
         profile: profile || null,
-        status: profile?.verificationStatus || 'unapplied',
+        status,
+        organization: profile ? { id: profile.organizationId, name: profile.orgName } : null,
       };
     } else if (currentUser.role === UserRole.STUDENT) {
       const [profile] = await this.db
@@ -695,14 +721,17 @@ export class UsersService {
         .where(eq(studentProfiles.userId, currentUser.id))
         .limit(1);
 
+      const status = profile?.verificationStatus || 'unapplied';
+
       return {
         hasApplied: !!profile,
         profile: profile || null,
-        status: profile?.verificationStatus || 'unapplied',
+        status,
+        organization: profile ? { id: profile.organizationId, name: profile.orgName || profile.institutionName } : null,
       };
     }
 
-    return { hasApplied: false, profile: null, status: 'unapplied' };
+    return { hasApplied: false, profile: null, status: 'unapplied', organization: null };
   }
 
   async listPendingAdminAffiliations() {
@@ -918,5 +947,320 @@ export class UsersService {
       };
     }
   }
-}
 
+  async getMyStudentProfile(currentUser: any) {
+    const [userRecord] = await this.db
+      .select()
+      .from(users)
+      .where(and(eq(users.id, currentUser.id), isNull(users.deletedAt)))
+      .limit(1);
+
+    if (!userRecord) {
+      throw new NotFoundException('ব্যবহারকারী পাওয়া যায়নি।');
+    }
+
+    const [profile] = await this.db
+      .select({
+        id: studentProfiles.id,
+        userId: studentProfiles.userId,
+        organizationId: studentProfiles.organizationId,
+        address: studentProfiles.address,
+        institutionName: studentProfiles.institutionName,
+        studentClassRoll: studentProfiles.studentClassRoll,
+        fatherName: studentProfiles.fatherName,
+        className: studentProfiles.className,
+        department: studentProfiles.department,
+        rollNumber: studentProfiles.rollNumber,
+        dateOfBirth: studentProfiles.dateOfBirth,
+        bloodGroup: studentProfiles.bloodGroup,
+        presentAddress: studentProfiles.presentAddress,
+        permanentAddress: studentProfiles.permanentAddress,
+        guardianName: studentProfiles.guardianName,
+        guardianRelationship: studentProfiles.guardianRelationship,
+        guardianPhone: studentProfiles.guardianPhone,
+        guardianAddress: studentProfiles.guardianAddress,
+        nidOrBirthCertificateNumber: studentProfiles.nidOrBirthCertificateNumber,
+        nidOrBirthCertificateUrl: studentProfiles.nidOrBirthCertificateUrl,
+        photoUrl: studentProfiles.photoUrl,
+        verificationStatus: studentProfiles.verificationStatus,
+        rejectionReason: studentProfiles.rejectionReason,
+        orgApprovedAt: studentProfiles.orgApprovedAt,
+        adminApprovedAt: studentProfiles.adminApprovedAt,
+        orgName: organizations.name,
+      })
+      .from(studentProfiles)
+      .leftJoin(organizations, eq(studentProfiles.organizationId, organizations.id))
+      .where(eq(studentProfiles.userId, currentUser.id))
+      .limit(1);
+
+    const isLocked =
+      profile &&
+      (profile.orgApprovedAt !== null ||
+        profile.verificationStatus === 'verified' ||
+        profile.verificationStatus === 'pending_admin');
+
+    return {
+      user: {
+        id: userRecord.id,
+        email: userRecord.email,
+        fullName: userRecord.fullName,
+        phone: userRecord.phone,
+        address: userRecord.address,
+        avatarUrl: userRecord.avatarUrl,
+        role: userRecord.role,
+        status: userRecord.status,
+      },
+      profile: profile || null,
+      isLocked: !!isLocked,
+    };
+  }
+
+  async updateMyStudentProfile(currentUser: any, data: any) {
+    const userId = currentUser.id;
+
+    // Check if student profile is already approved/verified by organization
+    const [existingProfile] = await this.db
+      .select({
+        id: studentProfiles.id,
+        verificationStatus: studentProfiles.verificationStatus,
+        orgApprovedAt: studentProfiles.orgApprovedAt,
+      })
+      .from(studentProfiles)
+      .where(eq(studentProfiles.userId, userId))
+      .limit(1);
+
+    const isOrgVerified =
+      existingProfile &&
+      (existingProfile.orgApprovedAt !== null ||
+        existingProfile.verificationStatus === 'verified' ||
+        existingProfile.verificationStatus === 'pending_admin');
+
+    // 1. Update users table
+    const userUpdates: any = {};
+    if (!isOrgVerified && data.fullName !== undefined && data.fullName.trim()) {
+      userUpdates.fullName = data.fullName.trim();
+    }
+    if (data.phone !== undefined) {
+      const cleanPhone = (data.phone || '').trim();
+      if (cleanPhone) {
+        const existing = await this.db
+          .select()
+          .from(users)
+          .where(
+            and(
+              eq(users.phone, cleanPhone),
+              ne(users.id, userId),
+              isNull(users.deletedAt)
+            )
+          )
+          .limit(1);
+        if (existing.length > 0) {
+          throw new BadRequestException('এই ফোন নম্বরটি ইতোমধ্যে অন্য একটি অ্যাকাউন্টে ব্যবহৃত হচ্ছে।');
+        }
+        userUpdates.phone = cleanPhone;
+      } else {
+        userUpdates.phone = null;
+      }
+    }
+    if (data.presentAddress !== undefined || data.address !== undefined) {
+      userUpdates.address = (data.presentAddress || data.address || '').trim() || null;
+    }
+    if (data.avatarUrl !== undefined) {
+      userUpdates.avatarUrl = data.avatarUrl || null;
+    }
+
+    if (Object.keys(userUpdates).length > 0) {
+      await this.db.update(users).set(userUpdates).where(eq(users.id, userId));
+    }
+
+    // 2. Update student_profiles table
+    const profileUpdates: any = {};
+    if (!isOrgVerified) {
+      if (data.fatherName !== undefined) profileUpdates.fatherName = (data.fatherName || '').trim() || null;
+      if (data.dateOfBirth !== undefined) profileUpdates.dateOfBirth = (data.dateOfBirth || '').trim() || null;
+      if (data.nidOrBirthCertificateNumber !== undefined) profileUpdates.nidOrBirthCertificateNumber = (data.nidOrBirthCertificateNumber || '').trim() || null;
+      if (data.permanentAddress !== undefined) profileUpdates.permanentAddress = (data.permanentAddress || '').trim() || null;
+    }
+    if (data.className !== undefined) profileUpdates.className = (data.className || '').trim() || null;
+    if (data.department !== undefined) profileUpdates.department = (data.department || '').trim() || null;
+    if (data.rollNumber !== undefined) profileUpdates.rollNumber = (data.rollNumber || '').trim() || null;
+    if (data.bloodGroup !== undefined) profileUpdates.bloodGroup = (data.bloodGroup || '').trim() || null;
+    if (data.presentAddress !== undefined) profileUpdates.presentAddress = (data.presentAddress || '').trim() || null;
+    if (data.guardianName !== undefined) profileUpdates.guardianName = (data.guardianName || '').trim() || null;
+    if (data.guardianRelationship !== undefined) profileUpdates.guardianRelationship = (data.guardianRelationship || '').trim() || null;
+    if (data.guardianPhone !== undefined) profileUpdates.guardianPhone = (data.guardianPhone || '').trim() || null;
+    if (data.guardianAddress !== undefined) profileUpdates.guardianAddress = (data.guardianAddress || '').trim() || null;
+    if (data.avatarUrl !== undefined) profileUpdates.photoUrl = data.avatarUrl || null;
+
+    if (data.presentAddress || data.address) {
+      profileUpdates.address = (data.presentAddress || data.address || '').trim();
+    }
+    if (data.rollNumber || data.className) {
+      const combined = [data.className, data.rollNumber].filter(Boolean).join(' - ');
+      if (combined) profileUpdates.studentClassRoll = combined;
+    }
+
+    const [existingProfile] = await this.db
+      .select()
+      .from(studentProfiles)
+      .where(eq(studentProfiles.userId, userId))
+      .limit(1);
+
+    if (existingProfile) {
+      if (Object.keys(profileUpdates).length > 0) {
+        await this.db
+          .update(studentProfiles)
+          .set(profileUpdates)
+          .where(eq(studentProfiles.id, existingProfile.id));
+      }
+    } else {
+      await this.db.insert(studentProfiles).values({
+        id: randomUUID(),
+        userId,
+        address: profileUpdates.presentAddress || userUpdates.address || 'বাংলাদেশ',
+        institutionName: 'অপেক্ষমাণ',
+        studentClassRoll: profileUpdates.studentClassRoll || profileUpdates.rollNumber || 'N/A',
+        verificationStatus: 'pending_org',
+        ...profileUpdates,
+      });
+    }
+
+    return this.getMyStudentProfile(currentUser);
+  }
+
+  async getStudentDetails(currentUser: any, identifier: string) {
+    let studentUser: any = null;
+    let studentProfile: any = null;
+    let orgData: any = null;
+
+    const [byUser] = await this.db
+      .select({
+        profile: studentProfiles,
+        user: users,
+        org: organizations,
+      })
+      .from(users)
+      .leftJoin(studentProfiles, eq(users.id, studentProfiles.userId))
+      .leftJoin(organizations, eq(studentProfiles.organizationId, organizations.id))
+      .where(and(eq(users.id, identifier), isNull(users.deletedAt)))
+      .limit(1);
+
+    if (byUser && byUser.user.role === UserRole.STUDENT) {
+      studentUser = byUser.user;
+      studentProfile = byUser.profile;
+      orgData = byUser.org;
+    } else {
+      const [byProfile] = await this.db
+        .select({
+          profile: studentProfiles,
+          user: users,
+          org: organizations,
+        })
+        .from(studentProfiles)
+        .innerJoin(users, eq(studentProfiles.userId, users.id))
+        .leftJoin(organizations, eq(studentProfiles.organizationId, organizations.id))
+        .where(eq(studentProfiles.id, identifier))
+        .limit(1);
+
+      if (byProfile) {
+        studentUser = byProfile.user;
+        studentProfile = byProfile.profile;
+        orgData = byProfile.org;
+      }
+    }
+
+    if (!studentUser) {
+      throw new NotFoundException('শিক্ষার্থীর তথ্য পাওয়া যায়নি।');
+    }
+
+    // Role-based Access Control
+    const isMaster = currentUser.role === UserRole.MASTER_ADMIN;
+    const isSuperOrAdmin = currentUser.role === UserRole.SUPER_ADMIN || currentUser.role === UserRole.ADMIN;
+    const isOrg = currentUser.role === UserRole.ORGANIZATION;
+    const isTeacher = currentUser.role === UserRole.TEACHER;
+
+    if (!isMaster && !isSuperOrAdmin && !isOrg && !isTeacher) {
+      throw new ForbiddenException('এই শিক্ষার্থীর বিস্তারিত তথ্য দেখার অনুমতি আপনার নেই।');
+    }
+
+    if (isOrg) {
+      if (studentProfile?.organizationId && studentProfile.organizationId !== currentUser.organizationId) {
+        throw new ForbiddenException('এই শিক্ষার্থী আপনার প্রতিষ্ঠানের অন্তর্ভুক্ত নয়।');
+      }
+    }
+
+    if (isTeacher) {
+      const [tProfile] = await this.db
+        .select()
+        .from(teacherProfiles)
+        .where(eq(teacherProfiles.userId, currentUser.id))
+        .limit(1);
+
+      if (!tProfile || !tProfile.organizationId || (studentProfile?.organizationId && studentProfile.organizationId !== tProfile.organizationId)) {
+        throw new ForbiddenException('শুধুমাত্র নিজ প্রতিষ্ঠানের শিক্ষার্থীদের তথ্য দেখতে পারবেন।');
+      }
+    }
+
+    // Fetch all campaigns/posts of this student
+    const posts = await this.db
+      .select({
+        id: studentPosts.id,
+        title: studentPosts.title,
+        problemDescription: studentPosts.problemDescription,
+        totalRequiredAmount: studentPosts.totalRequiredAmount,
+        receivedAmount: studentPosts.receivedAmount,
+        remainingAmount: studentPosts.remainingAmount,
+        verificationStatus: studentPosts.verificationStatus,
+        isTeacherVerified: studentPosts.isTeacherVerified,
+        isOrgVerified: studentPosts.isOrgVerified,
+        isDoubleVerified: studentPosts.isDoubleVerified,
+        createdAt: studentPosts.createdAt,
+      })
+      .from(studentPosts)
+      .where(and(eq(studentPosts.studentId, studentUser.id), isNull(studentPosts.deletedAt)))
+      .orderBy(desc(studentPosts.createdAt));
+
+    return {
+      user: {
+        id: studentUser.id,
+        email: studentUser.email,
+        fullName: studentUser.fullName,
+        phone: studentUser.phone,
+        address: studentUser.address,
+        avatarUrl: studentUser.avatarUrl,
+        status: studentUser.status,
+        createdAt: studentUser.createdAt,
+      },
+      profile: studentProfile ? {
+        id: studentProfile.id,
+        fatherName: studentProfile.fatherName,
+        className: studentProfile.className,
+        department: studentProfile.department,
+        rollNumber: studentProfile.rollNumber,
+        studentClassRoll: studentProfile.studentClassRoll,
+        dateOfBirth: studentProfile.dateOfBirth,
+        bloodGroup: studentProfile.bloodGroup,
+        nidOrBirthCertificateNumber: studentProfile.nidOrBirthCertificateNumber,
+        nidOrBirthCertificateUrl: studentProfile.nidOrBirthCertificateUrl,
+        photoUrl: studentProfile.photoUrl || studentUser.avatarUrl,
+        presentAddress: studentProfile.presentAddress || studentProfile.address || studentUser.address,
+        permanentAddress: studentProfile.permanentAddress,
+        guardianName: studentProfile.guardianName,
+        guardianRelationship: studentProfile.guardianRelationship,
+        guardianPhone: studentProfile.guardianPhone,
+        guardianAddress: studentProfile.guardianAddress,
+        institutionName: studentProfile.institutionName,
+        verificationStatus: studentProfile.verificationStatus,
+        orgApprovedAt: studentProfile.orgApprovedAt,
+        adminApprovedAt: studentProfile.adminApprovedAt,
+        rejectionReason: studentProfile.rejectionReason,
+      } : null,
+      organization: orgData ? {
+        id: orgData.id,
+        name: orgData.name,
+        address: orgData.address,
+      } : null,
+      posts,
+    };
+  }
+}

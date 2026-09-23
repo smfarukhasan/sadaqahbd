@@ -68,7 +68,7 @@ export default function BottomNav() {
         <Link
           href={{ pathname: '/student', query: { tab: 'applications', action: 'new' } }}
           className={`${styles.tab} ${styles.donateHighlight}`}
-          style={{ background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)' }}
+          style={{ background: '#059669' }}
         >
           <div className={styles.donateIconWrapper}>
             <PlusCircle size={22} className={styles.heartPulse} />

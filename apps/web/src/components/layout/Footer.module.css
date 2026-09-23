@@ -50,7 +50,7 @@
   width: 42px;
   height: 42px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  background: #059669;
   display: flex;
   align-items: center;
   justify-content: center;

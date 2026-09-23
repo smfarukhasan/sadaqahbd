@@ -77,4 +77,18 @@ export class OrganizationsController {
       body.reason
     );
   }
+
+  @Patch('affiliations/student/:id/correct')
+  @Roles(UserRole.ORGANIZATION)
+  async correctStudentAffiliation(
+    @CurrentUser() user: any,
+    @Param('id') profileId: string,
+    @Body() body: any
+  ) {
+    return this.organizationsService.correctStudentBeforeApproval(
+      user,
+      profileId,
+      body
+    );
+  }
 }

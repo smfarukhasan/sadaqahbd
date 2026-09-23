@@ -193,7 +193,7 @@ export default function DonorDashboardPage() {
                   padding: '0.65rem 1.35rem',
                   fontWeight: '700',
                   textDecoration: 'none',
-                  background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                  background: '#059669',
                   boxShadow: '0 4px 12px -2px rgba(5, 150, 105, 0.4)',
                 }}
               >

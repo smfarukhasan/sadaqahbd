@@ -47,6 +47,7 @@ import { getApiUrl } from '@/lib/api-config';
 import PanelHeader from '@/components/layout/PanelHeader';
 import UserMenuDropdown from '@/components/profile/UserMenuDropdown';
 import AdminNotificationDropdown from '@/components/layout/AdminNotificationDropdown';
+import StudentDetailsModal from '@/components/portal/StudentDetailsModal';
 import styles from './admin.module.css';
 
 
@@ -116,6 +117,7 @@ export default function AdminDashboardPage() {
   const [loadingData, setLoadingData] = useState<boolean>(true);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string>('');
+  const [selectedStudentDetailsId, setSelectedStudentDetailsId] = useState<string | null>(null);
 
   // Action / Inspection Slide-Over Drawer State
   const [actionDrawer, setActionDrawer] = useState<{
@@ -707,7 +709,7 @@ export default function AdminDashboardPage() {
               width: '36px',
               height: '36px',
               borderRadius: '10px',
-              background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+              background: '#059669',
               color: '#ffffff',
               display: 'flex',
               alignItems: 'center',
@@ -1483,6 +1485,29 @@ export default function AdminDashboardPage() {
                                     </span>
                                   ) : (
                                     <div style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center' }}>
+                                      {u.role === 'student' && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setSelectedStudentDetailsId(u.id)}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.35rem',
+                                            padding: '0.35rem 0.75rem',
+                                            backgroundColor: '#eff6ff',
+                                            border: '1px solid #bfdbfe',
+                                            color: '#1d4ed8',
+                                            borderRadius: '8px',
+                                            fontSize: '0.78rem',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                          }}
+                                          title={isBn ? 'শিক্ষার্থীর বিস্তারিত প্রোফাইল ও পোস্ট দেখুন' : 'View Student Profile & Posts'}
+                                        >
+                                          <Eye size={14} />
+                                          <span>{isBn ? 'বিস্তারিত' : 'Details'}</span>
+                                        </button>
+                                      )}
                                       {u.status === 'suspended' ? (
                                         <button
                                           type="button"
@@ -1640,6 +1665,27 @@ export default function AdminDashboardPage() {
                               </span>
                             ) : (
                               <>
+                                {u.role === 'student' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedStudentDetailsId(u.id)}
+                                    className="btn btn-outline"
+                                    style={{
+                                      padding: '0.45rem 0.85rem',
+                                      backgroundColor: '#eff6ff',
+                                      borderColor: '#bfdbfe',
+                                      color: '#1d4ed8',
+                                      fontSize: '0.8rem',
+                                      fontWeight: 700,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem',
+                                    }}
+                                  >
+                                    <Eye size={14} />
+                                    <span>{isBn ? 'বিস্তারিত' : 'Details'}</span>
+                                  </button>
+                                )}
                                 {u.status === 'suspended' ? (
                                   <button
                                     type="button"
@@ -2043,20 +2089,43 @@ export default function AdminDashboardPage() {
                           </p>
                         </div>
 
-                        <button
-                          className="btn btn-primary"
-                          style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
-                          onClick={() =>
-                            setActionDrawer({
-                              isOpen: true,
-                              type: 'affiliation_review',
-                              itemData: { ...s, role: 'student' },
-                              reason: '',
-                            })
-                          }
-                        >
-                          <Eye size={16} /> যাচাই ও চূড়ান্ত অনুমোদন
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0.45rem 0.85rem',
+                              fontSize: '0.85rem',
+                              color: '#1d4ed8',
+                              borderColor: '#bfdbfe',
+                              backgroundColor: '#eff6ff',
+                              borderRadius: '8px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => setSelectedStudentDetailsId(s.profileId || s.userId)}
+                          >
+                            <Eye size={15} />
+                            {isBn ? 'বিস্তারিত' : 'Details'}
+                          </button>
+                          <button
+                            className="btn btn-primary"
+                            style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+                            onClick={() =>
+                              setActionDrawer({
+                                isOpen: true,
+                                type: 'affiliation_review',
+                                itemData: { ...s, role: 'student' },
+                                reason: '',
+                              })
+                            }
+                          >
+                            <Eye size={16} /> যাচাই ও চূড়ান্ত অনুমোদন
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -3404,6 +3473,14 @@ export default function AdminDashboardPage() {
           <span>{isBn ? 'মেনু' : 'Menu'}</span>
         </button>
       </nav>
+
+      {/* Student Details Modal */}
+      <StudentDetailsModal
+        isOpen={!!selectedStudentDetailsId}
+        studentId={selectedStudentDetailsId}
+        onClose={() => setSelectedStudentDetailsId(null)}
+        isBn={isBn}
+      />
     </div>
   );
 }

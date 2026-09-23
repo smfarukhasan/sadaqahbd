@@ -24,7 +24,10 @@ import {
   donations,
   studentPosts,
   organizations,
+  studentProfiles,
+  teacherProfiles,
 } from '../../database';
+import { randomUUID } from 'crypto';
 import { eq, and, or, isNull, sql, desc, inArray } from 'drizzle-orm';
 import {
   CreateAdminUserSchema,
@@ -298,6 +301,47 @@ export class MasterAdminController {
       .update(users)
       .set({ status: body.status as any })
       .where(eq(users.id, id));
+
+    // When activating a student or teacher, ensure their profile verification is synchronized to verified
+    if (body.status === 'active') {
+      if (targetUser.role === UserRole.STUDENT) {
+        const [sp] = await this.db
+          .select()
+          .from(studentProfiles)
+          .where(eq(studentProfiles.userId, id))
+          .limit(1);
+
+        if (sp) {
+          await this.db
+            .update(studentProfiles)
+            .set({ verificationStatus: 'verified', adminApprovedAt: new Date(), rejectionReason: null })
+            .where(eq(studentProfiles.id, sp.id));
+        } else {
+          await this.db.insert(studentProfiles).values({
+            id: randomUUID(),
+            userId: id,
+            address: targetUser.address || 'বাংলাদেশ',
+            institutionName: 'অনুমোদিত শিক্ষা প্রতিষ্ঠান',
+            studentClassRoll: 'নিয়মিত শিক্ষার্থী',
+            verificationStatus: 'verified',
+            adminApprovedAt: new Date(),
+          });
+        }
+      } else if (targetUser.role === UserRole.TEACHER) {
+        const [tp] = await this.db
+          .select()
+          .from(teacherProfiles)
+          .where(eq(teacherProfiles.userId, id))
+          .limit(1);
+
+        if (tp) {
+          await this.db
+            .update(teacherProfiles)
+            .set({ verificationStatus: 'verified', adminApprovedAt: new Date(), rejectionReason: null })
+            .where(eq(teacherProfiles.id, tp.id));
+        }
+      }
+    }
 
     return {
       success: true,

@@ -7,7 +7,7 @@
   --primary-dark: #064e3b;
   --primary-light: #ecfdf5;
   --primary-subtle: #d1fae5;
-  --primary-gradient: linear-gradient(135deg, #059669 0%, #047857 50%, #064e3b 100%);
+  --primary-gradient: #059669;
   --primary-glow: rgba(5, 150, 105, 0.25);
   
   /* Accent Colors - Radiant Amber Gold & Warmth */
@@ -281,14 +281,14 @@ button {
 
 /* Button Color Variants */
 .btn-primary {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  background: #059669;
   color: #ffffff !important;
   border: 1px solid #059669;
   box-shadow: 0 2px 8px -1px rgba(5, 150, 105, 0.32);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #047857 0%, #064e3b 100%);
+  background: #047857;
   border-color: #047857;
   box-shadow: 0 4px 14px -1px rgba(5, 150, 105, 0.42);
   transform: translateY(-1px);

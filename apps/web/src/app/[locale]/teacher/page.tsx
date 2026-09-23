@@ -7,6 +7,7 @@ import {
   UserCheck,
   CheckCircle2,
   Heart,
+  Eye,
 } from 'lucide-react';
 import { useAuthStore, getRoleDashboardPath } from '../../../lib/auth-store';
 import PortalLayout, { PortalNavItem } from '../../../components/layout/PortalLayout';
@@ -15,6 +16,7 @@ import EReceiptModal, { ReceiptData } from '../../../components/portal/EReceiptM
 import AffiliationApplyModal from '../../../components/portal/AffiliationApplyModal';
 import DonationLedgerTable from '../../../components/portal/DonationLedgerTable';
 import VerificationStatusView from '../../../components/portal/VerificationStatusView';
+import StudentDetailsModal from '../../../components/portal/StudentDetailsModal';
 
 export default function TeacherDashboardPage() {
   const locale = useLocale();
@@ -27,7 +29,7 @@ export default function TeacherDashboardPage() {
   const [teacherPendingPosts, setTeacherPendingPosts] = useState<any[]>([]);
   const [affiliationData, setAffiliationData] = useState<{
     hasAffiliated: boolean;
-    status: 'unapplied' | 'pending_org' | 'pending_admin' | 'verified' | 'rejected';
+    status: 'unapplied' | 'pending_org' | 'pending_admin' | 'verified' | 'active' | 'rejected';
     profile: any;
     organization: any;
   } | null>(null);
@@ -35,6 +37,7 @@ export default function TeacherDashboardPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [feedback, setFeedback] = useState('');
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptData | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
   // Role Protection Guard
   useEffect(() => {
@@ -50,33 +53,33 @@ export default function TeacherDashboardPage() {
   const loadData = async () => {
     if (!firebaseUser || !user) return;
     try {
-      setLoadingData(true);
       const token = await firebaseUser.getIdToken();
       const apiUrl = getApiUrl();
       const headers = { Authorization: `Bearer ${token}` };
 
-      // 1. Fetch Affiliation status
-      try {
-        const affRes = await fetch(`${apiUrl}/users/my-affiliation`, { headers });
-        if (affRes.ok) {
-          const affData = await affRes.json();
-          setAffiliationData(affData);
-        }
-      } catch (e) {
-        console.error('Failed to load teacher affiliation status:', e);
+      // Parallelize fetching affiliation status and teacher pending posts
+      const [affRes, postsRes] = await Promise.all([
+        fetch(`${apiUrl}/users/my-affiliation`, { headers }).catch((err) => {
+          console.error('Failed to load teacher affiliation status:', err);
+          return null;
+        }),
+        fetch(`${apiUrl}/posts/teacher-pending`, { headers }).catch((err) => {
+          console.error('Failed to load teacher pending posts:', err);
+          return null;
+        }),
+      ]);
+
+      if (affRes && affRes.ok) {
+        const affData = await affRes.json().catch(() => null);
+        if (affData) setAffiliationData(affData);
       }
 
-      // 2. Fetch posts pending teacher review
-      try {
-        const res = await fetch(`${apiUrl}/posts/teacher-pending`, { headers });
-        if (res.ok) {
-          setTeacherPendingPosts(await res.json());
-        }
-      } catch (err) {
-        console.error('Failed to load teacher pending posts', err);
+      if (postsRes && postsRes.ok) {
+        const postsData = await postsRes.json().catch(() => null);
+        if (Array.isArray(postsData)) setTeacherPendingPosts(postsData);
       }
     } catch (err) {
-      console.error('Failed to load teacher dashboard data', err);
+      console.error('Failed to load teacher dashboard data:', err);
     } finally {
       setLoadingData(false);
     }
@@ -85,13 +88,15 @@ export default function TeacherDashboardPage() {
   useEffect(() => {
     if (user && user.role === 'teacher') {
       loadData();
-      // Live polling every 6 seconds if not verified
-      const timer = setInterval(() => {
-        loadData();
-      }, 6000);
-      return () => clearInterval(timer);
+      // Only live poll if unverified (waiting for institution or admin review)
+      if (affiliationData?.status !== 'verified') {
+        const timer = setInterval(() => {
+          loadData();
+        }, 8000);
+        return () => clearInterval(timer);
+      }
     }
-  }, [firebaseUser, user]);
+  }, [firebaseUser, user, affiliationData?.status]);
 
   const handleTeacherVerify = async (postId: string) => {
     if (!confirm('আপনি কি এই শিক্ষার্থীর আবেদনটির সত্যতা সত্যায়ন করতে চান?')) return;
@@ -111,6 +116,8 @@ export default function TeacherDashboardPage() {
     }
   };
 
+  const isVerified = affiliationData?.status === 'verified';
+
   if (loadingAuth || !user) {
     return (
       <div className="container" style={{ paddingTop: '6rem', textAlign: 'center' }}>
@@ -118,8 +125,6 @@ export default function TeacherDashboardPage() {
       </div>
     );
   }
-
-  const isVerified = affiliationData?.status === 'verified';
 
   // Navigation tabs unlock ONLY when teacher is verified
   const navItems: PortalNavItem[] = isVerified
@@ -151,42 +156,13 @@ export default function TeacherDashboardPage() {
       onNavSelect={(id: any) => setActiveTab(id)}
     >
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-        {/* Section Header (Only shown when teacher is verified/unlocked) */}
-        {isVerified && (
-          <div style={{ marginBottom: '1.5rem' }}>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-              {activeTab === 'verification' ? 'শিক্ষার্থী আবেদন সত্যায়ন' : 'ব্যক্তিগত অনুদান রেকর্ড'}
-            </h1>
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
-              {activeTab === 'verification'
-                ? 'আপনার প্রতিষ্ঠানের শিক্ষার্থীদের আর্থিক সহায়তা আবেদনের নিরীক্ষা ও ডিজিটাল সত্যায়ন সম্পন্ন করুন'
-                : 'প্ল্যাটফর্মে আপনার ব্যক্তিগত অনুদান রেকর্ড ও অডিট রসিদসমূহ'}
-            </p>
+        {loadingData && !affiliationData ? (
+          <div style={{ padding: '1.5rem 0' }}>
+            <div style={{ height: '28px', width: '240px', backgroundColor: 'var(--surface-border, #e2e8f0)', borderRadius: '8px', marginBottom: '10px' }} />
+            <div style={{ height: '16px', width: '340px', backgroundColor: 'var(--surface-border-subtle, #f1f5f9)', borderRadius: '6px', marginBottom: '2rem' }} />
+            <div style={{ height: '240px', backgroundColor: 'var(--surface, #ffffff)', border: '1px solid var(--surface-border, #e2e8f0)', borderRadius: '16px' }} />
           </div>
-        )}
-
-        {feedback && (
-          <div
-            style={{
-              padding: '1rem',
-              backgroundColor: 'rgba(5, 150, 105, 0.1)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid #059669',
-              color: '#047857',
-              fontWeight: 700,
-              marginBottom: '1.5rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-            }}
-          >
-            <CheckCircle2 size={18} />
-            <span>{feedback}</span>
-          </div>
-        )}
-
-        {/* Verification / Locked State Check via Unified Component */}
-        {!isVerified ? (
+        ) : !isVerified ? (
           <VerificationStatusView
             status={affiliationData?.status || 'unapplied'}
             role="teacher"
@@ -196,7 +172,39 @@ export default function TeacherDashboardPage() {
             onChangeInstitution={() => setIsAffiliationModalOpen(true)}
           />
         ) : (
-          activeTab === 'verification' ? (
+          <div>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                {activeTab === 'verification' ? 'শিক্ষার্থী আবেদন সত্যায়ন' : 'ব্যক্তিগত অনুদান রেকর্ড'}
+              </h1>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+                {activeTab === 'verification'
+                  ? 'আপনার প্রতিষ্ঠানের শিক্ষার্থীদের আর্থিক সহায়তা আবেদনের নিরীক্ষা ও ডিজিটাল সত্যায়ন সম্পন্ন করুন'
+                  : 'প্ল্যাটফর্মে আপনার ব্যক্তিগত অনুদান রেকর্ড ও অডিট রসিদসমূহ'}
+              </p>
+            </div>
+
+            {feedback && (
+              <div
+                style={{
+                  padding: '1rem',
+                  backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid #059669',
+                  color: '#047857',
+                  fontWeight: 700,
+                  marginBottom: '1.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                }}
+              >
+                <CheckCircle2 size={18} />
+                <span>{feedback}</span>
+              </div>
+            )}
+
+            {activeTab === 'verification' ? (
             <div
               style={{
                 padding: '1.75rem',
@@ -264,22 +272,44 @@ export default function TeacherDashboardPage() {
                         </p>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleTeacherVerify(item.id)}
-                        className="btn btn-primary"
-                        style={{
-                          padding: '0.65rem 1.35rem',
-                          fontSize: '0.88rem',
-                          fontWeight: '700',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.4rem',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <CheckCircle2 size={16} /> সত্যায়ন সম্পন্ন করুন
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStudentId(item.studentId)}
+                          style={{
+                            padding: '0.65rem 1rem',
+                            fontSize: '0.85rem',
+                            fontWeight: '700',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            background: '#eff6ff',
+                            color: '#1d4ed8',
+                            border: '1px solid #bfdbfe',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Eye size={16} />
+                          {locale === 'bn' ? 'শিক্ষার্থীর বিস্তারিত' : 'Student Details'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleTeacherVerify(item.id)}
+                          className="btn btn-primary"
+                          style={{
+                            padding: '0.65rem 1.35rem',
+                            fontSize: '0.88rem',
+                            fontWeight: '700',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <CheckCircle2 size={16} /> {locale === 'bn' ? 'সত্যায়ন সম্পন্ন করুন' : 'Verify'}
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}
@@ -297,8 +327,9 @@ export default function TeacherDashboardPage() {
               subtitleBn="সাদাকাহ প্ল্যাটফর্মে আপনার দেওয়া অনুদানের তালিকা ও রসিদসমূহ।"
               subtitleEn="Verified records of contributions you made."
             />
-          )
-        )}
+          )}
+        </div>
+      )}
 
         {/* E-Receipt Modal */}
         {selectedReceipt && (
@@ -315,6 +346,14 @@ export default function TeacherDashboardPage() {
             loadData();
           }}
           initialData={affiliationData?.profile}
+        />
+
+        {/* Student Details Modal */}
+        <StudentDetailsModal
+          isOpen={!!selectedStudentId}
+          studentId={selectedStudentId}
+          onClose={() => setSelectedStudentId(null)}
+          isBn={locale === 'bn'}
         />
       </div>
     </PortalLayout>

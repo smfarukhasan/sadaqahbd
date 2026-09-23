@@ -163,5 +163,34 @@ export class UsersController {
       body.reason
     );
   }
+
+  @Get('my-student-profile')
+  async getMyStudentProfile(@CurrentUser() user: any) {
+    return this.usersService.getMyStudentProfile(user);
+  }
+
+  @Patch('my-student-profile')
+  async updateMyStudentProfile(
+    @CurrentUser() user: any,
+    @Body() body: any
+  ) {
+    return this.usersService.updateMyStudentProfile(user, body);
+  }
+
+  @Get('students/:id/details')
+  @Roles(
+    UserRole.MASTER_ADMIN,
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.ORGANIZATION,
+    UserRole.TEACHER
+  )
+  async getStudentDetails(
+    @CurrentUser() user: any,
+    @Param('id') id: string
+  ) {
+    return this.usersService.getStudentDetails(user, id);
+  }
 }
+
 

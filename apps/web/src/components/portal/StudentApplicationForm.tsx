@@ -13,7 +13,6 @@ import {
   Send,
   AlertCircle,
   CheckCircle2,
-  GraduationCap,
 } from 'lucide-react';
 import { useAuthStore } from '../../lib/auth-store';
 import { auth } from '../../lib/firebase';
@@ -45,17 +44,6 @@ export default function StudentApplicationForm({
   const locale = useLocale();
   const t = useTranslations('StudentPost');
   const user = useAuthStore((s) => s.user);
-
-  // Student demographic fields (pre-filled with app data if available)
-  const [fullName, setFullName] = useState(user?.fullName || '');
-  const [classDepartment, setClassDepartment] = useState(
-    affiliationData?.profile?.studentClassRoll || ''
-  );
-  const [fatherName, setFatherName] = useState('');
-  const [phone, setPhone] = useState(user?.phone || '');
-  const [address, setAddress] = useState(
-    affiliationData?.profile?.address || ''
-  );
 
   // Post details
   const [title, setTitle] = useState('');
@@ -178,11 +166,6 @@ export default function StudentApplicationForm({
       return;
     }
 
-    if (!fatherName.trim()) {
-      setError(locale === 'bn' ? 'পিতার নাম পূরণ করা আবশ্যক।' : 'Father\'s name is required.');
-      return;
-    }
-
     if (!problemDescription.trim()) {
       setError(
         locale === 'bn'
@@ -225,11 +208,6 @@ export default function StudentApplicationForm({
 
       const apiUrl = getApiUrl();
       const payload = {
-        fullName: fullName.trim(),
-        classDepartment: classDepartment.trim(),
-        fatherName: fatherName.trim(),
-        phone: phone.trim(),
-        address: address.trim(),
         startDate: startDate || undefined,
         endDate: endDate || undefined,
         durationText: durationSummary || undefined,
@@ -319,121 +297,22 @@ export default function StudentApplicationForm({
       )}
 
       <form onSubmit={handleSubmit} className={styles.formCard}>
-        {/* SECTION 1: Student Verification Info */}
-        <div className={styles.sectionBlock}>
-          <div className={styles.sectionHeader}>
-            <div className={styles.sectionIcon}>
-              <GraduationCap size={18} />
-            </div>
-            <h3 className={styles.sectionTitle}>
-              {locale === 'bn' ? '১. শিক্ষার্থীর তথ্য ও পরিচিতি' : '1. Student Identification & Profile'}
-            </h3>
-          </div>
-
-          <div className={styles.institutionBadge}>
-            <Building2 size={16} />
-            <span>
-              {t('institutionLabel')}: <strong>{orgName}</strong>
-            </span>
-          </div>
-
-          <div className={styles.grid2}>
-            {/* Full Name */}
-            <div className={styles.formGroup}>
-              <label className={styles.label}>
-                {t('fullNameLabel')} <span className={styles.requiredStar}>*</span>
-              </label>
-              <input
-                type="text"
-                required
-                className={`${styles.input} ${user?.fullName ? styles.inputPreFilled : ''}`}
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder={locale === 'bn' ? 'শিক্ষার্থীর সম্পূর্ণ নাম' : 'Full Name'}
-              />
-            </div>
-
-            {/* Father's Name */}
-            <div className={styles.formGroup}>
-              <label className={styles.label}>
-                {t('fatherNameLabel')} <span className={styles.requiredStar}>*</span>
-              </label>
-              <input
-                type="text"
-                required
-                className={styles.input}
-                value={fatherName}
-                onChange={(e) => setFatherName(e.target.value)}
-                placeholder={locale === 'bn' ? 'পিতার নাম লিখুন' : "Enter Father's Name"}
-              />
-            </div>
-          </div>
-
-          <div className={styles.grid2}>
-            {/* Class / Department / Roll */}
-            <div className={styles.formGroup}>
-              <label className={styles.label}>
-                {t('classDeptLabel')} <span className={styles.requiredStar}>*</span>
-              </label>
-              <input
-                type="text"
-                required
-                className={styles.input}
-                value={classDepartment}
-                onChange={(e) => setClassDepartment(e.target.value)}
-                placeholder={
-                  locale === 'bn'
-                    ? 'যেমন: একাদশ শ্রেণি / সিএসই ৪র্থ সেমিস্টার / রোল: ১২'
-                    : 'e.g. Class 11 / CSE 4th Sem / Roll: 12'
-                }
-              />
-            </div>
-
-            {/* Phone Number */}
-            <div className={styles.formGroup}>
-              <label className={styles.label}>
-                {t('phoneLabel')} <span className={styles.requiredStar}>*</span>
-              </label>
-              <input
-                type="tel"
-                required
-                className={`${styles.input} ${user?.phone ? styles.inputPreFilled : ''}`}
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="01XXXXXXXXX"
-              />
-            </div>
-          </div>
-
-          {/* Current Address */}
-          <div className={styles.formGroup}>
-            <label className={styles.label}>
-              {t('addressLabel')} <span className={styles.requiredStar}>*</span>
-            </label>
-            <input
-              type="text"
-              required
-              className={styles.input}
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder={
-                locale === 'bn'
-                  ? 'বর্তমান ঠিকানা (গ্রাম/মহল্লা, থানা, জেলা)'
-                  : 'Current Address (Village/Street, Upazila, District)'
-              }
-            />
-          </div>
-        </div>
-
-        {/* SECTION 2: Problem Description */}
+        {/* SECTION 1: Problem Description */}
         <div className={styles.sectionBlock}>
           <div className={styles.sectionHeader}>
             <div className={styles.sectionIcon}>
               <FileText size={18} />
             </div>
             <h3 className={styles.sectionTitle}>
-              {locale === 'bn' ? '২. আবেদনের বিবরণ ও কারণ' : '2. Application Title & Reason'}
+              {locale === 'bn' ? '১. আবেদনের বিবরণ ও কারণ' : '1. Application Details & Hardship Reason'}
             </h3>
+          </div>
+
+          <div className={styles.institutionBadge} style={{ marginBottom: '1.25rem' }}>
+            <Building2 size={16} />
+            <span>
+              {t('institutionLabel')}: <strong>{orgName}</strong>
+            </span>
           </div>
 
           {/* Post Title */}
@@ -501,6 +380,11 @@ export default function StudentApplicationForm({
                   className={styles.dateInput}
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
+                  onClick={(e) => {
+                    try {
+                      e.currentTarget.showPicker();
+                    } catch {}
+                  }}
                 />
               </div>
 
@@ -514,6 +398,11 @@ export default function StudentApplicationForm({
                   value={endDate}
                   min={startDate || undefined}
                   onChange={(e) => setEndDate(e.target.value)}
+                  onClick={(e) => {
+                    try {
+                      e.currentTarget.showPicker();
+                    } catch {}
+                  }}
                 />
               </div>
             </div>
