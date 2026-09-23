@@ -14,7 +14,7 @@ import {
   users,
   organizations,
 } from '../../database';
-import { eq, and, or, isNull, desc } from 'drizzle-orm';
+import { eq, and, or, isNull, desc, ne, sql } from 'drizzle-orm';
 import {
   CreateStudentPostInput,
   PostVerificationStatus,
@@ -83,6 +83,14 @@ export class PostsService {
         isTeacherVerified: false,
         isOrgVerified: false,
         isDoubleVerified: false,
+        studentFullName: input.fullName || studentUser.fullName,
+        studentClassDepartment: input.classDepartment || profile[0]?.studentClassRoll,
+        fatherName: input.fatherName || null,
+        phone: input.phone || studentUser.phone,
+        address: input.address || profile[0]?.address,
+        startDate: input.startDate || null,
+        endDate: input.endDate || null,
+        durationText: input.durationText || null,
       });
 
       for (const expense of input.expenses) {
@@ -160,14 +168,30 @@ export class PostsService {
         isTeacherVerified: studentPosts.isTeacherVerified,
         isOrgVerified: studentPosts.isOrgVerified,
         isDoubleVerified: studentPosts.isDoubleVerified,
+        studentFullName: studentPosts.studentFullName,
+        studentClassDepartment: studentPosts.studentClassDepartment,
+        fatherName: studentPosts.fatherName,
+        phone: studentPosts.phone,
+        address: studentPosts.address,
+        startDate: studentPosts.startDate,
+        endDate: studentPosts.endDate,
+        durationText: studentPosts.durationText,
         rejectionReason: studentPosts.rejectionReason,
         createdAt: studentPosts.createdAt,
         studentName: users.fullName,
+        studentPhone: users.phone,
+        studentEmail: users.email,
+        studentPhotoUrl: sql<string | null>`COALESCE(${studentProfiles.photoUrl}, ${users.avatarUrl})`,
+        studentRoll: studentProfiles.studentClassRoll,
+        studentAddress: studentProfiles.address,
+        studentInstitutionName: studentProfiles.institutionName,
         orgName: organizations.name,
+        orgAddress: organizations.address,
       })
       .from(studentPosts)
       .innerJoin(users, eq(studentPosts.studentId, users.id))
       .innerJoin(organizations, eq(studentPosts.organizationId, organizations.id))
+      .leftJoin(studentProfiles, eq(studentPosts.studentId, studentProfiles.userId))
       .where(and(eq(studentPosts.id, postId), isNull(studentPosts.deletedAt)))
       .limit(1);
 
@@ -175,14 +199,51 @@ export class PostsService {
       throw new NotFoundException('Post not found');
     }
 
+    const target = post[0];
+
     const expenses = await this.db
       .select()
       .from(studentPostExpenses)
       .where(eq(studentPostExpenses.postId, postId));
 
+    // Fetch previous posts of this student
+    const previousPosts = await this.db
+      .select({
+        id: studentPosts.id,
+        title: studentPosts.title,
+        problemDescription: studentPosts.problemDescription,
+        totalRequiredAmount: studentPosts.totalRequiredAmount,
+        receivedAmount: studentPosts.receivedAmount,
+        remainingAmount: studentPosts.remainingAmount,
+        verificationStatus: studentPosts.verificationStatus,
+        createdAt: studentPosts.createdAt,
+      })
+      .from(studentPosts)
+      .where(
+        and(
+          eq(studentPosts.studentId, target.studentId),
+          ne(studentPosts.id, postId),
+          isNull(studentPosts.deletedAt)
+        )
+      )
+      .orderBy(desc(studentPosts.createdAt));
+
     return {
-      ...post[0],
-      expenses,
+      ...target,
+      totalRequiredAmount: Number(target.totalRequiredAmount),
+      receivedAmount: Number(target.receivedAmount),
+      remainingAmount: Number(target.remainingAmount),
+      expenses: expenses.map((e) => ({
+        id: e.id,
+        categoryName: e.categoryName,
+        amount: Number(e.amount),
+      })),
+      previousPosts: previousPosts.map((p) => ({
+        ...p,
+        totalRequiredAmount: Number(p.totalRequiredAmount),
+        receivedAmount: Number(p.receivedAmount),
+        remainingAmount: Number(p.remainingAmount),
+      })),
     };
   }
 
@@ -190,6 +251,7 @@ export class PostsService {
     const posts = await this.db
       .select({
         id: studentPosts.id,
+        studentId: studentPosts.studentId,
         title: studentPosts.title,
         problemDescription: studentPosts.problemDescription,
         totalRequiredAmount: studentPosts.totalRequiredAmount,
@@ -198,11 +260,15 @@ export class PostsService {
         isDoubleVerified: studentPosts.isDoubleVerified,
         createdAt: studentPosts.createdAt,
         studentName: users.fullName,
+        studentPhotoUrl: sql<string | null>`COALESCE(${studentProfiles.photoUrl}, ${users.avatarUrl})`,
+        studentRoll: studentProfiles.studentClassRoll,
         orgName: organizations.name,
+        orgAddress: organizations.address,
       })
       .from(studentPosts)
       .innerJoin(users, eq(studentPosts.studentId, users.id))
       .innerJoin(organizations, eq(studentPosts.organizationId, organizations.id))
+      .leftJoin(studentProfiles, eq(studentPosts.studentId, studentProfiles.userId))
       .where(
         and(
           eq(studentPosts.verificationStatus, PostVerificationStatus.APPROVED),
@@ -249,6 +315,14 @@ export class PostsService {
         isTeacherVerified: studentPosts.isTeacherVerified,
         isOrgVerified: studentPosts.isOrgVerified,
         isDoubleVerified: studentPosts.isDoubleVerified,
+        studentFullName: studentPosts.studentFullName,
+        studentClassDepartment: studentPosts.studentClassDepartment,
+        fatherName: studentPosts.fatherName,
+        phone: studentPosts.phone,
+        address: studentPosts.address,
+        startDate: studentPosts.startDate,
+        endDate: studentPosts.endDate,
+        durationText: studentPosts.durationText,
         rejectionReason: studentPosts.rejectionReason,
         createdAt: studentPosts.createdAt,
       })
@@ -539,7 +613,9 @@ export class PostsService {
     postId: string,
     adminUser: any,
     approved: boolean,
-    rejectionReason?: string
+    rejectionReason?: string,
+    modifiedExpenses?: { categoryName: string; amount: number }[],
+    modificationReason?: string
   ) {
     const post = await this.db
       .select({
@@ -558,49 +634,135 @@ export class PostsService {
     // Direct platform admin clearance: if approved by admin, ensure isOrgVerified is stamped
     const autoVerifyOrg = approved && !targetPost.isOrgVerified;
 
-    await this.db
-      .update(studentPosts)
-      .set({
-        verificationStatus: approved
-          ? PostVerificationStatus.APPROVED
-          : PostVerificationStatus.REJECTED,
-        superAdminApprovedBy: adminUser.id,
-        isOrgVerified: autoVerifyOrg ? true : targetPost.isOrgVerified,
-        rejectionReason: approved ? null : rejectionReason,
-      })
-      .where(eq(studentPosts.id, postId));
+    const isExpensesModified =
+      approved &&
+      Array.isArray(modifiedExpenses) &&
+      modifiedExpenses.length > 0;
 
-    // Send notifications!
+    let newTotalAmount = Number(targetPost.totalRequiredAmount);
+    const oldTotalAmount = Number(targetPost.totalRequiredAmount);
+
+    if (isExpensesModified) {
+      newTotalAmount = modifiedExpenses.reduce(
+        (sum, item) => sum + Math.max(0, Number(item.amount) || 0),
+        0
+      );
+      const newRemaining = Math.max(
+        0,
+        newTotalAmount - Number(targetPost.receivedAmount || 0)
+      );
+
+      await this.db.transaction(async (tx) => {
+        // 1. Delete old expenses
+        await tx
+          .delete(studentPostExpenses)
+          .where(eq(studentPostExpenses.postId, postId));
+
+        // 2. Insert modified expenses
+        for (const exp of modifiedExpenses) {
+          await tx.insert(studentPostExpenses).values({
+            postId,
+            categoryName: exp.categoryName,
+            amount: Number(exp.amount).toFixed(2),
+          });
+        }
+
+        // 3. Update student post amounts, status, and adminModificationReason
+        await tx
+          .update(studentPosts)
+          .set({
+            totalRequiredAmount: newTotalAmount.toFixed(2),
+            remainingAmount: newRemaining.toFixed(2),
+            adminModificationReason: modificationReason || null,
+            verificationStatus: PostVerificationStatus.APPROVED,
+            superAdminApprovedBy: adminUser.id,
+            isOrgVerified: autoVerifyOrg ? true : targetPost.isOrgVerified,
+            rejectionReason: null,
+          })
+          .where(eq(studentPosts.id, postId));
+      });
+    } else {
+      await this.db
+        .update(studentPosts)
+        .set({
+          verificationStatus: approved
+            ? PostVerificationStatus.APPROVED
+            : PostVerificationStatus.REJECTED,
+          superAdminApprovedBy: adminUser.id,
+          isOrgVerified: autoVerifyOrg ? true : targetPost.isOrgVerified,
+          rejectionReason: approved ? null : rejectionReason,
+        })
+        .where(eq(studentPosts.id, postId));
+    }
+
+    // Send transparent notifications!
+    const hasModifiedText = isExpensesModified && Boolean(modificationReason?.trim());
+    const studentTitleBn = approved
+      ? hasModifiedText
+        ? 'আপনার আবেদনের খরচের বিভাজন সমন্বয় করে অনুমোদন করা হয়েছে'
+        : 'অভিনন্দন! আপনার আবেদনটি লাইভ করা হয়েছে'
+      : 'পোস্ট ছাড়পত্র প্রত্যাখ্যাত হয়েছে';
+
+    const studentTitleEn = approved
+      ? hasModifiedText
+        ? 'Campaign Expenses Adjusted & Approved'
+        : 'Campaign Approved & Live!'
+      : 'Campaign Rejected by Admin';
+
+    const studentMessageBn = approved
+      ? hasModifiedText
+        ? `এডমিন কর্তৃক আপনার পোস্ট "${targetPost.title}" এর খরচের বিভাজন সমন্বয় করা হয়েছে (পূর্বের মোট: ৳${oldTotalAmount.toLocaleString()}, সংশোধিত মোট: ৳${newTotalAmount.toLocaleString()})। কারণ: ${modificationReason}। আপনার আবেদনটি চূড়ান্ত অনুমোদন পেয়ে লাইভ হয়েছে।`
+        : `আপনার শিক্ষা সহায়তা আবেদন "${targetPost.title}" চূড়ান্ত অনুমোদন পেয়েছে এবং অনুদানের জন্য লাইভ করা হয়েছে!`
+      : `আপনার আবেদনটি এডমিন দ্বারা প্রত্যাখ্যাত হয়েছে। কারণ: ${rejectionReason || 'যথাযথ তথ্যের অভাব'}`;
+
+    const studentMessageEn = approved
+      ? hasModifiedText
+        ? `Campaign "${targetPost.title}" expenses were adjusted by admin (Old: ৳${oldTotalAmount.toLocaleString()}, New: ৳${newTotalAmount.toLocaleString()}). Reason: ${modificationReason}. Campaign is now live.`
+        : `Your student campaign "${targetPost.title}" has been approved and is now live for public donations!`
+      : `Your application has been rejected by admin. Reason: ${rejectionReason || 'Incomplete details'}`;
+
     await this.notificationsService.createNotification({
       recipientUserId: targetPost.studentId,
-      titleBn: approved
-        ? 'অভিনন্দন! আপনার আবেদনটি লাইভ করা হয়েছে'
-        : 'পোস্ট ছাড়পত্র প্রত্যাখ্যাত হয়েছে',
-      titleEn: approved ? 'Campaign Approved & Live!' : 'Campaign Rejected by Admin',
-      messageBn: approved
-        ? `আপনার শিক্ষা সহায়তা আবেদন "${targetPost.title}" চূড়ান্ত অনুমোদন পেয়েছে এবং অনুদানের জন্য লাইভ করা হয়েছে!`
-        : `আপনার আবেদনটি এডমিন দ্বারা প্রত্যাখ্যাত হয়েছে। কারণ: ${rejectionReason || 'যথাযথ তথ্যের অভাব'}`,
-      messageEn: approved
-        ? `Your student campaign "${targetPost.title}" has been approved and is now live for public donations!`
-        : `Your application has been rejected by admin. Reason: ${rejectionReason || 'Incomplete details'}`,
+      titleBn: studentTitleBn,
+      titleEn: studentTitleEn,
+      messageBn: studentMessageBn,
+      messageEn: studentMessageEn,
       type: approved ? 'post_approved' : 'post_rejected',
       link: '/student?tab=applications',
     });
 
     if (targetPost.organizationId) {
+      const orgTitleBn = approved
+        ? hasModifiedText
+          ? 'শিক্ষার্থীর পোস্টের খরচ সমন্বয় করে অনুমোদন দেওয়া হয়েছে'
+          : 'শিক্ষার্থীর পোস্ট চূড়ান্ত অনুমোদিত'
+        : 'শিক্ষার্থী পোস্ট ছাড়পত্র প্রত্যাখ্যাত';
+
+      const orgTitleEn = approved
+        ? hasModifiedText
+          ? 'Student Campaign Expenses Adjusted & Approved'
+          : 'Student Campaign Live'
+        : 'Student Campaign Rejected';
+
+      const orgMessageBn = approved
+        ? hasModifiedText
+          ? `আপনার প্রতিষ্ঠানের শিক্ষার্থী "${studentName}"-এর পোস্ট "${targetPost.title}"-এর খরচের বিভাজন এডমিন সমন্বয় করে অনুমোদন করেছেন (পূর্বের মোট: ৳${oldTotalAmount.toLocaleString()}, সংশোধিত মোট: ৳${newTotalAmount.toLocaleString()})। সমন্বয়ের কারণ: ${modificationReason}।`
+          : `আপনার প্রতিষ্ঠানের শিক্ষার্থী "${studentName}"-এর পোস্ট "${targetPost.title}" এডমিন অনুমোদন দিয়েছেন।`
+        : `পোস্ট "${targetPost.title}" এডমিন দ্বারা প্রত্যাখ্যাত হয়েছে।`;
+
+      const orgMessageEn = approved
+        ? hasModifiedText
+          ? `Campaign expenses for student "${studentName}" were adjusted and approved by admin (Old: ৳${oldTotalAmount.toLocaleString()}, New: ৳${newTotalAmount.toLocaleString()}). Reason: ${modificationReason}.`
+          : `Campaign "${targetPost.title}" for student "${studentName}" has been approved by admin.`
+        : `Campaign "${targetPost.title}" was rejected by admin.`;
+
       await this.notificationsService.createNotification({
         recipientOrgId: targetPost.organizationId,
-        titleBn: approved
-          ? 'শিক্ষার্থীর পোস্ট চূড়ান্ত অনুমোদিত'
-          : 'শিক্ষার্থী পোস্ট ছাড়পত্র প্রত্যাখ্যাত',
-        titleEn: approved ? 'Student Campaign Live' : 'Student Campaign Rejected',
-        messageBn: approved
-          ? `আপনার প্রতিষ্ঠানের শিক্ষার্থী "${studentName}"-এর পোস্ট "${targetPost.title}" এডমিন অনুমোদন দিয়েছেন।`
-          : `পোস্ট "${targetPost.title}" এডমিন দ্বারা প্রত্যাখ্যাত হয়েছে।`,
-        messageEn: approved
-          ? `Campaign "${targetPost.title}" for student "${studentName}" has been approved by admin.`
-          : `Campaign "${targetPost.title}" was rejected by admin.`,
-        type: 'post_approved',
+        titleBn: orgTitleBn,
+        titleEn: orgTitleEn,
+        messageBn: orgMessageBn,
+        messageEn: orgMessageEn,
+        type: approved ? 'post_approved' : 'post_rejected',
         link: '/organization?tab=post_approvals',
       });
     }

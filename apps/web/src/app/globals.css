@@ -27,6 +27,18 @@
   --background: #f8fafc;
   --background-alt: #f1f5f9;
   --surface: #ffffff;
+  --header-bg: #0f172a;
+  --header-border: #1e293b;
+  --header-text: #ffffff;
+  --header-text-muted: #94a3b8;
+  --drawer-bg: #0f172a;
+  --drawer-header-bg: #0b1120;
+  --drawer-border: #1e293b;
+  --drawer-text: #cbd5e1;
+  --drawer-text-muted: #64748b;
+  --drawer-hover: rgba(255, 255, 255, 0.06);
+  --drawer-active-bg: rgba(5, 150, 105, 0.22);
+  --drawer-active-text: #34d399;
   --surface-glass: rgba(255, 255, 255, 0.94);
   --surface-glass-subtle: rgba(255, 255, 255, 0.75);
   --surface-border: #e2e8f0;
@@ -87,6 +99,18 @@
   --background: #090e17;
   --background-alt: #0d1522;
   --surface: #111a28;
+  --header-bg: #0b1120;
+  --header-border: #1e293b;
+  --header-text: #ffffff;
+  --header-text-muted: #94a3b8;
+  --drawer-bg: #0b1120;
+  --drawer-header-bg: #080d1a;
+  --drawer-border: #1e293b;
+  --drawer-text: #cbd5e1;
+  --drawer-text-muted: #64748b;
+  --drawer-hover: rgba(255, 255, 255, 0.06);
+  --drawer-active-bg: rgba(16, 185, 129, 0.22);
+  --drawer-active-text: #34d399;
   --surface-glass: rgba(17, 26, 40, 0.94);
   --surface-glass-subtle: rgba(17, 26, 40, 0.8);
   --surface-border: #1e2d42;
@@ -172,7 +196,7 @@ html {
 
 body {
   max-width: 100vw;
-  overflow-x: hidden;
+  overflow-x: clip;
   font-family: var(--font-sans);
   background-color: var(--background);
   color: var(--text-main);
@@ -364,7 +388,14 @@ button {
 }
 
 .safe-bottom-padding {
+  padding-top: 62px;
   padding-bottom: 0;
+}
+
+@media (min-width: 768px) {
+  .safe-bottom-padding {
+    padding-top: 76px;
+  }
 }
 
 @media (max-width: 767px) {

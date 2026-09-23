@@ -1,5 +1,5 @@
 .homeContainer {
-  padding-bottom: 3.5rem;
+  padding-bottom: 0;
 }
 
 /* ----------------------------------------------------
@@ -7,47 +7,124 @@
 ---------------------------------------------------- */
 .heroSection {
   position: relative;
-  background: radial-gradient(
-      ellipse at 25% 0%,
-      rgba(5, 150, 105, 0.14) 0%,
-      transparent 60%
-    ),
-    radial-gradient(
-      ellipse at 85% 15%,
-      rgba(245, 158, 11, 0.09) 0%,
-      transparent 50%
-    ),
-    linear-gradient(180deg, #f0fdf9 0%, #f8fafc 100%);
-  padding: 4.5rem 0 4rem;
-  overflow: hidden;
-}
-
-[data-theme="dark"] .heroSection {
-  background: radial-gradient(
-      ellipse at 25% 0%,
-      rgba(5, 150, 105, 0.22) 0%,
-      transparent 60%
-    ),
-    linear-gradient(180deg, #0a131a 0%, var(--background) 100%);
-}
-
-.heroContainer {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 3rem;
+  min-height: auto;
+  display: flex;
   align-items: center;
+  overflow: clip;
+  padding: 1.25rem 0 3.75rem;
 }
 
 @media (min-width: 992px) {
-  .heroContainer {
-    grid-template-columns: 1.22fr 0.98fr;
-    gap: 3.5rem;
+  .heroSection {
+    min-height: 520px;
+    padding: 2.75rem 0 4.75rem;
   }
+}
+
+.heroBgWrapper {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.heroBgImage {
+  object-fit: cover;
+  object-position: 88% center;
+  filter: saturate(1.08) brightness(1.02);
+}
+
+@media (min-width: 992px) {
+  .heroBgImage {
+    object-position: right center;
+  }
+}
+
+/* Mobile: Elegant vertical translucent gradient so background image is clearly visible while text is crisp */
+.heroOverlayGradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.88) 0%,
+    rgba(255, 255, 255, 0.76) 40%,
+    rgba(255, 255, 255, 0.70) 70%,
+    rgba(255, 255, 255, 0.92) 100%
+  );
+}
+
+[data-theme="dark"] .heroOverlayGradient {
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0.88) 0%,
+    rgba(15, 23, 42, 0.76) 40%,
+    rgba(15, 23, 42, 0.70) 70%,
+    rgba(15, 23, 42, 0.92) 100%
+  );
+}
+
+/* Desktop: Horizontal gradient strictly protects left text, leaving right side 100% clear */
+@media (min-width: 992px) {
+  .heroOverlayGradient {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(255, 255, 255, 0.92) 25%,
+      rgba(255, 255, 255, 0.65) 38%,
+      rgba(255, 255, 255, 0.15) 48%,
+      transparent 54%,
+      transparent 100%
+    );
+  }
+
+  [data-theme="dark"] .heroOverlayGradient {
+    background: linear-gradient(
+      90deg,
+      rgba(15, 23, 42, 0.98) 0%,
+      rgba(15, 23, 42, 0.92) 25%,
+      rgba(15, 23, 42, 0.65) 38%,
+      rgba(15, 23, 42, 0.15) 48%,
+      transparent 54%,
+      transparent 100%
+    );
+  }
+}
+
+.heroBottomFade {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 120px;
+  background: linear-gradient(180deg, transparent 0%, var(--background, #f8fafc) 100%);
+  pointer-events: none;
+}
+
+[data-theme="dark"] .heroBottomFade {
+  background: linear-gradient(180deg, transparent 0%, var(--background, #0f172a) 100%);
+}
+
+.heroContainer {
+  position: relative;
+  z-index: 2;
+  width: 100%;
 }
 
 .heroLeft {
   display: flex;
   flex-direction: column;
+  max-width: 650px;
+}
+
+.heroOverlayDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #34d399;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.35);
+  animation: pulseDot 2s infinite;
+  flex-shrink: 0;
 }
 
 .badgePill {
@@ -180,16 +257,33 @@
 .heroTrustBar {
   display: flex;
   align-items: center;
-  gap: 1.75rem;
+  gap: 1rem;
   flex-wrap: wrap;
   padding-top: 1.75rem;
-  border-top: 1px solid rgba(226, 232, 240, 0.85);
+  border-top: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+[data-theme="dark"] .heroTrustBar {
+  border-top-color: rgba(255, 255, 255, 0.12);
 }
 
 .trustItem {
   display: flex;
   align-items: center;
   gap: 0.65rem;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--radius-md, 14px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .trustItem {
+  background: rgba(15, 23, 42, 0.75);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
 }
 
 .trustItemIcon {
@@ -201,6 +295,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .trustTextGroup {
@@ -218,21 +313,20 @@
 .trustSub {
   font-size: 0.76rem;
   color: var(--text-muted);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 /* ----------------------------------------------------
-   HERO RIGHT: INTERACTIVE GIVING WIDGET
+   GIVING WIDGET (IN ACTION & LEDGER SECTION)
 ---------------------------------------------------- */
-.heroRight {
+.givingWidgetWrapper {
   display: flex;
-  justify-content: center;
+  width: 100%;
 }
 
 .givingWidget {
   width: 100%;
-  max-width: 470px;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid rgba(226, 232, 240, 0.9);
@@ -241,6 +335,8 @@
   padding: 2rem;
   box-shadow: 0 20px 45px -10px rgba(5, 150, 105, 0.12),
     0 8px 20px -4px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
 }
 
 [data-theme="dark"] .givingWidget {
@@ -464,28 +560,58 @@
 }
 
 /* ----------------------------------------------------
-   2. PUBLIC TRANSPARENCY LEDGER CARD
+   2. INSTANT GIVING & PUBLIC TRANSPARENCY LEDGER
 ---------------------------------------------------- */
-.ledgerSection {
-  margin-top: -1.75rem;
+.actionLedgerSection {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  align-items: stretch;
+  margin-top: 1.75rem;
   position: relative;
   z-index: 10;
   margin-bottom: 4rem;
 }
 
+@media (min-width: 992px) {
+  .actionLedgerSection {
+    grid-template-columns: 430px 1fr;
+    gap: 2rem;
+    margin-top: 2.5rem;
+  }
+}
+
+@media (min-width: 1200px) {
+  .actionLedgerSection {
+    grid-template-columns: 460px 1fr;
+    gap: 2.5rem;
+  }
+}
+
 .ledgerCard {
   background: var(--surface);
   border: 1px solid var(--surface-border);
+  border-top: 4px solid var(--primary);
   border-radius: var(--radius-xl);
   padding: 2.25rem;
   box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+[data-theme="dark"] .ledgerCard {
+  background: rgba(17, 26, 40, 0.96);
+  border-color: rgba(30, 45, 66, 0.9);
+  border-top-color: var(--primary);
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.45);
 }
 
 .ledgerHeader {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 2rem;
+  margin-bottom: 1.75rem;
   flex-wrap: wrap;
   gap: 1rem;
 }
@@ -537,22 +663,17 @@
   transform: translateY(-1px);
 }
 
-.statsGrid {
+.statsGrid2x2 {
   display: grid;
-  grid-template-columns: repeat(1, 1fr);
-  gap: 1.25rem;
-  margin-bottom: 2rem;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-bottom: 1.75rem;
 }
 
-@media (min-width: 600px) {
-  .statsGrid {
+@media (min-width: 520px) {
+  .statsGrid2x2 {
     grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (min-width: 1024px) {
-  .statsGrid {
-    grid-template-columns: repeat(4, 1fr);
+    gap: 1.15rem;
   }
 }
 
@@ -710,17 +831,77 @@
 /* ----------------------------------------------------
    3. VERIFIED CAMPAIGNS (Student Posts Section)
 ---------------------------------------------------- */
-.campaignsSection {
+.campaignsParallaxSection {
+  position: relative;
+  width: 100%;
+  background-image: url('/images/donate.jpeg');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  padding: 4.5rem 0 5rem;
   margin-bottom: 4.5rem;
+  border-top: 1px solid var(--surface-border, #e2e8f0);
+  border-bottom: 1px solid var(--surface-border, #e2e8f0);
+  overflow: hidden;
 }
 
-.sectionHeader {
+/* Very subtle tint so the photo is 100% crisp and clear */
+.campaignsParallaxSection::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.12);
+  z-index: 1;
+  pointer-events: none;
+}
+
+[data-theme="dark"] .campaignsParallaxSection::before {
+  background: rgba(15, 23, 42, 0.5);
+}
+
+@media (max-width: 768px) {
+  .campaignsParallaxSection {
+    padding: 3.5rem 0 4rem;
+  }
+}
+
+.campaignsSection {
+  position: relative;
+  z-index: 2;
+  margin-bottom: 0;
+}
+
+/* Frosted glass header card with soft blur so text is perfectly readable on top of clear photo */
+.sectionHeaderCard {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: 2rem;
+  margin-bottom: 2.25rem;
   flex-wrap: wrap;
-  gap: 1.25rem;
+  gap: 1.5rem;
+  padding: 1.6rem 2rem;
+  background: rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] .sectionHeaderCard {
+  background: rgba(15, 23, 42, 0.84);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(51, 65, 85, 0.6);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+
+@media (max-width: 768px) {
+  .sectionHeaderCard {
+    padding: 1.25rem 1.15rem;
+    gap: 1rem;
+  }
 }
 
 .sectionHeaderLeft {
@@ -732,24 +913,63 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--primary);
-  margin-bottom: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--primary, #059669);
+  background: rgba(5, 150, 105, 0.12);
+  border: 1px solid rgba(5, 150, 105, 0.28);
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius-full);
+  margin-bottom: 0.65rem;
+  width: fit-content;
+}
+
+[data-theme="dark"] .sectionTag {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.3);
 }
 
 .sectionTitle {
-  font-size: 1.85rem;
+  font-size: 2.15rem;
   font-weight: 800;
-  color: var(--text-main);
-  letter-spacing: -0.02em;
+  color: var(--text-main, #0f172a);
+  letter-spacing: -0.025em;
   line-height: 1.25;
+  margin: 0;
 }
 
 .sectionDesc {
-  font-size: 0.95rem;
-  color: var(--text-muted);
-  margin-top: 0.35rem;
+  font-size: 1.05rem;
+  color: var(--text-muted, #64748b);
+  margin-top: 0.45rem;
+  line-height: 1.6;
+  max-width: 680px;
+  font-weight: 500;
+}
+
+.secondaryCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.35rem;
+  border-radius: var(--radius-full);
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--surface-border, #cbd5e1);
+  color: var(--text-main, #0f172a);
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.secondaryCta:hover {
+  background: var(--primary, #059669);
+  color: #ffffff;
+  border-color: var(--primary, #059669);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(5, 150, 105, 0.25);
 }
 
 .categoryFilterRow {
@@ -837,12 +1057,13 @@
 }
 
 .studentAvatar {
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
+  width: 54px;
+  height: 72px;
+  aspect-ratio: 3 / 4;
+  border-radius: 8px;
   background: linear-gradient(135deg, #059669 0%, #064e3b 100%);
   color: #ffffff;
-  font-size: 1.15rem;
+  font-size: 1.3rem;
   font-weight: 800;
   display: flex;
   align-items: center;
@@ -883,20 +1104,44 @@
   border-radius: var(--radius-full);
 }
 
+.studentAvatarImg {
+  width: 54px;
+  height: 72px;
+  aspect-ratio: 3 / 4;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 2px solid rgba(5, 150, 105, 0.25);
+  flex-shrink: 0;
+}
+
+.institutionAddress {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+}
+
 .cardTitle {
   font-size: 1.15rem;
   font-weight: 800;
   color: var(--text-main);
-  line-height: 1.4;
-  margin-bottom: 0.65rem;
+  line-height: 1.35;
+  margin-bottom: 0.45rem;
   letter-spacing: -0.015em;
 }
 
 .cardExcerpt {
   font-size: 0.88rem;
   color: var(--text-body);
-  line-height: 1.6;
-  margin-bottom: 1.25rem;
+  line-height: 1.55;
+  margin-bottom: 1.15rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
   flex-grow: 1;
 }
 
@@ -918,20 +1163,22 @@
 }
 
 .progressSection {
-  margin-bottom: 1.35rem;
+  margin-bottom: 1.15rem;
 }
 
 .progressHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.5rem;
-  font-size: 0.82rem;
+  margin-bottom: 0.45rem;
+  font-size: 0.84rem;
 }
 
 .collectedAmount {
   font-weight: 800;
   color: var(--primary-dark);
+  font-size: 0.84rem;
+  line-height: 1.4;
 }
 
 .targetAmount {
@@ -955,30 +1202,43 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 1.15rem;
+  padding-top: 0.95rem;
   border-top: 1px solid var(--surface-border-subtle);
+  gap: 0.65rem;
+  flex-wrap: wrap;
 }
 
-.daysBadge {
+.actionButtonsGroup {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.76rem;
-  font-weight: 700;
-  color: var(--accent-dark);
+  gap: 0.5rem;
 }
 
-.completedBadge {
+.cardDetailsBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.48rem 0.9rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--surface-border);
+  background: var(--surface);
+  color: var(--text-main);
+  font-size: 0.86rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.cardDetailsBtn:hover {
+  border-color: var(--primary);
   color: var(--primary);
-  font-size: 0.76rem;
-  font-weight: 700;
 }
 
 .cardDonateBtn {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.5rem 1.15rem;
+  padding: 0.48rem 1rem;
   border-radius: var(--radius-full);
   background: var(--primary);
   color: #ffffff;
@@ -986,6 +1246,7 @@
   font-weight: 700;
   box-shadow: 0 4px 12px -2px rgba(5, 150, 105, 0.35);
   transition: all 0.2s ease;
+  text-decoration: none;
 }
 
 .cardDonateBtn:hover {
@@ -1140,3 +1401,412 @@
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
   background: #f0fdf4;
 }
+
+/* ----------------------------------------------------
+   6. HADITHS & VIRTUES OF CHARITY SECTION
+---------------------------------------------------- */
+.hadithSection {
+  margin-top: 4.5rem;
+  margin-bottom: 0;
+  position: relative;
+}
+
+.hadithHeader {
+  text-align: center;
+  max-width: 800px;
+  margin: 0 auto 2.75rem auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.hadithBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 1.1rem;
+  border-radius: var(--radius-full);
+  background: rgba(5, 150, 105, 0.1);
+  color: var(--primary);
+  border: 1px solid rgba(5, 150, 105, 0.25);
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 0.85rem;
+}
+
+[data-theme="dark"] .hadithBadge {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.28);
+}
+
+.hadithTitle {
+  font-size: 2.15rem;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: -0.025em;
+  line-height: 1.3;
+  margin-bottom: 0.85rem;
+}
+
+.hadithSubtitle {
+  font-size: 1.02rem;
+  color: var(--text-muted);
+  line-height: 1.65;
+  max-width: 660px;
+}
+
+/* 4 Core Virtues Grid */
+.virtuesGrid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 1rem;
+  margin-bottom: 2.75rem;
+}
+
+@media (min-width: 640px) {
+  .virtuesGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .virtuesGrid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.25rem;
+  }
+}
+
+.virtueCard {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  padding: 1.35rem 1.25rem;
+  transition: all 0.25s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+}
+
+.virtueCard:hover {
+  transform: translateY(-3px);
+  border-color: rgba(5, 150, 105, 0.4);
+  box-shadow: 0 10px 24px -4px rgba(5, 150, 105, 0.12);
+}
+
+.virtueIconWrapper {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(5, 150, 105, 0.12) 0%, rgba(4, 120, 87, 0.06) 100%);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.85rem;
+  border: 1px solid rgba(5, 150, 105, 0.18);
+}
+
+.virtueTitle {
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 0.4rem;
+}
+
+.virtueDesc {
+  font-size: 0.86rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* Category Filter Tabs */
+.hadithFilterTabs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 2.25rem;
+}
+
+.hadithFilterBtn {
+  padding: 0.55rem 1.15rem;
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.hadithFilterBtn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(5, 150, 105, 0.05);
+}
+
+.hadithFilterBtnActive {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35);
+}
+
+/* Hadith Cards Grid */
+.hadithCardsGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 900px) {
+  .hadithCardsGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.75rem;
+  }
+}
+
+.hadithCard {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-xl);
+  padding: 1.75rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.hadithCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #059669 0%, #10b981 50%, #34d399 100%);
+  opacity: 0.9;
+}
+
+.hadithCard:hover {
+  transform: translateY(-4px);
+  border-color: rgba(5, 150, 105, 0.35);
+  box-shadow: 0 16px 36px -8px rgba(5, 150, 105, 0.16);
+}
+
+.hadithCardMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.hadithTag {
+  font-size: 0.76rem;
+  font-weight: 800;
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-full);
+  background: rgba(5, 150, 105, 0.12);
+  color: #047857;
+  border: 1px solid rgba(5, 150, 105, 0.22);
+}
+
+[data-theme="dark"] .hadithTag {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+.hadithSourceBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--background-alt);
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--surface-border);
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hadithSourceBadge:hover {
+  background: rgba(5, 150, 105, 0.08);
+  border-color: rgba(5, 150, 105, 0.4);
+  color: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.12);
+}
+
+.hadithVerifyPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-full);
+  background: rgba(5, 150, 105, 0.12);
+  color: #047857;
+  border: 1px solid rgba(5, 150, 105, 0.25);
+  transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .hadithVerifyPill {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+.hadithSourceBadge:hover .hadithVerifyPill {
+  background: #059669;
+  color: #ffffff;
+  border-color: transparent;
+}
+
+/* Arabic Text Box */
+.hadithArabicBox {
+  direction: rtl;
+  text-align: right;
+  font-family: 'Amiri', 'Traditional Arabic', 'Scheherazade New', serif;
+  font-size: 1.28rem;
+  line-height: 2.1;
+  color: var(--text-main);
+  padding: 1.1rem 1.25rem;
+  background: var(--background-alt);
+  border-radius: var(--radius-lg);
+  margin-bottom: 1.25rem;
+  border-right: 3px solid #059669;
+}
+
+.hadithMatn {
+  font-size: 0.98rem;
+  color: var(--text-body);
+  line-height: 1.7;
+  font-weight: 500;
+  margin-bottom: 1.25rem;
+}
+
+/* Benefit / Moral Callout */
+.hadithBenefitBox {
+  background: rgba(5, 150, 105, 0.06);
+  border: 1px dashed rgba(5, 150, 105, 0.28);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-top: auto;
+}
+
+.hadithBenefitIcon {
+  color: #059669;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.hadithBenefitText {
+  font-size: 0.84rem;
+  color: var(--text-main);
+  line-height: 1.5;
+}
+
+.hadithBenefitText strong {
+  color: #047857;
+  font-weight: 700;
+}
+
+[data-theme="dark"] .hadithBenefitText strong {
+  color: #34d399;
+}
+
+/* Bottom CTA Strip */
+.hadithCtaStrip {
+  margin-top: 2.25rem;
+  margin-bottom: 0;
+  padding: 1.4rem 1.85rem;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-xl);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.hadithCtaTitle {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hadithCtaBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.6rem;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35);
+  text-decoration: none;
+}
+
+.hadithCtaBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(5, 150, 105, 0.45);
+  background: linear-gradient(135deg, #047857 0%, #064e3b 100%);
+}
+
+@media (max-width: 767px) {
+  .hadithTitle {
+    font-size: 1.6rem;
+  }
+
+  .hadithArabicBox {
+    font-size: 1.15rem;
+    line-height: 1.9;
+    padding: 0.9rem 1rem;
+  }
+
+  .hadithCard {
+    padding: 1.25rem;
+  }
+
+  .hadithCtaStrip {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    padding: 1.5rem;
+  }
+
+  .hadithCtaTitle {
+    justify-content: center;
+  }
+
+  .hadithCtaBtn {
+    justify-content: center;
+  }
+}
+

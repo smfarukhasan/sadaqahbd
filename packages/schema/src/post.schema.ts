@@ -9,10 +9,18 @@ export const ExpenseItemSchema = z.object({
 export type ExpenseItem = z.infer<typeof ExpenseItemSchema>;
 
 export const CreateStudentPostSchema = z.object({
+  fullName: z.string().optional(),
+  classDepartment: z.string().optional(),
+  fatherName: z.string().optional(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  durationText: z.string().optional(),
   title: z.string().min(5, 'Post title must be at least 5 characters'),
   problemDescription: z
     .string()
-    .min(20, 'Problem description must be at least 20 characters'),
+    .min(10, 'Problem description must be at least 10 characters'),
   expenses: z
     .array(ExpenseItemSchema)
     .min(1, 'At least one expense item is required'),
@@ -29,3 +37,13 @@ export const VerifyPostSchema = z.object({
 });
 
 export type VerifyPostInput = z.infer<typeof VerifyPostSchema>;
+
+export const SuperAdminApprovePostSchema = z.object({
+  approved: z.boolean(),
+  rejectionReason: z.string().optional(),
+  modifiedExpenses: z.array(ExpenseItemSchema).optional(),
+  modificationReason: z.string().optional(),
+});
+
+export type SuperAdminApprovePostInput = z.infer<typeof SuperAdminApprovePostSchema>;
+

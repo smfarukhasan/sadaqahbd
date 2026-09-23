@@ -81,7 +81,7 @@ export default function LoginPage() {
 
   const cleanEmail = email.trim().toLowerCase();
   const isMasterAdminReserved =
-    isRegister && (cleanEmail === 'admin@sadaqahbd.com' || cleanEmail === 'admin@sadaqahbd.co');
+    cleanEmail === 'admin@sadaqahbd.com' || cleanEmail === 'admin@sadaqahbd.co';
 
   const user = useAuthStore((s) => s.user);
   const loadingAuth = useAuthStore((s) => s.loading);

@@ -66,7 +66,7 @@ export default function BottomNav() {
       {/* Floating Center Action (Student: Apply, Others: Donate) */}
       {user?.role === 'student' ? (
         <Link
-          href="/posts/create"
+          href={{ pathname: '/student', query: { tab: 'applications', action: 'new' } }}
           className={`${styles.tab} ${styles.donateHighlight}`}
           style={{ background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)' }}
         >

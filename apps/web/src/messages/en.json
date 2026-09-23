@@ -30,7 +30,7 @@
     "zeroFee": "0% Platform Fee",
     "directAid": "100% Direct Student Aid",
     "studentsHelpedCount": "28+ Students Supported",
-    "viewAll": "View All Requests",
+    "viewAll": "See all",
     "fullLedger": "Full Audit Ledger"
   },
   "Nav": {
@@ -121,7 +121,26 @@
     "supportNow": "Support Now",
     "daysRemaining": "{days} days left",
     "completed": "Goal Reached",
-    "urgent": "Urgent"
+    "urgent": "Urgent",
+    "addExpenseRow": "Add expense details",
+    "addExpenseDetails": "Add expense details",
+    "submitForVerification": "Submit Application for Verification",
+    "submitting": "Submitting Application...",
+    "fullNameLabel": "Student Full Name",
+    "classDeptLabel": "Class / Department / Roll",
+    "fatherNameLabel": "Father's Name",
+    "phoneLabel": "Phone Number",
+    "addressLabel": "Current Address",
+    "dateRangeLabel": "Assistance Duration (Start & End Date)",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "durationLabel": "Total Duration",
+    "tableDescription": "Expense Description",
+    "tableAmount": "Amount (৳)",
+    "tableAction": "Action",
+    "backToApplications": "Back to Applications",
+    "createSuccessMsg": "Your aid application has been submitted successfully! It is now pending teacher and institutional verification.",
+    "institutionLabel": "Approved Educational Institution"
   },
   "Donation": {
     "title": "Provide Financial Aid for Student",
@@ -190,5 +209,27 @@
     "donationHistory": "My Donation History",
     "assignedStudents": "Assigned Students",
     "verifyPost": "Verify Post"
+  },
+  "HadithVirtues": {
+    "badge": "In Light of Sahih Hadith • Authentic Guidance",
+    "title": "Authentic Hadiths & Incomparable Virtues of Charity",
+    "subtitle": "In authentic Hadiths of the Prophet (ﷺ), charity is declared a fountain of worldly blessings, a shield from trials, and a path to salvation in the Hereafter.",
+    "tabAll": "All Sahih Hadiths",
+    "tabJariya": "Sadaqah Jariyah",
+    "tabBarakah": "Wealth & Barakah",
+    "tabProtection": "Shield & Calamity",
+    "tabAkhirah": "Hereafter & Divine Shade",
+    "virtue1Title": "Extinguishes Sins",
+    "virtue1Desc": "Just as water extinguishes fire, charity washes away and wipes out sins.",
+    "virtue2Title": "Averts Calamity & Bad Death",
+    "virtue2Desc": "Secret charity cools the Lord's wrath and averts catastrophic ends.",
+    "virtue3Title": "Multiplies Wealth & Barakah",
+    "virtue3Desc": "Charity never diminishes wealth; rather, Allah infuses it with bountiful increase.",
+    "virtue4Title": "Shade of the Divine Throne",
+    "virtue4Desc": "On the Day of Resurrection, the donor will find solace under the shade of Allah's Throne.",
+    "coreLesson": "Core Moral & Benefit:",
+    "verifySource": "Verify Source",
+    "ctaText": "Partake in this blessed charity — empower an underprivileged student's education",
+    "donateNow": "Donate Sadaqah Now"
   }
 }

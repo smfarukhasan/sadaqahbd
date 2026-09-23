@@ -1,0 +1,232 @@
+﻿.backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(6px);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: fadeIn 0.18s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--surface-border, #e2e8f0);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  animation: slideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--surface-border, #e2e8f0);
+  background: var(--background-alt, #f8fafc);
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-main, #0f172a);
+}
+
+.closeBtn {
+  background: transparent;
+  border: 1px solid var(--surface-border, #e2e8f0);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.closeBtn:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #ef4444;
+}
+
+.body {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.hint {
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+  margin: 0;
+  text-align: center;
+}
+
+.canvasWrapper {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+  border: 2px solid var(--primary, #059669);
+  cursor: grab;
+}
+
+.canvasWrapper:active {
+  cursor: grabbing;
+}
+
+.canvas {
+  display: block;
+  touch-action: none;
+  user-select: none;
+}
+
+.zoomRow {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.zoomIcon {
+  color: var(--text-muted, #64748b);
+  flex-shrink: 0;
+}
+
+.zoomSlider {
+  flex: 1;
+  accent-color: var(--primary, #059669);
+  height: 4px;
+  cursor: pointer;
+}
+
+.confirmBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, var(--primary, #059669), #047857);
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35);
+}
+
+.confirmBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(5, 150, 105, 0.45);
+}
+
+.confirmBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Preview stage */
+.previewWrapper {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  border: 2px solid rgba(5, 150, 105, 0.3);
+}
+
+.previewImg {
+  display: block;
+  width: 135px;
+  height: 180px;
+  object-fit: cover;
+}
+
+.actionRow {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.cancelBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.7rem;
+  border-radius: 10px;
+  border: 1px solid var(--surface-border, #e2e8f0);
+  background: var(--background-alt, #f8fafc);
+  color: var(--text-muted, #64748b);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancelBtn:hover {
+  border-color: var(--primary, #059669);
+  color: var(--primary, #059669);
+}
+
+.uploadBtn {
+  flex: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, var(--primary, #059669), #047857);
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+}
+
+.uploadBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(5, 150, 105, 0.4);
+}
+
+.cancelOutlineBtn {
+  width: 100%;
+  padding: 0.55rem;
+  border-radius: 8px;
+  border: 1px solid #fca5a5;
+  background: transparent;
+  color: #ef4444;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancelOutlineBtn:hover {
+  background: #fee2e2;
+}

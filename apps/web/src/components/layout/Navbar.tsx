@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { Link, usePathname, useRouter } from '../../i18n/routing';
 import styles from './Navbar.module.css';
@@ -38,7 +38,16 @@ export default function Navbar() {
 
   const isMandatorySetup = pathname.includes('/set-password') || (user && !user.isPasswordSet);
 
-  // Dedicated User Panels (Admin, Student, Teacher, Org, Donor, MasterAdmin) have their own separate executive portal UI
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setIsScrolled(window.scrollY > 15);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Dedicated User Panels have their own separate executive portal UI
   if (isPanelRoute(pathname)) {
     return null;
   }
@@ -49,7 +58,7 @@ export default function Navbar() {
   };
 
   return (
-    <header className={`${styles.header} desktop-only`}>
+    <header className={`${styles.header} ${isScrolled ? styles.headerScrolled : ''} desktop-only`}>
       <div className={`container ${styles.headerInner}`}>
         {/* Brand */}
         <Link href={isMandatorySetup ? '/set-password' : '/'} className={styles.brand}>

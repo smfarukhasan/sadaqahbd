@@ -118,6 +118,47 @@
   opacity: 0.92;
 }
 
+@media (max-width: 640px) {
+  .loginWrapper {
+    padding: max(1rem, env(safe-area-inset-top)) max(0.85rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(0.85rem, env(safe-area-inset-left));
+    min-height: 100dvh;
+  }
+
+  .loginCard {
+    padding: 2rem 1.25rem;
+    border-radius: 20px;
+    max-width: 100%;
+  }
+
+  .lockIconWrapper {
+    width: 58px;
+    height: 58px;
+    margin-bottom: 1rem;
+  }
+
+  .lockHeader h1 {
+    font-size: 1.25rem;
+  }
+
+  .lockHeader p {
+    font-size: 0.8rem;
+  }
+
+  .field input {
+    font-size: 16px; /* Prevents auto-zoom on iOS/Android */
+    padding: 0.85rem 1rem;
+    min-height: 48px;
+    border-radius: 12px;
+  }
+
+  .submitBtn {
+    min-height: 48px;
+    font-size: 0.95rem;
+    border-radius: 12px;
+    padding: 0.85rem 1rem;
+  }
+}
+
 /* ----------------------------------------------------
    Main Dashboard Layout
 ---------------------------------------------------- */

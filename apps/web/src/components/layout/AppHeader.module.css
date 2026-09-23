@@ -1,22 +1,23 @@
 .appHeader {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
   z-index: 90;
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: 62px;
   padding: 0 1.15rem;
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.85);
-  box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.04);
+  background: var(--header-bg, #0f172a);
+  border-bottom: 2px solid var(--primary, #059669);
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.35);
+  transition: background 0.3s ease;
 }
 
-[data-theme="dark"] .appHeader {
-  background: rgba(17, 26, 40, 0.96);
-  border-bottom-color: rgba(30, 45, 66, 0.85);
+.appHeaderScrolled {
+  background: rgba(15, 23, 42, 0.80);
 }
 
 .brand {
@@ -41,7 +42,7 @@
 .brandText {
   font-size: 1.2rem;
   font-weight: 800;
-  color: var(--text-main);
+  color: #ffffff;
   letter-spacing: -0.015em;
 }
 
@@ -57,11 +58,11 @@
   gap: 0.25rem;
   padding: 0.35rem 0.65rem;
   border-radius: var(--radius-full);
-  background-color: var(--surface);
-  border: 1px solid var(--surface-border);
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--text-body);
+  color: #cbd5e1;
   transition: all 0.2s ease;
   cursor: pointer;
   user-select: none;
@@ -72,7 +73,7 @@
 }
 
 .langGlobe {
-  color: var(--primary);
+  color: #34d399;
   opacity: 0.9;
   flex-shrink: 0;
 }
@@ -85,18 +86,18 @@
 }
 
 .langActive {
-  color: var(--primary);
+  color: #34d399;
   font-weight: 800;
 }
 
 .langInactive {
-  color: var(--text-muted, #94a3b8);
+  color: #94a3b8;
   font-weight: 500;
   opacity: 0.65;
 }
 
 .langDivider {
-  color: var(--surface-border, #cbd5e1);
+  color: #475569;
   font-size: 0.68rem;
   font-weight: 400;
   margin: 0 0.02rem;
@@ -111,14 +112,14 @@
   width: 38px;
   height: 38px;
   border-radius: var(--radius-full);
-  color: var(--text-main);
-  background-color: var(--surface);
-  border: 1px solid var(--surface-border-subtle);
+  color: #cbd5e1;
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   transition: all 0.15s ease;
 }
 
 .iconBtn:active {
-  background-color: var(--background);
+  background-color: rgba(255, 255, 255, 0.15);
   transform: scale(0.92);
 }
 
@@ -130,11 +131,11 @@
   height: 7px;
   border-radius: 50%;
   background-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--surface);
+  box-shadow: 0 0 0 2px #0f172a;
 }
 
 .profileBtn {
-  color: var(--primary);
+  color: #34d399;
   position: relative;
 }
 
@@ -145,6 +146,6 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background-color: var(--primary);
-  box-shadow: 0 0 0 2px var(--surface);
+  background-color: #34d399;
+  box-shadow: 0 0 0 2px #0f172a;
 }

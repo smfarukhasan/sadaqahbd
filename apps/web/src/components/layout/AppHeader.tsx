@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { Link, usePathname, useRouter } from '../../i18n/routing';
 import styles from './AppHeader.module.css';
@@ -20,7 +20,16 @@ export default function AppHeader() {
 
   const isMandatorySetup = pathname.includes('/set-password') || (user && !user.isPasswordSet);
 
-  // Dedicated User Panels (Admin, Student, Teacher, Org, Donor, MasterAdmin) have their own separate executive portal UI
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setIsScrolled(window.scrollY > 15);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Dedicated User Panels have their own separate executive portal UI
   if (isPanelRoute(pathname)) {
     return null;
   }
@@ -36,7 +45,7 @@ export default function AppHeader() {
   };
 
   return (
-    <header className={`${styles.appHeader} mobile-only`}>
+    <header className={`${styles.appHeader} ${isScrolled ? styles.appHeaderScrolled : ''} mobile-only`}>
       <Link href={isMandatorySetup ? '/set-password' : '/'} className={styles.brand}>
         <div className={styles.brandIconWrapper}>
           <HeartHandshake size={18} />

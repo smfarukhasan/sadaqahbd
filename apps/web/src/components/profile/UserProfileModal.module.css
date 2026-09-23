@@ -119,20 +119,63 @@
   margin-bottom: 1.25rem;
 }
 
+.avatarWrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
 .avatarCircle {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
+  width: 60px;
+  height: 80px;
+  border-radius: 10px;
   background: linear-gradient(135deg, var(--primary, #059669), #0d9488);
   color: #ffffff;
   font-weight: 800;
-  font-size: 1.35rem;
+  font-size: 1.6rem;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
-  flex-shrink: 0;
 }
+
+.avatarPhoto {
+  width: 60px;
+  height: 80px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 2px solid rgba(5, 150, 105, 0.3);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2);
+  display: block;
+}
+
+.cameraBadge {
+  position: absolute;
+  bottom: -6px;
+  right: -6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--primary, #059669);
+  color: #ffffff;
+  border: 2px solid var(--surface, #ffffff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.4);
+}
+
+.cameraBadge:hover:not(:disabled) {
+  background: #047857;
+  transform: scale(1.1);
+}
+
+.cameraBadge:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 
 .overviewInfo {
   display: flex;

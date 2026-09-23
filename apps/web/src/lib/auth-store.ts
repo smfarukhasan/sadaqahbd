@@ -8,6 +8,7 @@ export interface AppUser {
   fullName: string;
   phone?: string | null;
   address?: string | null;
+  avatarUrl?: string | null;
   role: 'master_admin' | 'super_admin' | 'admin' | 'organization' | 'teacher' | 'student' | 'donor';
   status: 'pending' | 'active' | 'suspended' | 'rejected';
   isPasswordSet: boolean;

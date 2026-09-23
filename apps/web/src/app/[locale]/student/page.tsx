@@ -19,6 +19,7 @@ import PortalLayout, { PortalNavItem } from '../../../components/layout/PortalLa
 import { getApiUrl } from '../../../lib/api-config';
 import AffiliationApplyModal from '../../../components/portal/AffiliationApplyModal';
 import VerificationStatusView from '../../../components/portal/VerificationStatusView';
+import StudentApplicationForm from '../../../components/portal/StudentApplicationForm';
 
 export default function StudentDashboardPage() {
   const locale = useLocale();
@@ -28,6 +29,7 @@ export default function StudentDashboardPage() {
   const loadingAuth = useAuthStore((s) => s.loading);
 
   const [activeNav, setActiveNav] = useState<'overview' | 'applications' | 'complaints'>('overview');
+  const [isCreatingPost, setIsCreatingPost] = useState(false);
   const [studentPosts, setStudentPosts] = useState<any[]>([]);
   const [affiliationData, setAffiliationData] = useState<{
     hasAffiliated: boolean;
@@ -37,6 +39,20 @@ export default function StudentDashboardPage() {
   } | null>(null);
   const [isAffiliationModalOpen, setIsAffiliationModalOpen] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
+
+  // Check URL query parameters to auto-open application creation
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('tab') === 'applications') {
+        setActiveNav('applications');
+      }
+      if (params.get('action') === 'new' || params.get('action') === 'new_post') {
+        setActiveNav('applications');
+        setIsCreatingPost(true);
+      }
+    }
+  }, []);
 
   // Student complaint state
   const [complaintSubject, setComplaintSubject] = useState('');
@@ -224,13 +240,18 @@ export default function StudentDashboardPage() {
                     </p>
                   </div>
 
-                  <Link
-                    href="/posts/create"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveNav('applications');
+                      setIsCreatingPost(true);
+                    }}
                     className="btn btn-primary"
+                    style={{ cursor: 'pointer', border: 'none' }}
                   >
                     <PlusCircle size={18} />
                     <span>নতুন আবেদন তৈরি করুন</span>
-                  </Link>
+                  </button>
                 </div>
                 {/* KPI Cards */}
                 <div
@@ -245,7 +266,7 @@ export default function StudentDashboardPage() {
               <div
                 style={{
                   padding: '1.25rem',
-                  backgroundColor: '#ffffff',
+                  backgroundColor: 'var(--surface)',
                   borderRadius: 'var(--radius-lg)',
                   border: '1px solid var(--surface-border, #e2e8f0)',
                   boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
@@ -260,7 +281,7 @@ export default function StudentDashboardPage() {
               <div
                 style={{
                   padding: '1.25rem',
-                  backgroundColor: '#ffffff',
+                  backgroundColor: 'var(--surface)',
                   borderRadius: 'var(--radius-lg)',
                   border: '1px solid var(--surface-border, #e2e8f0)',
                   boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
@@ -275,7 +296,7 @@ export default function StudentDashboardPage() {
               <div
                 style={{
                   padding: '1.25rem',
-                  backgroundColor: '#ffffff',
+                  backgroundColor: 'var(--surface)',
                   borderRadius: 'var(--radius-lg)',
                   border: '1px solid var(--surface-border, #e2e8f0)',
                   boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
@@ -292,7 +313,7 @@ export default function StudentDashboardPage() {
             <div
               style={{
                 padding: '1.75rem',
-                backgroundColor: '#ffffff',
+                backgroundColor: 'var(--surface)',
                 borderRadius: 'var(--radius-lg)',
                 border: '1px solid var(--surface-border, #e2e8f0)',
                 boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
@@ -395,72 +416,98 @@ export default function StudentDashboardPage() {
         {/* VIEW 2: APPLICATIONS */}
         {activeNav === 'applications' && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-              <div>
-                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-                  আমার জমাকৃত আবেদনসমূহ
-                </h1>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
-                  আপনার সমস্ত শিক্ষা সহায়তা আবেদনের বর্তমান অবস্থা এবং সত্যায়ন অগ্রগতি
-                </p>
-              </div>
-
-              <Link
-                href="/posts/create"
-                className="btn btn-primary"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  padding: '0.65rem 1.25rem',
-                  fontWeight: '700',
-                  textDecoration: 'none',
-                  background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                  boxShadow: '0 4px 12px -2px rgba(5, 150, 105, 0.4)',
+            {isCreatingPost ? (
+              <StudentApplicationForm
+                affiliationData={affiliationData}
+                onCancel={() => setIsCreatingPost(false)}
+                onSuccess={() => {
+                  setIsCreatingPost(false);
+                  loadData();
                 }}
-              >
-                <PlusCircle size={18} />
-                <span>নতুন আবেদন তৈরি করুন</span>
-              </Link>
-            </div>
+              />
+            ) : (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div>
+                    <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                      আমার জমাকৃত আবেদনসমূহ
+                    </h1>
+                    <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+                      আপনার সমস্ত শিক্ষা সহায়তা আবেদনের বর্তমান অবস্থা এবং সত্যায়ন অগ্রগতি
+                    </p>
+                  </div>
 
-            <div
-              style={{
-                padding: '1.75rem',
-                backgroundColor: '#ffffff',
-                borderRadius: 'var(--radius-lg)',
-                border: '1px solid var(--surface-border, #e2e8f0)',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-              }}
-            >
-              {loadingData ? (
-                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>লোড হচ্ছে...</div>
-              ) : studentPosts.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingPost(true)}
+                    className="btn btn-primary"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.65rem 1.25rem',
+                      fontWeight: '700',
+                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                      boxShadow: '0 4px 12px -2px rgba(5, 150, 105, 0.4)',
+                      border: 'none',
+                      borderRadius: 'var(--radius-md, 8px)',
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <PlusCircle size={18} />
+                    <span>নতুন আবেদন তৈরি করুন</span>
+                  </button>
+                </div>
+
                 <div
                   style={{
-                    padding: '3rem 1.25rem',
-                    textAlign: 'center',
-                    backgroundColor: 'var(--background, #f8fafc)',
-                    borderRadius: 'var(--radius-md)',
+                    padding: '1.75rem',
+                    backgroundColor: 'var(--surface)',
+                    borderRadius: 'var(--radius-lg)',
                     border: '1px solid var(--surface-border, #e2e8f0)',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                   }}
                 >
-                  <GraduationCap size={42} color="#059669" style={{ margin: '0 auto 0.75rem' }} />
-                  <h4 style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '0.35rem' }}>
-                    কোনো আবেদন পাওয়া যায়নি
-                  </h4>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
-                    আপনার নতুন একটি শিক্ষা সহায়তার আবেদন তৈরি করে সাবমিট করুন।
-                  </p>
-                  <Link
-                    href="/posts/create"
-                    className="btn btn-primary"
-                    style={{ display: 'inline-flex', padding: '0.6rem 1.25rem', fontSize: '0.88rem', fontWeight: '700', textDecoration: 'none' }}
-                  >
-                    <PlusCircle size={16} style={{ marginRight: '0.4rem' }} /> নতুন আবেদন তৈরি করুন
-                  </Link>
-                </div>
-              ) : (
+                  {loadingData ? (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>লোড হচ্ছে...</div>
+                  ) : studentPosts.length === 0 ? (
+                    <div
+                      style={{
+                        padding: '3rem 1.25rem',
+                        textAlign: 'center',
+                        backgroundColor: 'var(--background, #f8fafc)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--surface-border, #e2e8f0)',
+                      }}
+                    >
+                      <GraduationCap size={42} color="#059669" style={{ margin: '0 auto 0.75rem' }} />
+                      <h4 style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                        কোনো আবেদন পাওয়া যায়নি
+                      </h4>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+                        আপনার নতুন একটি শিক্ষা সহায়তার আবেদন তৈরি করে সাবমিট করুন।
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setIsCreatingPost(true)}
+                        className="btn btn-primary"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          padding: '0.6rem 1.25rem',
+                          fontSize: '0.88rem',
+                          fontWeight: '700',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: '#ffffff',
+                          borderRadius: 'var(--radius-md, 8px)',
+                        }}
+                      >
+                        <PlusCircle size={16} style={{ marginRight: '0.4rem' }} /> নতুন আবেদন তৈরি করুন
+                      </button>
+                    </div>
+                  ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                   {studentPosts.map((post) => {
                     const step2Done = !!post.isTeacherVerified;
@@ -495,9 +542,26 @@ export default function StudentDashboardPage() {
                           </span>
                         </div>
 
-                        <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                          প্রয়োজনীয় অর্থ: <strong style={{ color: '#059669' }}>৳{Number(post.totalRequiredAmount).toLocaleString()}</strong> • সংগৃহীত: ৳{Number(post.receivedAmount).toLocaleString()}
-                        </p>
+                        <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '0.75rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.65rem' }}>
+                          <span>
+                            প্রয়োজনীয় অর্থ: <strong style={{ color: '#059669' }}>৳{Number(post.totalRequiredAmount).toLocaleString()}</strong> • সংগৃহীত: ৳{Number(post.receivedAmount).toLocaleString()}
+                          </span>
+                          {post.durationText && (
+                            <span style={{ padding: '0.2rem 0.6rem', background: 'rgba(13, 148, 136, 0.1)', color: '#0f766e', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '600' }}>
+                              {post.durationText}
+                            </span>
+                          )}
+                        </div>
+
+                        {Array.isArray(post.expenses) && post.expenses.length > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.75rem' }}>
+                            {post.expenses.map((exp: any, i: number) => (
+                              <span key={i} style={{ fontSize: '0.78rem', padding: '0.2rem 0.55rem', background: 'var(--surface, #ffffff)', border: '1px solid var(--surface-border, #e2e8f0)', borderRadius: '6px', color: 'var(--text-main)' }}>
+                                {exp.categoryName || exp.category}: <strong>৳{Number(exp.amount).toLocaleString()}</strong>
+                              </span>
+                            ))}
+                          </div>
+                        )}
 
                         {/* 4-Step Verification Stage Tracker */}
                         <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--surface-border, #e2e8f0)' }}>
@@ -527,6 +591,8 @@ export default function StudentDashboardPage() {
             </div>
           </div>
         )}
+      </div>
+    )}
 
         {/* VIEW 3: COMPLAINTS & SUPPORT */}
         {activeNav === 'complaints' && (
@@ -545,7 +611,7 @@ export default function StudentDashboardPage() {
               <div
                 style={{
                   padding: '1.75rem',
-                  backgroundColor: '#ffffff',
+                  backgroundColor: 'var(--surface)',
                   borderRadius: 'var(--radius-lg)',
                   border: '1px solid var(--surface-border, #e2e8f0)',
                   boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
@@ -593,7 +659,7 @@ export default function StudentDashboardPage() {
                         borderRadius: 'var(--radius-md)',
                         border: '1.5px solid var(--surface-border, #e2e8f0)',
                         fontSize: '0.9rem',
-                        backgroundColor: '#ffffff',
+                        backgroundColor: 'var(--surface)',
                         outline: 'none',
                       }}
                     />
@@ -615,7 +681,7 @@ export default function StudentDashboardPage() {
                         borderRadius: 'var(--radius-md)',
                         border: '1.5px solid var(--surface-border, #e2e8f0)',
                         fontSize: '0.9rem',
-                        backgroundColor: '#ffffff',
+                        backgroundColor: 'var(--surface)',
                         outline: 'none',
                       }}
                     />
@@ -635,7 +701,7 @@ export default function StudentDashboardPage() {
               <div
                 style={{
                   padding: '1.75rem',
-                  backgroundColor: '#ffffff',
+                  backgroundColor: 'var(--surface)',
                   borderRadius: 'var(--radius-lg)',
                   border: '1px solid var(--surface-border, #e2e8f0)',
                   boxShadow: '0 1px 3px rgba(0,0,0,0.04)',

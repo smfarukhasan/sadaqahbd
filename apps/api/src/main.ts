@@ -13,7 +13,7 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: false })
+    new FastifyAdapter({ logger: false, bodyLimit: 10485760 })
   );
 
   // Global Exception Filter (Intercepts Zod, DB, Firebase, and unhandled errors into friendly JSON)

@@ -10,6 +10,7 @@ import Navbar from '../../components/layout/Navbar';
 import AppHeader from '../../components/layout/AppHeader';
 import BottomNav from '../../components/layout/BottomNav';
 import Footer from '../../components/layout/Footer';
+import MainContent from '../../components/layout/MainContent';
 import '../globals.css';
 
 export function generateStaticParams() {
@@ -32,7 +33,7 @@ export default async function LocaleLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale}>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         <meta
           name="viewport"
@@ -51,7 +52,7 @@ export default async function LocaleLayout({
           <MandatorySetupGuard />
           <AppHeader />
           <Navbar />
-          <main className="safe-bottom-padding">{children}</main>
+          <MainContent>{children}</MainContent>
           <Footer />
           <BottomNav />
         </NextIntlClientProvider>

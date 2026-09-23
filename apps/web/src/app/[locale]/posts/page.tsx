@@ -11,6 +11,9 @@ import {
   ArrowRight,
   GraduationCap,
   Building2,
+  MapPin,
+  Search,
+  X,
 } from 'lucide-react';
 
 import { getApiUrl } from '../../../lib/api-config';
@@ -19,7 +22,7 @@ export default function PostsPage() {
   const locale = useLocale();
   const t = useTranslations('StudentPost');
   const tCommon = useTranslations('Common');
-  const [selectedFilter, setSelectedFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -39,11 +42,13 @@ export default function PostsPage() {
               titleEn: p.title,
               studentName: p.studentName || 'শিক্ষার্থী',
               studentNameEn: p.studentName || 'Student',
+              studentPhotoUrl: p.studentPhotoUrl || null,
               avatarLetter: p.studentName ? p.studentName.charAt(0) : 'শ',
               avatarLetterEn: p.studentName ? p.studentName.charAt(0).toUpperCase() : 'S',
               category: 'general',
               institution: p.orgName || 'অনুমোদিত শিক্ষা প্রতিষ্ঠান',
               institutionEn: p.orgName || 'Approved Institution',
+              orgAddress: p.orgAddress || null,
               description: p.problemDescription,
               descriptionEn: p.problemDescription,
               totalRequired: req,
@@ -59,7 +64,20 @@ export default function PostsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filteredPosts = posts;
+  const filteredPosts = posts.filter((p) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      (p.studentName && p.studentName.toLowerCase().includes(q)) ||
+      (p.studentNameEn && p.studentNameEn.toLowerCase().includes(q)) ||
+      (p.title && p.title.toLowerCase().includes(q)) ||
+      (p.titleEn && p.titleEn.toLowerCase().includes(q)) ||
+      (p.institution && p.institution.toLowerCase().includes(q)) ||
+      (p.institutionEn && p.institutionEn.toLowerCase().includes(q)) ||
+      (p.orgAddress && p.orgAddress.toLowerCase().includes(q)) ||
+      (p.description && p.description.toLowerCase().includes(q))
+    );
+  });
 
   return (
     <div className={`container ${styles.container}`}>
@@ -77,25 +95,30 @@ export default function PostsPage() {
         </p>
       </div>
 
-      {/* Filter Chips */}
-      <div className={styles.filterRow}>
-        {[
-          { id: 'all', label: t('categoryAll') },
-          { id: 'medical', label: locale === 'bn' ? 'মেডিকেল' : 'Medical' },
-          { id: 'polytechnic', label: t('categoryPolytechnic') },
-          { id: 'madrasa', label: t('categoryMadrasa') },
-        ].map((f) => (
+      {/* Search Input Bar (Filter feature hidden, live search active) */}
+      <div className={styles.searchWrapper}>
+        <Search size={18} className={styles.searchIcon} />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={
+            locale === 'bn'
+              ? 'শিক্ষার্থীর নাম, শিক্ষা প্রতিষ্ঠান, জেলা বা শিরোনাম দিয়ে খুঁজুন...'
+              : 'Search by student name, institution, district or title...'
+          }
+          className={styles.searchInput}
+        />
+        {searchQuery && (
           <button
-            key={f.id}
             type="button"
-            onClick={() => setSelectedFilter(f.id)}
-            className={`${styles.filterChip} ${
-              selectedFilter === f.id ? styles.filterChipActive : ''
-            }`}
+            onClick={() => setSearchQuery('')}
+            className={styles.searchClearBtn}
+            title={locale === 'bn' ? 'মুছে ফেলুন' : 'Clear search'}
           >
-            {f.label}
+            <X size={16} />
           </button>
-        ))}
+        )}
       </div>
 
       {/* Posts Grid or Empty State */}
@@ -104,46 +127,57 @@ export default function PostsPage() {
           লোড হচ্ছে...
         </div>
       ) : filteredPosts.length === 0 ? (
-        <div
-          style={{
-            textAlign: 'center',
-            padding: '4rem 2rem',
-            backgroundColor: 'var(--surface)',
-            borderRadius: 'var(--radius-xl)',
-            border: '1px solid var(--surface-border)',
-            maxWidth: '600px',
-            margin: '2rem auto',
-          }}
-        >
-          <div
-            style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '50%',
-              backgroundColor: 'rgba(5, 150, 105, 0.1)',
-              color: 'var(--primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 1.25rem',
-            }}
-          >
-            <GraduationCap size={32} />
-          </div>
-          <h2 style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '0.5rem' }}>
-            বর্তমানে কোনো সক্রিয় আবেদন নেই
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.925rem', lineHeight: '1.6', marginBottom: '1.5rem' }}>
-            যাচাই প্রক্রিয়া সম্পন্ন হওয়ার সাথে সাথে শিক্ষার্থীদের পোস্ট এখানে দৃশ্যমান হবে।
-          </p>
-          <Link
-            href="/donate"
-            className="btn btn-primary"
-            style={{ display: 'inline-flex', padding: '0.75rem 1.5rem', fontWeight: '700', textDecoration: 'none' }}
-          >
-            <Heart size={18} style={{ marginRight: '0.5rem' }} />
-            <span>সাধারণ শিক্ষা তহবিলে দান করুন</span>
-          </Link>
+        <div className={styles.emptyState}>
+          {searchQuery ? (
+            <>
+              <Search size={44} className={styles.emptyIcon} />
+              <h3>{locale === 'bn' ? 'কোনো ফলাফল পাওয়া যায়নি' : 'No results found'}</h3>
+              <p>
+                {locale === 'bn'
+                  ? `"${searchQuery}" এর সাথে মিলে এমন কোনো সহায়তাপ্রার্থী শিক্ষার্থীর আবেদন পাওয়া যায়নি।`
+                  : `No student campaigns match "${searchQuery}".`}
+              </p>
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className={styles.emptyResetBtn}
+              >
+                {locale === 'bn' ? 'সার্চ রিসেট করুন' : 'Reset Search'}
+              </button>
+            </>
+          ) : (
+            <>
+              <div
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                  color: 'var(--primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '1.25rem',
+                }}
+              >
+                <GraduationCap size={32} />
+              </div>
+              <h2 style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+                বর্তমানে কোনো সক্রিয় আবেদন নেই
+              </h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.925rem', lineHeight: '1.6', marginBottom: '1.5rem' }}>
+                যাচাই প্রক্রিয়া সম্পন্ন হওয়ার সাথে সাথে শিক্ষার্থীদের পোস্ট এখানে দৃশ্যমান হবে।
+              </p>
+              <Link
+                href="/donate"
+                className="btn btn-primary"
+                style={{ display: 'inline-flex', padding: '0.75rem 1.5rem', fontWeight: '700', textDecoration: 'none' }}
+              >
+                <Heart size={18} style={{ marginRight: '0.5rem' }} />
+                <span>সাধারণ শিক্ষা তহবিলে দান করুন</span>
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <div className={styles.grid}>
@@ -162,26 +196,35 @@ export default function PostsPage() {
           return (
             <article key={post.id} className={styles.card}>
               <div>
-                {/* Header */}
+                {/* Header: Photo beside Name, Institution Name, and Institution Address */}
                 <div className={styles.cardHeader}>
                   <div className={styles.studentInfo}>
-                    <div className={styles.avatar}>{avatar}</div>
+                    {post.studentPhotoUrl ? (
+                      <img
+                        src={post.studentPhotoUrl}
+                        alt={studentName}
+                        className={styles.avatarImg}
+                      />
+                    ) : (
+                      <div className={styles.avatar}>{avatar}</div>
+                    )}
                     <div className={styles.studentMeta}>
                       <span className={styles.studentName}>{studentName}</span>
                       <span className={styles.institution}>
-                        <Building2 size={12} style={{ display: 'inline', marginRight: 4 }} />
+                        <Building2 size={13} style={{ display: 'inline', marginRight: 4, verticalAlign: 'text-bottom' }} />
                         {institution}
                       </span>
+                      {post.orgAddress && (
+                        <span className={styles.institutionAddress}>
+                          <MapPin size={12} style={{ display: 'inline', marginRight: 3, verticalAlign: 'text-bottom' }} />
+                          {post.orgAddress}
+                        </span>
+                      )}
                     </div>
-                  </div>
-
-                  <div className={styles.verifiedBadge}>
-                    <ShieldCheck size={13} />
-                    <span>{t('doubleVerifiedBadge')}</span>
                   </div>
                 </div>
 
-                {/* Title & Excerpt */}
+                {/* Title & 2-Line Description */}
                 <h2 className={styles.cardTitle}>{title}</h2>
                 <p className={styles.cardDesc}>{description}</p>
               </div>
@@ -190,9 +233,8 @@ export default function PostsPage() {
               <div>
                 <div className={styles.progressHeader}>
                   <span className={styles.collectedText}>
-                    {t('received')}: ৳{post.collectedAmount.toLocaleString()}
+                    সংগৃহীত: ৳{post.collectedAmount.toLocaleString()} ({progressPercent}%) ও মোট প্রয়োজন: ৳{post.totalRequired.toLocaleString()}
                   </span>
-                  <span className={styles.percentageText}>{progressPercent}%</span>
                 </div>
 
                 <div className={styles.progressBarTrack}>
@@ -202,35 +244,32 @@ export default function PostsPage() {
                   />
                 </div>
 
-                <div className={styles.targetRow}>
-                  <span>
-                    {t('totalRequired')}: ৳{post.totalRequired.toLocaleString()}
-                  </span>
-                  <span className={styles.remainingText}>
-                    {t('remaining')}: ৳{post.remainingAmount.toLocaleString()}
-                  </span>
-                </div>
+                {/* Below Progress Bar: দ্বৈত ভেরিফাইড, বিস্তারিত, সহায়তা বাটন */}
+                <div className={styles.cardFooterActions}>
+                  <div className={styles.verifiedBadge}>
+                    <ShieldCheck size={14} />
+                    <span>দ্বৈত ভেরিফাইড</span>
+                  </div>
 
-                {/* Action Buttons */}
-                <div className={styles.actionsRow}>
-                  <Link
-                    href={{
-                      pathname: '/donate',
-                      query: { postId: post.id, amount: post.remainingAmount },
-                    }}
-                    className={styles.donateBtn}
-                  >
-                    <Heart size={16} />
-                    <span>{tCommon('donateNow')}</span>
-                  </Link>
+                  <div className={styles.actionButtonsGroup}>
+                    <Link
+                      href={`/posts/${post.id}`}
+                      className={styles.detailsBtn}
+                    >
+                      <span>বিস্তারিত</span>
+                    </Link>
 
-                  <Link
-                    href={`/posts/${post.id}`}
-                    className={styles.detailsBtn}
-                    title={tCommon('view')}
-                  >
-                    <ArrowRight size={18} />
-                  </Link>
+                    <Link
+                      href={{
+                        pathname: '/donate',
+                        query: { postId: post.id, amount: post.remainingAmount },
+                      }}
+                      className={styles.donateBtn}
+                    >
+                      <Heart size={14} />
+                      <span>সহায়তা</span>
+                    </Link>
+                  </div>
                 </div>
               </div>
             </article>

@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import styles from './UserProfileModal.module.css';
 import { useAuthStore } from '../../lib/auth-store';
 import { getApiUrl } from '../../lib/api-config';
+import ImageCropperModal3x4 from './ImageCropperModal3x4';
 import {
   User,
   X,
@@ -13,7 +14,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
-  Lock,
+  Camera,
 } from 'lucide-react';
 
 interface UserProfileModalProps {
@@ -49,6 +50,12 @@ export default function UserProfileModal({
   const [profileSuccess, setProfileSuccess] = useState('');
   const [profileError, setProfileError] = useState('');
 
+  // Photo Upload States
+  const [cropperFile, setCropperFile] = useState<File | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
   // Password Form States
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -66,6 +73,38 @@ export default function UserProfileModal({
     address: '',
     role: 'admin',
     status: 'active',
+  };
+
+  const handleFileSelected = (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    setCropperFile(file);
+  };
+
+  const handleAvatarUpload = async (croppedDataUrl: string) => {
+    setCropperFile(null);
+    setAvatarUploading(true);
+    setProfileError('');
+    try {
+      const token = await firebaseUser?.getIdToken();
+      const apiUrl = getApiUrl();
+      const res = await fetch(`${apiUrl}/auth/profile`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ avatarUrl: croppedDataUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Upload failed');
+      if (data.user) setUser(data.user);
+      else if (user) setUser({ ...user, avatarUrl: croppedDataUrl });
+      setProfileSuccess(isBn ? 'প্রোফাইল ছবি সফলভাবে আপলোড হয়েছে!' : 'Profile photo uploaded successfully!');
+    } catch (err: any) {
+      setProfileError(err.message || (isBn ? 'ছবি আপলোড করতে সমস্যা হয়েছে।' : 'Error uploading photo.'));
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -112,9 +151,9 @@ export default function UserProfileModal({
         });
       }
 
-      setProfileSuccess(isBn ? 'প্রোফাইল তথ্য সফলভাবে আপডেট হয়েছে!' : 'Profile updated successfully!');
+      setProfileSuccess(isBn ? 'প্রোফাইল তথ্য সফলভাবে আপডেট হয়েছে!' : 'Profile updated successfully!');
     } catch (err: any) {
-      setProfileError(err.message || (isBn ? 'প্রোফাইল আপডেট করতে সমস্যা হয়েছে।' : 'Error updating profile.'));
+      setProfileError(err.message || (isBn ? 'প্রোফাইল আপডেট করতে সমস্যা হয়েছে।' : 'Error updating profile.'));
     } finally {
       setProfileLoading(false);
     }
@@ -183,7 +222,39 @@ export default function UserProfileModal({
       : roleNameMap[currentUser.role].en
     : currentUser.role;
 
+  /* Hidden file inputs */
+  const hiddenInputs = (
+    <>
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="user"
+        style={{ display: 'none' }}
+        onChange={(e) => e.target.files?.[0] && handleFileSelected(e.target.files[0])}
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={(e) => e.target.files?.[0] && handleFileSelected(e.target.files[0])}
+      />
+    </>
+  );
+
   return (
+    <>
+      {hiddenInputs}
+      {/* Cropper Modal */}
+      {cropperFile && (
+        <ImageCropperModal3x4
+          imageFile={cropperFile}
+          isBn={isBn}
+          onConfirm={handleAvatarUpload}
+          onCancel={() => setCropperFile(null)}
+        />
+      )}
     <div className={styles.backdrop} onClick={onClose} role="dialog" aria-modal="true">
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         {/* Modal Header */}
@@ -215,8 +286,29 @@ export default function UserProfileModal({
         <div className={styles.modalBody}>
           {/* User Top Card */}
           <div className={styles.userOverview}>
-            <div className={styles.avatarCircle}>
-              {(currentUser.fullName || currentUser.email).charAt(0).toUpperCase()}
+            <div className={styles.avatarWrapper}>
+              {user?.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={user.avatarUrl}
+                  alt={currentUser.fullName}
+                  className={styles.avatarPhoto}
+                />
+              ) : (
+                <div className={styles.avatarCircle}>
+                  {(currentUser.fullName || currentUser.email).charAt(0).toUpperCase()}
+                </div>
+              )}
+              {/* Camera overlay badge */}
+              <button
+                type="button"
+                className={styles.cameraBadge}
+                title={isBn ? 'ছবি পরিবর্তন করুন' : 'Change photo'}
+                onClick={() => galleryInputRef.current?.click()}
+                disabled={avatarUploading}
+              >
+                {avatarUploading ? <Loader2 size={12} className="spin" /> : <Camera size={12} />}
+              </button>
             </div>
             <div className={styles.overviewInfo}>
               <span className={styles.overviewName}>{currentUser.fullName}</span>
@@ -384,5 +476,6 @@ export default function UserProfileModal({
         </div>
       </div>
     </div>
+    </>
   );
 }

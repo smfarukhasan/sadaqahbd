@@ -114,7 +114,16 @@ export default function UserMenuDropdown({ customDisplayName, customRole }: User
           title={isBn ? `${displayName} (${displayRoleLabel})` : `${displayName} (${displayRoleLabel})`}
           aria-expanded={isOpen}
         >
-          <div className={styles.avatar}>{userInitial}</div>
+          {user?.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={user.avatarUrl}
+              alt={displayName}
+              className={styles.avatarPhoto}
+            />
+          ) : (
+            <div className={styles.avatar}>{userInitial}</div>
+          )}
           <div className={styles.userTextGroup}>
             <span className={styles.userName}>{displayName}</span>
             <span className={styles.userRoleText}>{displayRoleLabel}</span>

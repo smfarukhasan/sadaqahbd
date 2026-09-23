@@ -44,6 +44,17 @@
   box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
 }
 
+.avatarPhoto {
+  width: 24px;
+  height: 32px;
+  aspect-ratio: 3 / 4;
+  border-radius: 5px;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
+  border: 1.5px solid rgba(5, 150, 105, 0.25);
+}
+
 .userTextGroup {
   display: flex;
   flex-direction: column;
@@ -263,6 +274,23 @@
   }
   .userRoleText {
     font-size: 0.62rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .userTextGroup {
+    display: none;
+  }
+  .chevron {
+    display: none;
+  }
+  .triggerBtn {
+    padding: 2px;
+    border-radius: 50%;
+  }
+  .avatar {
+    width: 32px;
+    height: 32px;
   }
 }
 

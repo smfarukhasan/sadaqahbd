@@ -3,12 +3,27 @@
 import React from "react";
 import Link from "next/link";
 import { useTranslations, useLocale } from "next-intl";
-import { ShieldCheck, CheckCircle2, User, Building, Heart, ArrowLeft, PlusCircle } from "lucide-react";
+import {
+  ShieldCheck,
+  CheckCircle2,
+  User,
+  Building,
+  Heart,
+  ArrowLeft,
+  PlusCircle,
+  MapPin,
+  History,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  BadgeCheck,
+  Sparkles,
+  Award,
+} from "lucide-react";
 import { useAuthStore } from "../../../../lib/auth-store";
-
-import { useParams } from "next/navigation";
-
 import { getApiUrl } from '../../../../lib/api-config';
+import styles from './page.module.css';
 
 export default function PostDetailPage({
   params,
@@ -17,6 +32,7 @@ export default function PostDetailPage({
 }) {
   const { id } = React.use(params);
   const locale = useLocale();
+  const isBn = locale === 'bn';
   const t = useTranslations("StudentPost");
   const tCommon = useTranslations("Common");
   const tDonation = useTranslations("Donation");
@@ -24,6 +40,14 @@ export default function PostDetailPage({
 
   const [post, setPost] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
+  const [expandedPrevious, setExpandedPrevious] = React.useState<Record<string, boolean>>({});
+
+  const toggleExpandPrevious = (prevId: string) => {
+    setExpandedPrevious((prev) => ({
+      ...prev,
+      [prevId]: !prev[prevId],
+    }));
+  };
 
   React.useEffect(() => {
     if (!id) return;
@@ -40,17 +64,19 @@ export default function PostDetailPage({
         setPost({
           id: data.id,
           title: data.title,
-          studentName: data.studentName || "শিক্ষার্থী",
-          institution: data.orgName || "অনুমোদিত শিক্ষা প্রতিষ্ঠান",
-          department: "শিক্ষার্থী",
-          session: "",
+          studentName: data.studentName || (isBn ? "শিক্ষার্থী" : "Student"),
+          studentPhotoUrl: data.studentPhotoUrl || null,
+          institution: data.orgName || data.studentInstitutionName || (isBn ? "অনুমোদিত শিক্ষা প্রতিষ্ঠান" : "Approved Educational Institution"),
+          orgAddress: data.orgAddress || null,
+          department: data.studentClassDepartment || data.studentRoll || (isBn ? "শিক্ষার্থী" : "Student"),
+          session: data.durationText || "",
           description: data.problemDescription,
           totalRequired: req,
           collectedAmount: rec,
           remainingAmount: rem,
           isDoubleVerified: data.isDoubleVerified,
-          verifiedByTeacher: data.isTeacherVerified ? "সংশ্লিষ্ট শিক্ষক দ্বারা সত্যায়িত" : null,
-          verifiedByOrg: data.isOrgVerified ? (data.orgName || "অনুমোদিত প্রতিষ্ঠান") : null,
+          verifiedByTeacher: data.isTeacherVerified ? (isBn ? "সংশ্লিষ্ট শিক্ষক দ্বারা সরেজমিনে সত্যায়িত" : "Verified by Department Teacher") : null,
+          verifiedByOrg: data.isOrgVerified ? (data.orgName || (isBn ? "অনুমোদিত শিক্ষা প্রতিষ্ঠান" : "Approved Institution")) : null,
           expenses: Array.isArray(data.expenses)
             ? data.expenses.map((e: any, idx: number) => ({
                 id: `exp-${idx}`,
@@ -58,6 +84,7 @@ export default function PostDetailPage({
                 amount: Number(e.amount),
               }))
             : [],
+          previousPosts: Array.isArray(data.previousPosts) ? data.previousPosts : [],
         });
       })
       .catch((err) => {
@@ -65,31 +92,33 @@ export default function PostDetailPage({
         setPost(null);
       })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, isBn]);
 
   if (loading) {
     return (
-      <div className="container" style={{ paddingTop: "5rem", textAlign: "center", color: "var(--text-muted)" }}>
-        লোড হচ্ছে...
+      <div className="container" style={{ paddingTop: "6rem", paddingBottom: "6rem", textAlign: "center", color: "var(--text-muted)" }}>
+        <p style={{ fontSize: "1.1rem", fontWeight: 600 }}>{isBn ? "আবেদনের বিস্তারিত লোড হচ্ছে..." : "Loading application details..."}</p>
       </div>
     );
   }
 
   if (!post) {
     return (
-      <div className="container" style={{ paddingTop: "5rem", textAlign: "center" }}>
-        <h2 style={{ fontSize: "1.5rem", fontWeight: "800", marginBottom: "1rem" }}>
-          আবেদনটি খুঁজে পাওয়া যায়নি
+      <div className="container" style={{ paddingTop: "5rem", paddingBottom: "5rem", textAlign: "center" }}>
+        <h2 style={{ fontSize: "1.6rem", fontWeight: "800", marginBottom: "1rem" }}>
+          {isBn ? "আবেদনটি খুঁজে পাওয়া যায়নি" : "Application Not Found"}
         </h2>
         <p style={{ color: "var(--text-muted)", marginBottom: "1.5rem" }}>
-          অনুরোধকৃত আবেদনটি মুছে ফেলা হয়েছে অথবা এখনো জনসাধারণের জন্য অনুমোদিত হয়নি।
+          {isBn
+            ? "অনুরোধকৃত আবেদনটি মুছে ফেলা হয়েছে অথবা এখনো জনসাধারণের জন্য অনুমোদিত হয়নি।"
+            : "The requested campaign may have been removed or is pending verification."}
         </p>
         <Link
           href={`/${locale}/posts`}
           className="btn btn-primary"
-          style={{ display: "inline-flex", padding: "0.65rem 1.25rem", textDecoration: "none" }}
+          style={{ display: "inline-flex", padding: "0.65rem 1.35rem", textDecoration: "none" }}
         >
-          সব পোস্ট দেখুন
+          {isBn ? "সব দেখুন" : "See all"}
         </Link>
       </div>
     );
@@ -101,273 +130,339 @@ export default function PostDetailPage({
   );
 
   return (
-    <div className="container" style={{ paddingTop: "2rem", paddingBottom: "5rem" }}>
-      {/* Back Link */}
-      <div style={{ marginBottom: "1.5rem" }}>
-        <Link
-          href={`/${locale}/posts`}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.4rem",
-            color: "var(--color-primary)",
-            textDecoration: "none",
-            fontWeight: "600",
-            fontSize: "0.95rem",
-          }}
-        >
-          <ArrowLeft size={18} />
-          {tCommon("explorePosts")}
+    <div className={`container ${styles.detailsPageContainer}`}>
+      {/* Top Back Row */}
+      <div className={styles.backNavRow}>
+        <Link href={`/${locale}/posts`} className={styles.backLink}>
+          <ArrowLeft size={16} />
+          <span>{isBn ? "সব দেখুন" : "See all"}</span>
         </Link>
+
+        <div className={styles.topBadgeGroup}>
+          <span className={styles.statusLivePill}>
+            <span className={styles.livePulseDot} />
+            <span>{isBn ? "চলমান শিক্ষা সহায়তা" : "Active Campaign"}</span>
+          </span>
+          {post.isDoubleVerified && (
+            <span className={styles.verifiedBadgeSmall}>
+              <ShieldCheck size={14} />
+              <span>{isBn ? "দ্বৈত ভেরিফাইড" : "Double Verified"}</span>
+            </span>
+          )}
+        </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "2rem" }}>
-        {/* Main Details Column */}
-        <div>
-          {/* Post Header & Verification */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.85rem" }}>
-              {post.isDoubleVerified && (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.35rem",
-                    padding: "0.35rem 0.75rem",
-                    backgroundColor: "var(--primary-light)",
-                    color: "var(--primary-dark)",
-                    border: "1px solid rgba(5, 150, 105, 0.28)",
-                    borderRadius: "var(--radius-full)",
-                    fontSize: "0.85rem",
-                    fontWeight: "600",
-                  }}
-                >
-                  <ShieldCheck size={18} />
-                  {t("doubleVerifiedBadge")}
-                </span>
+      {/* Main Layout Grid */}
+      <div className={styles.layoutGrid}>
+        {/* Left Column: Full Details */}
+        <div className={styles.mainColumn}>
+          {/* 1. Hero Title & Student Profile Card */}
+          <div className={styles.heroCard}>
+            <div className={styles.titleArea}>
+              <h1 className={styles.postMainTitle}>{post.title}</h1>
+            </div>
+
+            {/* Student & Institution Profile Card */}
+            <div className={styles.studentProfileBox}>
+              {post.studentPhotoUrl ? (
+                <img
+                  src={post.studentPhotoUrl}
+                  alt={post.studentName}
+                  className={styles.studentPhotoFrame}
+                />
+              ) : (
+                <div className={styles.studentPhotoFallback}>
+                  {post.studentName ? post.studentName.charAt(0) : "শ"}
+                </div>
               )}
-            </div>
 
-            <h1 style={{ fontSize: "1.85rem", fontWeight: "800", color: "var(--text-main)", lineHeight: "1.3" }}>
-              {post.title}
-            </h1>
-          </div>
+              <div className={styles.studentInfo}>
+                <div className={styles.studentNameRow}>
+                  <span className={styles.studentName}>{post.studentName}</span>
+                  {post.isDoubleVerified && (
+                    <span className={styles.verifiedBadgeSmall}>
+                      <BadgeCheck size={13} />
+                      <span>{isBn ? "শিক্ষক ও প্রতিষ্ঠান সত্যায়িত" : "Teacher & Org Verified"}</span>
+                    </span>
+                  )}
+                </div>
 
-          {/* Student & Institution Box */}
-          <div
-            className="card"
-            style={{
-              padding: "1.25rem",
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--color-border)",
-              backgroundColor: "var(--color-surface)",
-              marginBottom: "1.75rem",
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "1rem",
-            }}
-          >
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-text-muted)", fontSize: "0.85rem", marginBottom: "0.2rem" }}>
-                <User size={16} />
-                <span>শিক্ষার্থী</span>
+                <div className={styles.institutionRow}>
+                  <Building size={16} className={styles.institutionIcon} />
+                  <span>{post.institution}</span>
+                </div>
+
+                <div className={styles.metaSubRow}>
+                  {post.orgAddress && (
+                    <span className={styles.metaItem}>
+                      <MapPin size={13} />
+                      <span>{post.orgAddress}</span>
+                    </span>
+                  )}
+                  {post.department && (
+                    <span className={styles.metaItem}>
+                      <User size={13} />
+                      <span>{isBn ? `শ্রেণি/বিভাগ/রোল: ${post.department}` : `Class/Dept/Roll: ${post.department}`}</span>
+                    </span>
+                  )}
+                </div>
               </div>
-              <p style={{ fontWeight: "700", color: "var(--color-text)", fontSize: "1rem" }}>
-                {post.studentName}
-              </p>
-              <p style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>{post.department}</p>
-            </div>
-
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-text-muted)", fontSize: "0.85rem", marginBottom: "0.2rem" }}>
-                <Building size={16} />
-                <span>শিক্ষা প্রতিষ্ঠান</span>
-              </div>
-              <p style={{ fontWeight: "700", color: "var(--color-text)", fontSize: "1rem" }}>
-                {post.institution}
-              </p>
-              <p style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>সেশন: {post.session}</p>
             </div>
           </div>
 
-          {/* Problem Statement */}
-          <div className="card" style={{ padding: "1.5rem", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)", backgroundColor: "var(--color-surface)", marginBottom: "1.75rem" }}>
-            <h2 style={{ fontSize: "1.2rem", fontWeight: "700", marginBottom: "0.75rem", color: "var(--color-text)" }}>
-              {t("problemLabel")}
-            </h2>
-            <p style={{ fontSize: "1rem", color: "var(--color-text)", lineHeight: "1.7", whiteSpace: "pre-line" }}>
-              {post.description}
-            </p>
+          {/* 2. Detailed Problem Statement */}
+          <div className={styles.contentCard}>
+            <div className={styles.cardSectionHeader}>
+              <FileText size={20} color="var(--primary, #059669)" />
+              <h2 className={styles.cardSectionTitle}>
+                {isBn ? "আবেদনের প্রেক্ষাপট ও সম্পূর্ণ বিবরণ" : "Detailed Context & Problem Description"}
+              </h2>
+            </div>
+            <p className={styles.problemText}>{post.description}</p>
           </div>
 
-          {/* Itemized Expenses Breakdown */}
-          <div className="card" style={{ padding: "1.5rem", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)", backgroundColor: "var(--color-surface)", marginBottom: "1.75rem" }}>
-            <h2 style={{ fontSize: "1.2rem", fontWeight: "700", marginBottom: "1rem", color: "var(--color-text)" }}>
-              {t("expensesTitle")}
-            </h2>
+          {/* 3. Itemized Expenses Breakdown */}
+          <div className={styles.contentCard}>
+            <div className={styles.cardSectionHeader}>
+              <Sparkles size={20} color="var(--primary, #059669)" />
+              <h2 className={styles.cardSectionTitle}>
+                {isBn ? "প্রয়োজনীয় খরচের সুনির্দিষ্ট হিসাব" : "Itemized Expense Breakdown"}
+              </h2>
+            </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <div className={styles.expensesList}>
               {post.expenses.map((expense: any, idx: number) => (
-                <div
-                  key={expense.id || idx}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "0.85rem 1rem",
-                    borderRadius: "var(--radius-md)",
-                    backgroundColor: "var(--color-bg)",
-                    border: "1px solid var(--color-border)",
-                  }}
-                >
-                  <span style={{ fontWeight: "500", color: "var(--color-text)" }}>
-                    {idx + 1}. {expense.category}
-                  </span>
-                  <span style={{ fontWeight: "700", color: "var(--color-primary)" }}>
-                    ৳{expense.amount.toLocaleString()}
+                <div key={expense.id || idx} className={styles.expenseRow}>
+                  <div className={styles.expenseCategory}>
+                    <span className={styles.expenseSerial}>{idx + 1}</span>
+                    <span>{expense.category}</span>
+                  </div>
+                  <span className={styles.expenseAmount}>
+                    ৳{expense.amount.toLocaleString(isBn ? 'bn-BD' : 'en-US')}
                   </span>
                 </div>
               ))}
             </div>
 
-            <div
-              style={{
-                marginTop: "1.25rem",
-                paddingTop: "1rem",
-                borderTop: "2px dashed var(--color-border)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                fontWeight: "800",
-                fontSize: "1.1rem",
-              }}
-            >
-              <span>{t("totalRequired")}:</span>
-              <span style={{ color: "var(--color-primary-dark)" }}>৳{post.totalRequired.toLocaleString()}</span>
+            <div className={styles.totalRequiredRow}>
+              <span className={styles.totalLabel}>
+                {isBn ? "মোট প্রয়োজনীয় সহায়তা বাজেট:" : "Total Budget Required:"}
+              </span>
+              <span className={styles.totalValue}>
+                ৳{post.totalRequired.toLocaleString(isBn ? 'bn-BD' : 'en-US')}
+              </span>
             </div>
           </div>
 
-          {/* Verification Audit Trail */}
-          <div className="card" style={{ padding: "1.25rem", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)", backgroundColor: "rgba(13, 148, 136, 0.04)" }}>
-            <h3 style={{ fontSize: "1rem", fontWeight: "700", color: "var(--color-primary-dark)", marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <ShieldCheck size={20} color="var(--color-primary)" />
-              যাচাইকরণ নিশ্চিতকরণ ও সনদ
-            </h3>
-            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.9rem", color: "var(--color-text-muted)" }}>
-              <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <CheckCircle2 size={16} color="var(--color-primary)" />
-                <strong>শিক্ষক অনুমোদন:</strong> {post.verifiedByTeacher}
-              </li>
-              <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <CheckCircle2 size={16} color="var(--color-primary)" />
-                <strong>প্রতিষ্ঠান অনুমোদন:</strong> {post.verifiedByOrg}
-              </li>
-            </ul>
+          {/* 4. Verification Audit Trail */}
+          <div className={styles.contentCard}>
+            <div className={styles.cardSectionHeader}>
+              <ShieldCheck size={20} color="var(--primary, #059669)" />
+              <h2 className={styles.cardSectionTitle}>
+                {isBn ? "দ্বৈত ভেরিফিকেশন ও প্রাতিষ্ঠানিক অডিট ট্রেইল" : "Double Verification & Audit Trail"}
+              </h2>
+            </div>
+
+            <div className={styles.auditGrid}>
+              <div className={styles.auditCard}>
+                <div className={styles.auditIconBox}>
+                  <CheckCircle2 size={20} />
+                </div>
+                <div>
+                  <div className={styles.auditTitle}>
+                    {isBn ? "১. শিক্ষক সরেজমিনে যাচাই" : "1. Faculty In-Person Verification"}
+                  </div>
+                  <div className={styles.auditText}>
+                    {post.verifiedByTeacher || (isBn ? "সংশ্লিষ্ট শিক্ষক দ্বারা যাচাইকৃত" : "Verified by faculty member")}
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.auditCard}>
+                <div className={styles.auditIconBox}>
+                  <Award size={20} />
+                </div>
+                <div>
+                  <div className={styles.auditTitle}>
+                    {isBn ? "২. প্রতিষ্ঠান প্রধান অনুমোদন" : "2. Institutional Head Approval"}
+                  </div>
+                  <div className={styles.auditText}>
+                    {post.verifiedByOrg || (isBn ? "অনুমোদিত শিক্ষা প্রতিষ্ঠান প্রধান কর্তৃক প্রত্যয়িত" : "Certified by principal/head of institution")}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 5. Previous Applications & Historical Log */}
+          <div className={styles.contentCard}>
+            <div className={styles.cardSectionHeader}>
+              <History size={20} color="var(--primary, #059669)" />
+              <h2 className={styles.cardSectionTitle}>
+                {isBn ? "শিক্ষার্থীর পূর্ববর্তী আবেদন ও অগ্রগতির বিবরণ" : "Previous Aid Requests & History"}
+              </h2>
+            </div>
+
+            {post.previousPosts && post.previousPosts.length > 0 ? (
+              <div className={styles.previousPostsContainer}>
+                {post.previousPosts.map((prev: any, idx: number) => {
+                  const isExpanded = !!expandedPrevious[prev.id];
+                  return (
+                    <div key={prev.id || idx} className={styles.previousPostCard}>
+                      <div className={styles.prevHeader}>
+                        <h4 className={styles.prevTitle}>{prev.title}</h4>
+                        <div className={styles.prevMeta}>
+                          <Calendar size={13} />
+                          <span>{new Date(prev.createdAt).toLocaleDateString(isBn ? "bn-BD" : "en-US")}</span>
+                          <span style={{ fontWeight: 700, color: "var(--primary-dark, #047857)" }}>
+                            • ৳{Number(prev.totalRequiredAmount).toLocaleString(isBn ? "bn-BD" : "en-US")}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div
+                        onClick={() => toggleExpandPrevious(prev.id)}
+                        className={styles.prevText}
+                        style={{
+                          display: isExpanded ? "block" : "-webkit-box",
+                          WebkitLineClamp: isExpanded ? undefined : 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: isExpanded ? "visible" : "hidden",
+                        }}
+                      >
+                        {prev.problemDescription}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleExpandPrevious(prev.id)}
+                        className={styles.prevExpandBtn}
+                      >
+                        {isExpanded ? (
+                          <>
+                            <ChevronUp size={14} />
+                            <span>{isBn ? "সংক্ষিপ্ত করুন" : "Collapse"}</span>
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown size={14} />
+                            <span>{isBn ? "সম্পূর্ণ বর্ণনা পড়ুন" : "Read full description"}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontStyle: "italic", margin: 0 }}>
+                {isBn
+                  ? "এই প্ল্যাটফর্মে এটিই এই শিক্ষার্থীর প্রথম আবেদন। পূর্ববর্তী কোনো বকেয়া আবেদন নেই।"
+                  : "This is the student's first application on the platform."}
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Sidebar / Donation Action Card */}
+        {/* Right Column: Sticky Donation Action Box */}
         <div>
-          <div
-            className="card"
-            style={{
-              position: "sticky",
-              top: "90px",
-              padding: "2rem",
-              borderRadius: "var(--radius-lg)",
-              border: "1px solid var(--color-border)",
-              backgroundColor: "var(--color-surface)",
-              boxShadow: "var(--shadow-md)",
-            }}
-          >
-            <h3 style={{ fontSize: "1.35rem", fontWeight: "700", marginBottom: "1.25rem", color: "var(--color-text)" }}>
-              তহবিল অগ্রগতি
+          <div className={styles.donationStickyCard}>
+            <h3 className={styles.stickyTitle}>
+              {isBn ? "তহবিল সংগ্রহ অগ্রগতি" : "Campaign Progress"}
             </h3>
 
             {/* Progress Bar */}
-            <div style={{ width: "100%", height: "12px", backgroundColor: "var(--color-border)", borderRadius: "var(--radius-full)", overflow: "hidden", marginBottom: "1rem" }}>
-              <div
-                style={{
-                  width: `${progressPercent}%`,
-                  height: "100%",
-                  backgroundColor: "var(--color-primary)",
-                  borderRadius: "var(--radius-full)",
-                }}
-              />
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1.5rem", fontSize: "0.95rem" }}>
-              <div>
-                <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", marginBottom: "0.2rem" }}>{t("received")}</p>
-                <p style={{ fontWeight: "800", color: "var(--color-primary)", fontSize: "1.25rem" }}>
-                  ৳{post.collectedAmount.toLocaleString()}
-                </p>
+            <div className={styles.progressContainer}>
+              <div className={styles.progressBarTrack}>
+                <div
+                  className={styles.progressBarFill}
+                  style={{ width: `${progressPercent}%` }}
+                />
               </div>
-              <div style={{ textAlign: "right" }}>
-                <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", marginBottom: "0.2rem" }}>{t("remaining")}</p>
-                <p style={{ fontWeight: "800", color: "var(--color-accent)", fontSize: "1.25rem" }}>
-                  ৳{post.remainingAmount.toLocaleString()}
-                </p>
+              <div className={styles.progressNumbers}>
+                <span className={styles.percentBadge}>{progressPercent}% অর্জিত</span>
+                <span style={{ color: "var(--text-muted)" }}>
+                  {post.remainingAmount <= 0
+                    ? (isBn ? "সম্পূর্ণ সংগৃহীত 🎉" : "Fully Funded 🎉")
+                    : (isBn ? `বাকি ৳${post.remainingAmount.toLocaleString('bn-BD')}` : `Remaining ৳${post.remainingAmount.toLocaleString('en-US')}`)}
+                </span>
               </div>
             </div>
 
-            {user?.role === 'student' ? (
+            {/* Financial Stats */}
+            <div className={styles.statsRow}>
+              <div className={styles.statBlock}>
+                <span className={styles.statLabel}>{isBn ? "সংগৃহীত" : "Received"}</span>
+                <span className={styles.statValueReceived}>
+                  ৳{post.collectedAmount.toLocaleString(isBn ? "bn-BD" : "en-US")}
+                </span>
+              </div>
+
+              <div className={styles.statBlock} style={{ textAlign: "right" }}>
+                <span className={styles.statLabel}>{isBn ? "অবশিষ্ট প্রয়োজন" : "Remaining"}</span>
+                <span className={styles.statValueRemaining}>
+                  ৳{post.remainingAmount.toLocaleString(isBn ? "bn-BD" : "en-US")}
+                </span>
+              </div>
+            </div>
+
+            {/* Action Button */}
+            {user?.role === "student" ? (
               <div
                 style={{
-                  padding: '1.25rem',
-                  backgroundColor: 'rgba(13, 148, 136, 0.08)',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid rgba(13, 148, 136, 0.3)',
-                  textAlign: 'center',
+                  padding: "1.25rem",
+                  backgroundColor: "rgba(5, 150, 105, 0.08)",
+                  borderRadius: "var(--radius-md, 10px)",
+                  border: "1px solid rgba(5, 150, 105, 0.25)",
+                  textAlign: "center",
                 }}
               >
-                <p style={{ fontSize: '0.9rem', color: 'var(--color-primary-dark)', fontWeight: '700', marginBottom: '0.75rem' }}>
-                  শিক্ষার্থী অ্যাকাউন্ট থেকে অনুদান প্রদান প্রযোজ্য নয়। আপনি শিক্ষা সহায়তার আবেদন করতে পারেন।
+                <p style={{ fontSize: "0.88rem", color: "var(--primary-dark, #047857)", fontWeight: "700", marginBottom: "0.75rem" }}>
+                  {isBn
+                    ? "শিক্ষার্থী অ্যাকাউন্ট থেকে অনুদান দেওয়া যাবে না। আপনি নিজের জন্য শিক্ষা সহায়তার আবেদন করতে পারেন।"
+                    : "Students cannot donate to aid campaigns. You may apply for student aid."}
                 </p>
                 <Link
-                  href="/posts/create"
+                  href={{ pathname: "/student", query: { tab: "applications", action: "new" } }}
                   className="btn btn-primary"
                   style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    padding: '0.6rem 1.25rem',
-                    fontSize: '0.9rem',
-                    textDecoration: 'none',
-                    fontWeight: '700',
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    padding: "0.55rem 1.15rem",
+                    fontSize: "0.88rem",
+                    textDecoration: "none",
+                    fontWeight: "700",
                   }}
                 >
-                  <PlusCircle size={16} />
-                  নতুন আবেদন তৈরি করুন
+                  <PlusCircle size={15} />
+                  <span>{isBn ? "নতুন আবেদন তৈরি করুন" : "Create New Request"}</span>
                 </Link>
               </div>
             ) : (
               <Link
                 href={`/${locale}/donate?postId=${post.id}&amount=${post.remainingAmount}`}
-                className="btn btn-primary"
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  width: "100%",
-                  padding: "0.9rem",
-                  fontSize: "1.1rem",
-                  fontWeight: "700",
-                  textDecoration: "none",
-                  borderRadius: "var(--radius-md)",
-                  boxShadow: "var(--shadow-sm)",
-                }}
+                className={styles.donateActionBtn}
               >
                 <Heart size={20} fill="currentColor" />
-                {tDonation("title")}
+                <span>{isBn ? "এখনই এই শিক্ষার্থীকে সহায়তা করুন" : "Donate to this Student"}</span>
               </Link>
             )}
 
-            <div style={{ marginTop: "1.25rem", textAlign: "center" }}>
-              <p style={{ fontSize: "0.825rem", color: "var(--color-text-muted)" }}>
-                ১০০% অর্থ সরাসরি এই শিক্ষার্থীর শিক্ষাব্যয় নির্বাহে ব্যবহৃত হবে।
-              </p>
+            {/* Trust Assurance Bullets */}
+            <div className={styles.trustPointsList}>
+              <div className={styles.trustPointItem}>
+                <ShieldCheck size={16} className={styles.trustPointIcon} />
+                <span>{isBn ? "১০০% অর্থ সরাসরি এই শিক্ষার্থীর মেস/টিউশনে যাবে" : "100% direct student distribution"}</span>
+              </div>
+              <div className={styles.trustPointItem}>
+                <CheckCircle2 size={16} className={styles.trustPointIcon} />
+                <span>{isBn ? "কোনো প্রকার মধ্যস্বত্বভোগী বা হিডেন চার্জ নেই" : "0% platform fee, zero middlemen"}</span>
+              </div>
+              <div className={styles.trustPointItem}>
+                <BadgeCheck size={16} className={styles.trustPointIcon} />
+                <span>{isBn ? "প্রতিটি অনুদানের স্বচ্ছ হিসাব উন্মুক্ত লেজারে সংরক্ষিত" : "Live entry in transparent public ledger"}</span>
+              </div>
             </div>
           </div>
         </div>

@@ -85,7 +85,7 @@ export class AuthController {
   @UseGuards(FirebaseAuthGuard)
   async updateProfile(
     @CurrentUser() user: any,
-    @Body() body: { fullName?: string; phone?: string; address?: string }
+    @Body() body: { fullName?: string; phone?: string; address?: string; avatarUrl?: string }
   ) {
     return this.authService.updateProfile(user.id, body);
   }

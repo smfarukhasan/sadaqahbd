@@ -13,8 +13,8 @@
    ========================================================================== */
 .sidebarDrawer {
   width: 280px;
-  background-color: var(--surface, #ffffff);
-  border-right: 1px solid var(--color-border, #e2e8f0);
+  background-color: var(--drawer-bg, #0f172a);
+  border-right: 1px solid var(--drawer-border, #1e293b);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -32,9 +32,9 @@
 
 .drawerFooter {
   padding: 0.85rem;
-  border-top: 1px solid var(--color-border, #e2e8f0);
+  border-top: 1px solid var(--drawer-border, #1e293b);
   margin-top: auto;
-  background-color: var(--surface, #ffffff);
+  background-color: var(--drawer-header-bg, #0b1120);
   position: sticky;
   bottom: 0;
 }
@@ -45,10 +45,10 @@
   align-items: center;
   gap: 0.65rem;
   padding: 0.65rem 0.85rem;
-  background-color: #fef2f2;
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  background-color: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 10px;
-  color: #ef4444;
+  color: #f87171;
   font-weight: 700;
   font-size: 0.85rem;
   cursor: pointer;
@@ -57,9 +57,9 @@
 }
 
 .drawerLogoutBtn:hover {
-  background-color: #fee2e2;
-  border-color: #fca5a5;
-  color: #dc2626;
+  background-color: rgba(239, 68, 68, 0.22);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
 }
 
 .sidebarDrawerCollapsed .drawerFooter {
@@ -77,7 +77,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  border-bottom: 1px solid var(--drawer-border, #1e293b);
+  background-color: var(--drawer-header-bg, #0b1120);
   min-height: 64px;
 }
 
@@ -115,36 +116,36 @@
 .brandTitle {
   font-weight: 800;
   font-size: 1rem;
-  color: var(--color-text, #0f172a);
+  color: #ffffff;
   letter-spacing: -0.01em;
 }
 
 .brandBadge {
   font-size: 0.7rem;
-  color: var(--color-primary, #0d9488);
+  color: #34d399;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .collapseBtn {
-  background: transparent;
-  border: 1px solid var(--color-border, #e2e8f0);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--drawer-border, #1e293b);
   border-radius: 8px;
   width: 32px;
   height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-muted, #64748b);
+  color: var(--drawer-text-muted, #94a3b8);
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
 
 .collapseBtn:hover {
-  background-color: var(--color-bg, #f1f5f9);
-  color: var(--color-text, #0f172a);
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
 }
 
 /* User Profile Card inside Drawer */
@@ -186,14 +187,14 @@
 .userName {
   font-weight: 700;
   font-size: 0.85rem;
-  color: var(--color-text, #0f172a);
+  color: #ffffff;
   text-overflow: ellipsis;
   overflow: hidden;
 }
 
 .userRole {
   font-size: 0.72rem;
-  color: var(--color-text-muted, #64748b);
+  color: #94a3b8;
   font-weight: 600;
 }
 
@@ -206,7 +207,7 @@
   font-size: 0.68rem;
   font-weight: 800;
   text-transform: uppercase;
-  color: var(--color-text-muted, #94a3b8);
+  color: #64748b;
   letter-spacing: 0.08em;
   padding: 0 0.5rem 0.5rem;
   white-space: nowrap;
@@ -221,7 +222,7 @@
   border-radius: 10px;
   border: none;
   background: transparent;
-  color: var(--color-text-muted, #475569);
+  color: var(--drawer-text, #cbd5e1);
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
@@ -232,19 +233,21 @@
 }
 
 .navItem:hover {
-  background-color: var(--background-alt, #f1f5f9);
-  color: var(--color-text, #0f172a);
+  background-color: var(--drawer-hover, rgba(255, 255, 255, 0.06));
+  color: #ffffff;
 }
 
 .navItemActive {
-  background-color: rgba(5, 150, 105, 0.12);
-  color: var(--color-primary, #0d9488);
+  background-color: var(--drawer-active-bg, rgba(5, 150, 105, 0.22));
+  color: var(--drawer-active-text, #34d399);
   font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border-left: 3px solid #10b981;
 }
 
 .navItemActive:hover {
-  background-color: rgba(5, 150, 105, 0.2);
-  color: var(--color-primary, #0d9488);
+  background-color: rgba(5, 150, 105, 0.3);
+  color: #6ee7b7;
 }
 
 .navItemContent {
@@ -294,33 +297,64 @@
 }
 
 /* ==========================================================================
-   Mobile Header & Off-Canvas Drawer Overlay
+   Header & Mobile Responsive Triggers
    ========================================================================== */
-.mobileAdminBar {
-  display: none;
-  background-color: var(--surface, #ffffff);
-  border-bottom: 1px solid var(--color-border, #e2e8f0);
-  padding: 0.75rem 1rem;
-  align-items: center;
-  justify-content: space-between;
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  width: 100%;
-}
-
-.drawerToggleBtn {
+.adminHeader {
+  background-color: var(--header-bg, #0f172a);
+  border-top: 2.5px solid #059669;
+  border-bottom: 1px solid var(--header-border, #1e293b);
+  height: 64px;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  background-color: var(--background-alt, #f8fafc);
-  border: 1px solid var(--color-border, #cbd5e1);
-  border-radius: 8px;
-  padding: 0.5rem 0.85rem;
-  font-size: 0.85rem;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.3);
+  color: var(--header-text, #ffffff);
+}
+
+.adminHeaderSubtitle {
+  font-size: 0.72rem;
   font-weight: 700;
-  color: var(--color-text, #0f172a);
+  color: #34d399;
+}
+
+.mobileMenuTrigger {
+  display: none;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+  color: #34d399;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.mobileMenuTrigger:hover {
+  background-color: rgba(255, 255, 255, 0.16);
+  color: #6ee7b7;
+}
+
+@media (max-width: 991px) {
+  .mobileMenuTrigger {
+    display: flex;
+  }
+}
+
+@media (max-width: 767px) {
+  .adminHeader {
+    height: 56px;
+    padding: 0 0.85rem;
+  }
+  .adminHeaderSubtitle {
+    display: none;
+  }
 }
 
 .drawerOverlay {
@@ -349,13 +383,13 @@
   bottom: 0;
   width: 300px;
   max-width: 85vw;
-  background-color: var(--surface, #ffffff);
+  background-color: var(--drawer-bg, #0f172a);
   z-index: 100;
   transform: translateX(-100%);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
-  box-shadow: 8px 0 24px rgba(0, 0, 0, 0.15);
+  box-shadow: 8px 0 24px rgba(0, 0, 0, 0.4);
   overflow-y: auto;
 }
 
@@ -521,19 +555,44 @@
   color: var(--primary-dark, #166534);
 }
 
-.sealDesc {
-  font-size: 0.78rem;
-  color: var(--text-muted, #15803d);
+/* Mobile Off-Canvas Drawer */
+.drawerOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+}
+
+.drawerOverlayOpen {
+  display: block;
+}
+
+.mobileDrawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 290px;
+  background-color: var(--drawer-bg, #f1f5f9);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+  transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.mobileDrawerOpen {
+  transform: translateX(0);
 }
 
 /* Media Queries for Responsive & Adaptive View */
 @media (max-width: 991px) {
   .sidebarDrawer {
     display: none;
-  }
-
-  .mobileAdminBar {
-    display: flex;
   }
 
   .mainContent {
@@ -559,15 +618,189 @@
   }
 }
 
+/* ==========================================================================
+   Mobile Bottom Navigation Bar (< 768px)
+   ========================================================================== */
+.adminBottomNav {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .adminBottomNav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background-color: var(--drawer-header-bg, #0b1120);
+    border-top: 1px solid var(--drawer-border, #1e293b);
+    z-index: 90;
+    align-items: center;
+    justify-content: space-around;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.45);
+  }
+
+  .bottomNavItem {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 0.68rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 6px 8px;
+    min-width: 58px;
+    position: relative;
+    transition: color 0.2s ease;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .bottomNavItemActive {
+    color: #34d399;
+  }
+
+  .bottomNavBadge {
+    position: absolute;
+    top: 2px;
+    right: 8px;
+    background-color: #ef4444;
+    color: #ffffff;
+    font-size: 0.62rem;
+    font-weight: 800;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    border: 1.5px solid var(--drawer-header-bg, #0b1120);
+  }
+
+  .mainContent {
+    padding: 1rem 0.75rem calc(75px + env(safe-area-inset-bottom, 12px)) 0.75rem !important;
+  }
+}
+
+/* ==========================================================================
+   Responsive Tables vs Mobile Touch Cards (< 768px)
+   ========================================================================== */
+.desktopTableOnly {
+  display: block;
+}
+
+.mobileCardOnly {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .desktopTableOnly {
+    display: none !important;
+  }
+
+  .mobileCardOnly {
+    display: flex !important;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}
+
+.mobileCard {
+  background-color: var(--surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.mobileCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.mobileCardTitle {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-main, #0f172a);
+}
+
+.mobileCardSubtitle {
+  font-size: 0.78rem;
+  color: var(--color-text-muted, #64748b);
+  word-break: break-all;
+}
+
+.mobileCardRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--text-main, #0f172a);
+}
+
+.mobileCardActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 0.65rem;
+  border-top: 1px dashed var(--color-border, #e2e8f0);
+  margin-top: 0.25rem;
+}
+
+/* Overview KPI Stat Cards */
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+@media (max-width: 767px) {
+  .kpiGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.65rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .kpiCard {
+    padding: 0.85rem !important;
+  }
+
+  .kpiValue {
+    font-size: 1.4rem !important;
+  }
+
+  .kpiTitle {
+    font-size: 0.75rem !important;
+  }
+
+  .pageTitle {
+    font-size: 1.25rem;
+  }
+}
+
 /* Public Site button in top bar */
 .publicSiteBtn {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
   padding: 0.45rem 0.85rem;
-  background-color: #ecfdf5;
-  border: 1px solid #d1fae5;
-  color: #059669;
+  background-color: rgba(5, 150, 105, 0.2);
+  border: 1px solid rgba(5, 150, 105, 0.35);
+  color: #34d399;
   border-radius: 12px;
   font-size: 0.82rem;
   font-weight: 700;
@@ -577,10 +810,10 @@
 }
 
 .publicSiteBtn:hover {
-  background-color: #d1fae5;
-  color: #047857;
-  border-color: #a7f3d0;
-  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.12);
+  background-color: rgba(5, 150, 105, 0.3);
+  color: #6ee7b7;
+  border-color: rgba(5, 150, 105, 0.5);
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
 }
 
 .publicSiteIcon {

@@ -99,13 +99,17 @@ export class PostsController {
     @CurrentUser() user: any,
     @Param('id') id: string,
     @Body('approved') approved: boolean,
-    @Body('rejectionReason') rejectionReason?: string
+    @Body('rejectionReason') rejectionReason?: string,
+    @Body('modifiedExpenses') modifiedExpenses?: { categoryName: string; amount: number }[],
+    @Body('modificationReason') modificationReason?: string
   ) {
     return this.postsService.superAdminApprovePost(
       id,
       user,
       approved,
-      rejectionReason
+      rejectionReason,
+      modifiedExpenses,
+      modificationReason
     );
   }
 }

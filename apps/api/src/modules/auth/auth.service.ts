@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DRIZZLE_DB } from '../../database/database.module';
-import { DrizzleDB, users, userPermissions } from '../../database';
+import { DrizzleDB, users, userPermissions, studentProfiles } from '../../database';
 import { FirebaseAdminService } from './firebase-admin.service';
 import { eq, ne, and, isNull } from 'drizzle-orm';
 import {
@@ -402,7 +402,7 @@ export class AuthService {
 
   async updateProfile(
     userId: string,
-    data: { fullName?: string; phone?: string; address?: string }
+    data: { fullName?: string; phone?: string; address?: string; avatarUrl?: string }
   ) {
     const toUpdate: any = {};
     if (data.fullName !== undefined && data.fullName.trim()) {
@@ -436,9 +436,22 @@ export class AuthService {
     if (data.address !== undefined) {
       toUpdate.address = data.address.trim() || null;
     }
+    if (data.avatarUrl !== undefined) {
+      toUpdate.avatarUrl = data.avatarUrl || null;
+    }
 
     if (Object.keys(toUpdate).length > 0) {
       await this.db.update(users).set(toUpdate).where(eq(users.id, userId));
+      if (data.avatarUrl !== undefined) {
+        try {
+          await this.db
+            .update(studentProfiles)
+            .set({ photoUrl: data.avatarUrl || null })
+            .where(eq(studentProfiles.userId, userId));
+        } catch {
+          // ignore if user is not a student
+        }
+      }
     }
 
     const updated = await this.db
