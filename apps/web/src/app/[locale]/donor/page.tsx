@@ -9,23 +9,47 @@ import {
   DollarSign,
   FileText,
   ExternalLink,
+  Package,
+  PlusCircle,
+  User,
 } from 'lucide-react';
 import { useAuthStore, getRoleDashboardPath } from '../../../lib/auth-store';
 import PortalLayout, { PortalNavItem } from '../../../components/layout/PortalLayout';
 import { getApiUrl } from '../../../lib/api-config';
-import EReceiptModal, { ReceiptData } from '../../../components/portal/EReceiptModal';
+import { getAuthToken } from '../../../lib/auth-token';
+import MyDonationsSection from '../../../components/portal/MyDonationsSection';
+import ItemDonationModal from '../../../components/portal/ItemDonationModal';
+import FinancialDonationModal from '../../../components/portal/FinancialDonationModal';
+import StudentDetailsModal from '../../../components/portal/StudentDetailsModal';
+import styles from './donor.module.css';
 
 export default function DonorDashboardPage() {
   const locale = useLocale();
+  const isBn = locale === 'bn';
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const firebaseUser = useAuthStore((s) => s.firebaseUser);
   const loadingAuth = useAuthStore((s) => s.loading);
 
-  const [activeNav, setActiveNav] = useState<'overview' | 'history' | 'impact'>('overview');
+  const [activeNav, setActiveNav] = useState<'overview' | 'history' | 'my-donations' | 'all_posts' | 'impact'>('overview');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const tabParam = new URLSearchParams(window.location.search).get('tab');
+      if (tabParam === 'my-donations' || tabParam === 'history' || tabParam === 'all_posts' || tabParam === 'impact') {
+        setActiveNav(tabParam as any);
+      }
+    }
+  }, []);
   const [donations, setDonations] = useState<any[]>([]);
+  const [publicPosts, setPublicPosts] = useState<any[]>([]);
+  const [postSearchTerm, setPostSearchTerm] = useState('');
   const [loadingData, setLoadingData] = useState(true);
-  const [selectedReceipt, setSelectedReceipt] = useState<ReceiptData | null>(null);
+
+  // Modals state
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+  const [isFinancialModalOpen, setIsFinancialModalOpen] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
   // Role Protection Guard
   useEffect(() => {
@@ -39,11 +63,11 @@ export default function DonorDashboardPage() {
   }, [user, loadingAuth, router]);
 
   useEffect(() => {
-    if (!firebaseUser || !user || user.role !== 'donor') return;
+    if (!user || user.role !== 'donor') return;
 
-    firebaseUser
-      .getIdToken()
-      .then((token: string) => {
+    getAuthToken()
+      .then((token: string | null) => {
+        if (!token) throw new Error('No auth token');
         const apiUrl = getApiUrl();
         return fetch(`${apiUrl}/donations/my-history`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -57,56 +81,49 @@ export default function DonorDashboardPage() {
         if (Array.isArray(data)) {
           const mapped = data.map((d: any) => ({
             id: d.id,
-            trxId: d.trxId,
+            trxId: d.trxId || d.transactionReference || 'N/A',
             date: new Date(d.createdAt).toLocaleDateString(
-              locale === 'bn' ? 'bn-BD' : 'en-US',
-              {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-              }
+              isBn ? 'bn-BD' : 'en-US',
+              { year: 'numeric', month: 'short', day: 'numeric' }
             ),
             time: new Date(d.createdAt).toLocaleTimeString(
-              locale === 'bn' ? 'bn-BD' : 'en-US',
-              {
-                hour: '2-digit',
-                minute: '2-digit',
-              }
+              isBn ? 'bn-BD' : 'en-US',
+              { hour: '2-digit', minute: '2-digit' }
             ),
             target: d.isRandom
-              ? locale === 'bn'
-                ? 'সাধারণ তহবিল (General Pool)'
+              ? isBn
+                ? 'সাধারণ শিক্ষা তহবিল (General Pool)'
                 : 'General Fund Pool'
-              : d.postTitle || (locale === 'bn' ? 'শিক্ষা সহায়তা অনুদান' : 'Education Grant'),
-            amount:
-              locale === 'bn'
-                ? `৳${Number(d.amount).toLocaleString('bn-BD')}`
-                : `৳${Number(d.amount).toLocaleString('en-US')}`,
+              : d.postTitle || (isBn ? 'শিক্ষা সহায়তা অনুদান' : 'Education Grant'),
+            amount: isBn
+              ? `৳${Number(d.amount).toLocaleString('bn-BD')}`
+              : `৳${Number(d.amount).toLocaleString('en-US')}`,
             rawAmount: Number(d.amount),
             paymentMethod: d.paymentMethod?.toUpperCase() || 'BKASH',
             senderPhone: d.senderPhone || 'N/A',
             status:
               d.status === 'accepted'
-                ? locale === 'bn'
-                  ? 'সফল ও অনুমোদিত'
+                ? isBn
+                  ? 'অনুমোদিত ও গ্রহণকৃত'
                   : 'Verified & Accepted'
                 : d.status === 'pending'
-                ? locale === 'bn'
-                  ? 'যাচাই প্রক্রিয়াধীন'
+                ? isBn
+                  ? 'যাচাই প্রক্রিয়াধীন'
                   : 'Under Verification'
-                : locale === 'bn'
+                : isBn
                 ? 'বাতিলকৃত'
-                : 'Cancelled',
+                : 'Declined',
             rawStatus: d.status,
             isRandom: d.isRandom,
-            receiptNo: `REC-${d.id.slice(0, 8).toUpperCase()}`,
+            studentUserId: d.studentUserId,
+            postId: d.postId,
           }));
           setDonations(mapped);
         }
       })
       .catch((err: any) => console.error('Failed to load donor history:', err))
       .finally(() => setLoadingData(false));
-  }, [firebaseUser, user, locale]);
+  }, [firebaseUser, user, isBn]);
 
   const totalDonatedAmount = donations.reduce(
     (sum, d) => sum + (d.rawStatus === 'accepted' ? d.rawAmount : 0),
@@ -116,10 +133,20 @@ export default function DonorDashboardPage() {
     (d) => !d.isRandom && d.rawStatus === 'accepted'
   ).length;
 
+  useEffect(() => {
+    const apiUrl = getApiUrl();
+    fetch(`${apiUrl}/posts/public`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setPublicPosts(data);
+      })
+      .catch((err) => console.error('Failed to load public posts:', err));
+  }, []);
+
   if (loadingAuth || !user || user.role !== 'donor') {
     return (
       <div className="container" style={{ padding: '6rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        {locale === 'bn' ? 'লোড হচ্ছে...' : 'Loading...'}
+        {isBn ? 'লোড হচ্ছে...' : 'Loading...'}
       </div>
     );
   }
@@ -132,9 +159,16 @@ export default function DonorDashboardPage() {
       icon: DollarSign,
     },
     {
-      id: 'history',
-      labelBn: 'অনুদান ইতিহাস',
-      labelEn: 'Donation History',
+      id: 'all_posts',
+      labelBn: 'শিক্ষার্থীদের পোস্ট তালিকা',
+      labelEn: 'Student Posts List',
+      icon: FileText,
+      badge: publicPosts.length,
+    },
+    {
+      id: 'my-donations',
+      labelBn: 'আমার দান সমূহ',
+      labelEn: 'My Donations',
       icon: Heart,
       badge: donations.length,
     },
@@ -174,123 +208,127 @@ export default function DonorDashboardPage() {
             >
               <div>
                 <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-                  {locale === 'bn' ? `স্বাগতম, ${user.fullName}` : `Welcome, ${user.fullName}`}
+                  {isBn ? `স্বাগতম, ${user.fullName}` : `Welcome, ${user.fullName}`}
                 </h1>
                 <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
-                  {locale === 'bn'
+                  {isBn
                     ? 'আপনার প্রতিটি দানের মাধ্যমে সুবিধাবঞ্চিত শিক্ষার্থীদের শিক্ষাজীবন আলোকিত হচ্ছে'
                     : 'Your valuable contributions are helping underprivileged students build a brighter future'}
                 </p>
               </div>
 
-              <Link
-                href="/donate"
-                className="btn btn-primary"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  padding: '0.65rem 1.35rem',
-                  fontWeight: '700',
-                  textDecoration: 'none',
-                  background: '#059669',
-                  boxShadow: '0 4px 12px -2px rgba(5, 150, 105, 0.4)',
-                }}
-              >
-                <DollarSign size={18} />
-                <span>{locale === 'bn' ? 'নতুন অনুদান প্রদান করুন' : 'Make a Donation'}</span>
-              </Link>
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setIsItemModalOpen(true)}
+                  className="btn"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.65rem',
+                    padding: '0.95rem 1.75rem',
+                    fontSize: '1.05rem',
+                    fontWeight: '800',
+                    borderRadius: 'var(--radius-lg, 16px)',
+                    backgroundColor: '#f59e0b',
+                    color: '#ffffff',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 6px 20px -3px rgba(245, 158, 11, 0.45)',
+                    transition: 'all 0.2s ease',
+                    flex: '1 1 auto',
+                  }}
+                >
+                  <Package size={22} />
+                  <span>{isBn ? 'অর্থ ছাড়া পণ্য দান করুন' : 'Donate Physical Goods'}</span>
+                </button>
+
+                <button
+                  onClick={() => setIsFinancialModalOpen(true)}
+                  className="btn btn-primary"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.65rem',
+                    padding: '0.95rem 1.85rem',
+                    fontSize: '1.05rem',
+                    fontWeight: '800',
+                    border: 'none',
+                    cursor: 'pointer',
+                    backgroundColor: '#10b981',
+                    color: '#ffffff',
+                    borderRadius: 'var(--radius-lg, 16px)',
+                    boxShadow: '0 6px 20px -3px rgba(16, 185, 129, 0.45)',
+                    transition: 'all 0.2s ease',
+                    flex: '1 1 auto',
+                  }}
+                >
+                  <PlusCircle size={22} />
+                  <span>{isBn ? 'নতুন আর্থিক অনুদান' : 'Make Financial Donation'}</span>
+                </button>
+              </div>
             </div>
 
-            {/* Stats Cards */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                gap: '1.25rem',
-                marginBottom: '2rem',
-              }}
-            >
-              <div
-                style={{
-                  padding: '1.5rem',
-                  backgroundColor: '#ffffff',
-                  borderRadius: 'var(--radius-lg)',
-                  border: '1px solid var(--surface-border, #e2e8f0)',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-                }}
-              >
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700' }}>
-                  {locale === 'bn' ? 'মোট অনুদান প্রদান' : 'Total Contributions'}
-                </span>
-                <h3 style={{ fontSize: '1.85rem', fontWeight: '800', color: '#059669', margin: '0.35rem 0 0' }}>
-                  ৳{totalDonatedAmount.toLocaleString()}
-                </h3>
+            {/* Stats Cards (Responsive: Desktop text top & amount right-centered; Mobile text left & amount right-centered) */}
+            <div className={styles.statsGrid}>
+              <div className={styles.statCard}>
+                <div className={styles.statTextCol}>
+                  <span className={styles.statLabel}>
+                    {isBn ? 'মোট অনুদান প্রদান' : 'Total Contributions'}
+                  </span>
+                </div>
+                <div className={styles.statAmountCol}>
+                  <h3 className={styles.statAmount}>
+                    ৳{totalDonatedAmount.toLocaleString()}
+                  </h3>
+                </div>
               </div>
 
-              <div
-                style={{
-                  padding: '1.5rem',
-                  backgroundColor: '#ffffff',
-                  borderRadius: 'var(--radius-lg)',
-                  border: '1px solid var(--surface-border, #e2e8f0)',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-                }}
-              >
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700' }}>
-                  {locale === 'bn' ? 'সহায়তাপ্রাপ্ত শিক্ষার্থী' : 'Students Directly Aided'}
-                </span>
-                <h3 style={{ fontSize: '1.85rem', fontWeight: '800', color: '#047857', margin: '0.35rem 0 0' }}>
-                  {studentsHelpedCount} {locale === 'bn' ? 'জন' : ''}
-                </h3>
-              </div>
-
-              <div
-                style={{
-                  padding: '1.5rem',
-                  backgroundColor: '#ffffff',
-                  borderRadius: 'var(--radius-lg)',
-                  border: '1px solid var(--surface-border, #e2e8f0)',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-                }}
-              >
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700' }}>
-                  {locale === 'bn' ? 'স্বচ্ছতা সনদ' : 'Transparency Status'}
-                </span>
-                <h3 style={{ fontSize: '1.85rem', fontWeight: '800', color: '#0d9488', margin: '0.35rem 0 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <ShieldCheck size={26} /> {locale === 'bn' ? '১০০% অডিটভুক্ত' : '100% Audited'}
-                </h3>
+              <div className={styles.statCard}>
+                <div className={styles.statTextCol}>
+                  <span className={styles.statLabel}>
+                    {isBn ? 'সহায়তাপ্রাপ্ত শিক্ষার্থী' : 'Students Directly Aided'}
+                  </span>
+                </div>
+                <div className={styles.statAmountCol}>
+                  <h3 className={styles.statAmount}>
+                    {studentsHelpedCount} {isBn ? 'জন' : ''}
+                  </h3>
+                </div>
               </div>
             </div>
 
             {/* Quick Recent Donations */}
             <div
               style={{
-                backgroundColor: '#ffffff',
-                borderRadius: 'var(--radius-xl)',
-                border: '1px solid var(--surface-border, #e2e8f0)',
+                backgroundColor: 'var(--surface)',
+                borderRadius: 'var(--radius-xl, 24px)',
+                border: '1px solid var(--surface-border)',
                 padding: '1.75rem',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                boxShadow: 'var(--shadow-card)',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                 <h3 style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Heart size={20} color="#059669" />
-                  {locale === 'bn' ? 'সাম্প্রতিক অনুদানসমূহ' : 'Recent Donations'}
+                  <Heart size={20} color="#10b981" />
+                  {isBn ? 'সাম্প্রতিক অনুদানসমূহ' : 'Recent Donations'}
                 </h3>
                 <button
                   onClick={() => setActiveNav('history')}
-                  style={{ background: 'none', border: 'none', color: '#059669', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
+                  style={{ background: 'none', border: 'none', color: '#10b981', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
                 >
-                  {locale === 'bn' ? `সব দেখুন (${donations.length}) →` : `View All (${donations.length}) →`}
+                  {isBn ? `সব দেখুন (${donations.length}) →` : `View All (${donations.length}) →`}
                 </button>
               </div>
 
               {loadingData ? (
-                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>লোড হচ্ছে...</div>
+                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  {isBn ? 'লোড হচ্ছে...' : 'Loading...'}
+                </div>
               ) : donations.length === 0 ? (
-                <div style={{ padding: '2.5rem', textAlign: 'center', backgroundColor: 'var(--background, #f8fafc)', borderRadius: 'var(--radius-md)', color: 'var(--text-muted)' }}>
-                  <p style={{ margin: 0 }}>কোনো পূর্ববর্তী অনুদান পাওয়া যায়নি।</p>
+                <div style={{ padding: '2.5rem', textAlign: 'center', backgroundColor: 'var(--background-alt, #0f172a)', borderRadius: 'var(--radius-md)', color: 'var(--text-muted)' }}>
+                  <p style={{ margin: 0 }}>{isBn ? 'কোনো পূর্ববর্তী অনুদান পাওয়া যায়নি।' : 'No previous donations found.'}</p>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -302,9 +340,9 @@ export default function DonorDashboardPage() {
                         justifyContent: 'space-between',
                         alignItems: 'center',
                         padding: '1rem 1.25rem',
-                        backgroundColor: 'var(--background, #f8fafc)',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--surface-border, #e2e8f0)',
+                        backgroundColor: 'var(--background-alt, #0f172a)',
+                        borderRadius: 'var(--radius-md, 12px)',
+                        border: '1px solid var(--surface-border)',
                         flexWrap: 'wrap',
                         gap: '0.5rem',
                       }}
@@ -312,12 +350,34 @@ export default function DonorDashboardPage() {
                       <div>
                         <strong style={{ color: 'var(--text-main)', fontSize: '0.95rem' }}>{d.target}</strong>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                          {d.date} • {d.method}
+                          {d.date} • {d.paymentMethod}
                         </div>
+                        {d.studentUserId && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedStudentId(d.studentUserId)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#10b981',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              padding: 0,
+                              marginTop: '0.25rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                            }}
+                          >
+                            <User size={13} />
+                            <span>{isBn ? 'শিক্ষার্থীর বিবরণ দেখুন →' : 'View Student Details →'}</span>
+                          </button>
+                        )}
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#059669' }}>{d.amount}</span>
-                        <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 700 }}>{d.status}</div>
+                        <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#10b981' }}>{d.amount}</span>
+                        <div style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 700 }}>{d.status}</div>
                       </div>
                     </div>
                   ))}
@@ -327,220 +387,236 @@ export default function DonorDashboardPage() {
           </div>
         )}
 
-        {/* VIEW 2: DONATION HISTORY TABLE */}
-        {activeNav === 'history' && (
+        {/* VIEW: ALL STUDENT POSTS (Integrated directly in Portal Drawer) */}
+        {activeNav === 'all_posts' && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
                 <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Heart size={24} color="#059669" />
-                  {locale === 'bn' ? 'আমার অনুদানের হিসাব খতিয়ান' : 'Personal Donation Ledger'}
+                  <FileText size={24} color="#38bdf8" />
+                  {isBn ? 'শিক্ষার্থীদের পোস্ট তালিকা' : 'Student Assistance Posts'}
                 </h1>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: '0.25rem 0 0' }}>
-                  {locale === 'bn'
-                    ? 'আপনার প্রতিটি দানের স্বচ্ছ হিসাব ও ট্যাক্স-অডিট উপযোগী অফিসিয়াল ই-রশিদ।'
-                    : 'Complete records of your contributions and verified tax-deductible e-receipts.'}
+                  {isBn
+                    ? 'ভেরিফাইড ও শিক্ষক-অনুমোদিত শিক্ষার্থীদের পোস্ট থেকে সরাসরি সহায়তা করুন'
+                    : 'Directly support verified and institution-approved student assistance campaigns'}
                 </p>
               </div>
 
-              <Link
-                href="/posts"
-                className="btn btn-outline"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1.15rem', fontWeight: '700', textDecoration: 'none' }}
-              >
-                <ExternalLink size={16} /> {locale === 'bn' ? 'সহায়তা প্রত্যাশী শিক্ষার্থীদের দেখুন' : 'Browse Students'}
-              </Link>
+              <div style={{ position: 'relative', minWidth: '260px' }}>
+                <input
+                  type="text"
+                  placeholder={isBn ? 'শিক্ষার্থী বা প্রতিষ্ঠানের নাম দিয়ে খুঁজুন...' : 'Search student or institute...'}
+                  value={postSearchTerm}
+                  onChange={(e) => setPostSearchTerm(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.65rem 1rem 0.65rem 2.4rem',
+                    borderRadius: 'var(--radius-md, 12px)',
+                    border: '1px solid var(--surface-border, #cbd5e1)',
+                    backgroundColor: 'var(--surface, #ffffff)',
+                    color: 'var(--text-main)',
+                    fontSize: '0.88rem',
+                  }}
+                />
+                <FileText
+                  size={16}
+                  style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}
+                />
+              </div>
             </div>
 
-            <div
-              style={{
-                backgroundColor: '#ffffff',
-                borderRadius: 'var(--radius-xl)',
-                border: '1px solid var(--surface-border, #e2e8f0)',
-                padding: '2rem',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-              }}
-            >
-              {loadingData ? (
-                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  {locale === 'bn' ? 'লোড হচ্ছে...' : 'Loading...'}
-                </div>
-              ) : donations.length === 0 ? (
-                <div
-                  style={{
-                    padding: '3.5rem 1.5rem',
-                    textAlign: 'center',
-                    backgroundColor: 'var(--background, #f8fafc)',
-                    borderRadius: 'var(--radius-lg)',
-                    border: '1px solid var(--surface-border, #e2e8f0)',
-                  }}
-                >
-                  <Heart size={40} color="#059669" style={{ margin: '0 auto 0.75rem' }} />
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-main)', margin: 0 }}>
-                    {locale === 'bn' ? 'কোনো পূর্ববর্তী অনুদান নেই' : 'No Previous Donations Found'}
-                  </h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.35rem auto 1.25rem', maxWidth: '400px' }}>
-                    {locale === 'bn'
-                      ? 'আপনি এখনো কোনো অনুদান সম্পন্ন করেননি। শিক্ষার্থীদের শিক্ষা তহবিলে সাদাকাহ প্রদান করুন।'
-                      : 'You have not made any donations yet. Support underprivileged students by donating today.'}
-                  </p>
-                  <Link
-                    href="/donate"
-                    className="btn btn-primary"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.65rem 1.35rem', fontWeight: '700', textDecoration: 'none' }}
-                  >
-                    <DollarSign size={16} /> {locale === 'bn' ? 'এখন অনুদান দিন' : 'Donate Now'}
-                  </Link>
-                </div>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1.5px solid var(--surface-border, #e2e8f0)', textAlign: 'left', color: 'var(--text-muted)' }}>
-                        <th style={{ padding: '0.75rem' }}>{locale === 'bn' ? 'তারিখ' : 'Date'}</th>
-                        <th style={{ padding: '0.75rem' }}>{locale === 'bn' ? 'সহায়তাপ্রাপ্ত খাত / শিক্ষার্থী' : 'Purpose / Recipient'}</th>
-                        <th style={{ padding: '0.75rem' }}>{locale === 'bn' ? 'পরিমাণ' : 'Amount'}</th>
-                        <th style={{ padding: '0.75rem' }}>{locale === 'bn' ? 'পেমেন্ট মাধ্যম' : 'Method'}</th>
-                        <th style={{ padding: '0.75rem' }}>{locale === 'bn' ? 'স্ট্যাটাস' : 'Status'}</th>
-                        <th style={{ padding: '0.75rem' }}>{locale === 'bn' ? 'ই-রশিদ' : 'E-Receipt'}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {donations.map((d) => (
-                        <tr key={d.id} style={{ borderBottom: '1px solid var(--surface-border, #e2e8f0)' }}>
-                          <td style={{ padding: '0.75rem' }}>{d.date}</td>
-                          <td style={{ padding: '0.75rem' }}>
-                            <strong style={{ color: 'var(--text-main)' }}>{d.target}</strong>
-                          </td>
-                          <td style={{ padding: '0.75rem', fontWeight: '800', color: '#059669' }}>
-                            {d.amount}
-                          </td>
-                          <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>
-                            {d.method}
-                          </td>
-                          <td style={{ padding: '0.75rem' }}>
+            {publicPosts.length === 0 ? (
+              <div style={{ padding: '3rem', textAlign: 'center', backgroundColor: 'var(--surface)', borderRadius: 'var(--radius-xl)', color: 'var(--text-muted)' }}>
+                {isBn ? 'বর্তমানে কোনো পোস্ট উপলব্ধ নেই।' : 'No public student posts available at the moment.'}
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
+                {publicPosts
+                  .filter((p) => {
+                    if (!postSearchTerm.trim()) return true;
+                    const q = postSearchTerm.toLowerCase();
+                    return (
+                      p.title?.toLowerCase().includes(q) ||
+                      p.studentName?.toLowerCase().includes(q) ||
+                      p.orgName?.toLowerCase().includes(q)
+                    );
+                  })
+                  .map((post) => {
+                    const req = Number(post.totalRequiredAmount || 0);
+                    const rec = Number(post.receivedAmount || 0);
+                    const rem = Math.max(0, req - rec);
+                    const progress = req > 0 ? Math.min(100, Math.round((rec / req) * 100)) : 0;
+
+                    return (
+                      <div
+                        key={post.id}
+                        style={{
+                          backgroundColor: 'var(--surface)',
+                          borderRadius: 'var(--radius-xl, 20px)',
+                          border: '1px solid var(--surface-border)',
+                          padding: '1.25rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          boxShadow: 'var(--shadow-card)',
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.75rem' }}>
                             <span
                               style={{
                                 padding: '0.2rem 0.6rem',
-                                borderRadius: 'var(--radius-full)',
-                                fontSize: '0.75rem',
-                                fontWeight: '700',
-                                backgroundColor:
-                                  d.rawStatus === 'accepted'
-                                    ? 'rgba(5, 150, 105, 0.1)'
-                                    : 'rgba(217, 119, 6, 0.1)',
-                                color:
-                                  d.rawStatus === 'accepted' ? '#059669' : 'var(--accent, #d97706)',
+                                borderRadius: '20px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                                color: '#10b981',
                               }}
                             >
-                              {d.status}
+                              {post.orgName || (isBn ? 'অনুমোদিত প্রতিষ্ঠান' : 'Approved Institution')}
                             </span>
-                          </td>
-                          <td style={{ padding: '0.75rem' }}>
+                            {post.isDoubleVerified && (
+                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#38bdf8', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                                <ShieldCheck size={14} /> {isBn ? 'ভেরিফাইড' : 'Verified'}
+                              </span>
+                            )}
+                          </div>
+
+                          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.4rem', lineHeight: 1.35 }}>
+                            {post.title}
+                          </h3>
+
+                          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                            {post.problemDescription}
+                          </p>
+
+                          {/* Progress Bar */}
+                          <div style={{ marginBottom: '1rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                              <span>{isBn ? `সংগৃহীত: ৳${rec.toLocaleString()}` : `Raised: ৳${rec}`}</span>
+                              <span>{isBn ? `লক্ষ্য: ৳${req.toLocaleString()}` : `Goal: ৳${req}`}</span>
+                            </div>
+                            <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--background-alt, #e2e8f0)', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div style={{ width: `${progress}%`, height: '100%', backgroundColor: '#10b981', borderRadius: '4px', transition: 'width 0.3s' }} />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid var(--surface-border)' }}>
+                          {post.studentUserId && (
                             <button
-                              type="button"
-                              onClick={() =>
-                                setSelectedReceipt({
-                                  receiptNo: d.receiptNo,
-                                  date: d.date,
-                                  purpose: d.target,
-                                  amount: d.amount,
-                                  method: d.method,
-                                  trxId: d.trxId,
-                                  donorName: user.fullName || 'Valued Donor',
-                                })
-                              }
+                              onClick={() => setSelectedStudentId(post.studentUserId)}
                               style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.35rem',
-                                padding: '0.35rem 0.8rem',
-                                backgroundColor: '#ffffff',
-                                border: '1px solid var(--surface-border, #e2e8f0)',
-                                borderRadius: 'var(--radius-sm)',
-                                cursor: 'pointer',
+                                flex: 1,
+                                padding: '0.5rem',
+                                borderRadius: 'var(--radius-md, 10px)',
+                                border: '1px solid var(--surface-border)',
+                                backgroundColor: 'transparent',
+                                color: 'var(--text-main)',
+                                fontWeight: 700,
                                 fontSize: '0.8rem',
-                                fontWeight: '700',
-                                color: '#059669',
+                                cursor: 'pointer',
                               }}
                             >
-                              <FileText size={14} /> {locale === 'bn' ? 'রশিদ দেখুন' : 'View Receipt'}
+                              {isBn ? 'প্রোফাইল' : 'Profile'}
                             </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                          )}
+                          <button
+                            onClick={() => setIsFinancialModalOpen(true)}
+                            style={{
+                              flex: 2,
+                              padding: '0.5rem',
+                              borderRadius: 'var(--radius-md, 10px)',
+                              border: 'none',
+                              backgroundColor: '#10b981',
+                              color: '#ffffff',
+                              fontWeight: 700,
+                              fontSize: '0.8rem',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {isBn ? 'সহায়তা করুন' : 'Donate'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
         )}
+
+        {/* VIEW 2: DONATION HISTORY TABLE (Uses Reusable MyDonationsSection) */}
+        {(activeNav === 'my-donations' || activeNav === 'history') && <MyDonationsSection />}
 
         {/* VIEW 3: BENEFICIARY IMPACT */}
         {activeNav === 'impact' && (
           <div>
             <div style={{ marginBottom: '1.5rem' }}>
               <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <ShieldCheck size={24} color="#059669" />
-                {locale === 'bn' ? 'সহায়তাপ্রাপ্ত শিক্ষার্থীদের শিক্ষাজীবনে প্রভাব' : 'Beneficiary Student Impact'}
+                <ShieldCheck size={24} color="#10b981" />
+                {isBn ? 'শিক্ষার্থী ইম্প্যাক্ট ও স্বচ্ছতা সনদ' : 'Beneficiary Impact & Transparency'}
               </h1>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: '0.25rem 0 0' }}>
-                {locale === 'bn'
-                  ? 'আপনার অর্থায়নে যেসকল শিক্ষার্থীর শিক্ষা কার্যক্রম অব্যাহত রয়েছে তাদের বিবরণ'
-                  : 'Report of students whose education is continuing through your generous grants'}
+                {isBn
+                  ? 'আপনার সাদাকাহ্‌ সুবিধাবঞ্চিক শিক্ষার্থীদের জীবনে যে পরিবর্তন এনেছে তার বিবরণ।'
+                  : 'Track how your generous support creates lasting educational opportunities.'}
               </p>
             </div>
 
             <div
               style={{
-                backgroundColor: '#ffffff',
-                borderRadius: 'var(--radius-xl)',
-                border: '1px solid var(--surface-border, #e2e8f0)',
-                padding: '2.5rem',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                textAlign: 'center',
+                backgroundColor: 'var(--surface)',
+                borderRadius: 'var(--radius-xl, 24px)',
+                border: '1px solid var(--surface-border)',
+                padding: '2rem',
+                boxShadow: 'var(--shadow-card)',
               }}
             >
-              <div
-                style={{
-                  width: '64px',
-                  height: '64px',
-                  borderRadius: '50%',
-                  background: 'rgba(5, 150, 105, 0.1)',
-                  color: '#059669',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 1rem',
-                }}
-              >
-                <ShieldCheck size={36} />
-              </div>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-                {studentsHelpedCount > 0
-                  ? `আপনি সরাসরি ${studentsHelpedCount} জন শিক্ষার্থীর শিক্ষাজীবন অব্যাহত রাখতে সহায়তা করেছেন!`
-                  : 'শিক্ষার্থীদের পাশে দাঁড়াতে একটি অনুদান প্রদান করুন'}
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '1rem' }}>
+                {isBn ? 'স্বচ্ছতার শতভাগ নিশ্চয়তা' : '100% Transparency Commitment'}
               </h3>
-              <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', maxWidth: 500, margin: '0.5rem auto 1.5rem' }}>
-                সাদাকাহ বিডি-র ৪-ধাপের কঠোর ভেরিফিকেশন সিস্টেমের মাধ্যমে আপনার অনুদানের শতভাগ সরাসরি শিক্ষার্থীর পড়াশোনার খরচে নিশ্চিত করা হয়।
+              <p style={{ color: 'var(--text-body)', lineHeight: 1.7, fontSize: '0.95rem' }}>
+                {isBn
+                  ? 'সাদাকাহ বিডি-তে প্রতিটি অনুদান কঠোরভাবে অডিট করা হয়। আপনার প্রদত্ত অর্থ অনুমোদিত শিক্ষা প্রতিষ্ঠানের প্রধান ও ভেরিফাইড শিক্ষকদের উপস্থিতিতে সরাসরি শিক্ষার্থীদের টিউশন ফি, বইপত্র ও মেসে বিতরণ করা হয়।'
+                  : 'At SadaqahBD, every donation is strictly audited. Your funds are disbursed directly for tuition and educational supplies in cooperation with verified institute heads.'}
               </p>
-              <Link
-                href="/posts"
-                className="btn btn-primary"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.65rem 1.35rem', fontWeight: '700', textDecoration: 'none' }}
-              >
-                <ExternalLink size={16} /> আরও শিক্ষার্থীকে সহায়তা করুন
-              </Link>
+
+              <div style={{ marginTop: '1.5rem' }}>
+                <Link
+                  href="/ledger"
+                  className="btn btn-outline"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none', fontWeight: 700 }}
+                >
+                  <ExternalLink size={16} /> {isBn ? 'পাবলিক লেজার ও হিসাব বই দেখুন' : 'View Public Ledger'}
+                </Link>
+              </div>
             </div>
           </div>
         )}
-
-      {/* E-Receipt Modal */}
-      {selectedReceipt && (
-        <EReceiptModal receipt={selectedReceipt} onClose={() => setSelectedReceipt(null)} />
-      )}
       </div>
+
+      {/* Item Donation Modal */}
+      <ItemDonationModal
+        isOpen={isItemModalOpen}
+        onClose={() => setIsItemModalOpen(false)}
+      />
+
+      {/* Financial Donation Modal */}
+      <FinancialDonationModal
+        isOpen={isFinancialModalOpen}
+        onClose={() => setIsFinancialModalOpen(false)}
+      />
+
+      {/* Student Details Modal */}
+      <StudentDetailsModal
+        isOpen={!!selectedStudentId}
+        onClose={() => setSelectedStudentId(null)}
+        studentId={selectedStudentId}
+        isBn={isBn}
+      />
     </PortalLayout>
   );
 }

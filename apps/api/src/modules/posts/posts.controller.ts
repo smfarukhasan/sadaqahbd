@@ -34,6 +34,13 @@ export class PostsController {
     return this.postsService.listPendingSuperAdminPosts();
   }
 
+  @Get('approvals-history')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async listApprovalsHistory() {
+    return this.postsService.listSuperAdminPostsHistory();
+  }
+
   @Get('my-posts')
   @UseGuards(FirebaseAuthGuard, RolesGuard)
   @Roles(UserRole.STUDENT, UserRole.MASTER_ADMIN)

@@ -15,8 +15,10 @@ import {
   ShieldCheck,
   HeartHandshake,
   User,
+  FileText,
 } from 'lucide-react';
 import { useAuthStore } from '../../lib/auth-store';
+import { useMobileDrawerStore } from '../../lib/drawer-store';
 import UserMenuDropdown from '../profile/UserMenuDropdown';
 import AdminNotificationDropdown from './AdminNotificationDropdown';
 
@@ -57,8 +59,11 @@ export default function PortalLayout({
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
+  const isMobileOpen = useMobileDrawerStore((s) => s.isOpen);
+  const openDrawer = useMobileDrawerStore((s) => s.openDrawer);
+  const closeDrawer = useMobileDrawerStore((s) => s.closeDrawer);
+
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const toggleLanguage = () => {
     const nextLocale = locale === 'bn' ? 'en' : 'bn';
@@ -66,13 +71,14 @@ export default function PortalLayout({
   };
 
   const handleLogout = async () => {
+    closeDrawer();
     await logout();
     router.replace('/login');
   };
 
   const handleSelectNav = (id: string) => {
     onNavSelect(id);
-    setIsMobileOpen(false);
+    closeDrawer();
   };
 
   const userInitial = user?.fullName
@@ -93,39 +99,60 @@ export default function PortalLayout({
       );
     }
 
-    return (
-      <nav className={styles.navSection}>
-        {!isDrawerCollapsed && (
-          <div className={styles.navSectionTitle}>
-            {isBn ? 'মেনু ও অপশন' : 'Menu & Navigation'}
-          </div>
-        )}
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeNav === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => handleSelectNav(item.id)}
-              className={`${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
-              title={isBn ? item.labelBn : item.labelEn}
-            >
-              <div className={styles.navItemContent}>
-                <Icon size={19} />
-                {!isDrawerCollapsed && (
-                  <span className={styles.navItemText}>
-                    {isBn ? item.labelBn : item.labelEn}
-                  </span>
-                )}
-              </div>
-              {!isDrawerCollapsed && item.badge !== undefined && item.badge !== 0 && (
-                <span className={styles.navBadge}>{item.badge}</span>
+    const mainItems = navItems.filter((i) => i.id !== 'my-donations' && (i as any).section !== 'personal');
+    const personalItems = navItems.filter((i) => i.id === 'my-donations' || (i as any).section === 'personal');
+
+    const renderButtons = (items: PortalNavItem[]) =>
+      items.map((item) => {
+        const Icon = item.icon;
+        const isActive = activeNav === item.id;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => handleSelectNav(item.id)}
+            className={`${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
+            title={isBn ? item.labelBn : item.labelEn}
+          >
+            <div className={styles.navItemContent}>
+              <Icon size={19} color={item.id === 'my-donations' ? '#10b981' : undefined} />
+              {!isDrawerCollapsed && (
+                <span className={styles.navItemText}>
+                  {isBn ? item.labelBn : item.labelEn}
+                </span>
               )}
-            </button>
-          );
-        })}
-      </nav>
+            </div>
+            {!isDrawerCollapsed && item.badge !== undefined && item.badge !== 0 && (
+              <span className={styles.navBadge}>{item.badge}</span>
+            )}
+          </button>
+        );
+      });
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: 1 }}>
+        {mainItems.length > 0 && (
+          <nav className={styles.navSection}>
+            {!isDrawerCollapsed && (
+              <div className={styles.navSectionTitle}>
+                {isBn ? 'মেনু ও অপশন' : 'Menu & Navigation'}
+              </div>
+            )}
+            {renderButtons(mainItems)}
+          </nav>
+        )}
+
+        {personalItems.length > 0 && (
+          <nav className={styles.navSection}>
+            {!isDrawerCollapsed && (
+              <div className={styles.navSectionTitle}>
+                {isBn ? 'ব্যক্তিগত হিসাব' : 'Personal Activity'}
+              </div>
+            )}
+            {renderButtons(personalItems)}
+          </nav>
+        )}
+      </div>
     );
   };
 
@@ -136,16 +163,6 @@ export default function PortalLayout({
           ---------------------------------------------------- */}
       <header className={styles.topHeader}>
         <div className={styles.topHeaderLeft}>
-          {/* Mobile Drawer Hamburger Button */}
-          <button
-            type="button"
-            className={styles.mobileMenuToggle}
-            onClick={() => setIsMobileOpen(true)}
-            aria-label="Open Mobile Menu"
-          >
-            <Menu size={22} />
-          </button>
-
           {/* Brand Logo & Role Badge */}
           <div className={styles.portalBrand}>
             <div className={styles.brandIconWrapper}>
@@ -178,79 +195,28 @@ export default function PortalLayout({
           <AdminNotificationDropdown />
 
           {/* User Profile Menu with Name, Dropdown: Profile, BN/EN, Password, Logout */}
-          <UserMenuDropdown />
+          <UserMenuDropdown onSelectNav={onNavSelect} />
         </div>
       </header>
 
       {/* ----------------------------------------------------
-          2. WORKSPACE LAYOUT: SIDEBAR DRAWER + MAIN CONTENT
+          2. WORKSPACE LAYOUT: UNIFIED SIDEBAR DRAWER + MAIN CONTENT
           ---------------------------------------------------- */}
       <div className={styles.workspaceLayout}>
         {/* Mobile Off-Canvas Drawer Backdrop */}
         <div
           className={`${styles.mobileBackdrop} ${isMobileOpen ? styles.mobileBackdropOpen : ''}`}
-          onClick={() => setIsMobileOpen(false)}
+          onClick={closeDrawer}
         />
 
-        {/* Mobile Slide-over Drawer */}
-        <aside
-          className={`${styles.mobileDrawer} ${isMobileOpen ? styles.mobileDrawerOpen : ''}`}
-        >
-          <div className={styles.sidebarHeader}>
-            {user ? (
-              <div className={styles.userProfileCard}>
-                <div className={styles.userAvatar}>{userInitial}</div>
-                <div className={styles.userInfo}>
-                  <span className={styles.userName}>{user.fullName}</span>
-                  <span className={styles.userEmail}>{user.email}</span>
-                </div>
-              </div>
-            ) : (
-              <div className={styles.brandBox}>
-                <div className={styles.brandIcon}>
-                  <HeartHandshake size={20} />
-                </div>
-                <div className={styles.brandInfo}>
-                  <span className={styles.brandTitle}>সাদাকাহ বিডি</span>
-                  <span className={styles.roleBadge}>
-                    {isBn ? roleNameBn : roleNameEn}
-                  </span>
-                </div>
-              </div>
-            )}
-            <button
-              type="button"
-              className={styles.collapseToggleBtn}
-              onClick={() => setIsMobileOpen(false)}
-              aria-label="Close Menu"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          {renderNavList(false)}
-
-          {/* Mobile Drawer Bottom Logout */}
-          <div className={styles.drawerFooter}>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className={styles.drawerLogoutBtn}
-            >
-              <LogOut size={18} />
-              <span>{isBn ? 'লগআউট' : 'Logout'}</span>
-            </button>
-          </div>
-        </aside>
-
-        {/* Desktop Collapsible Sidebar Drawer */}
+        {/* Single Unified Responsive Sidebar Drawer (Mobile Slide-Over + Desktop Sticky) */}
         <aside
           className={`${styles.sidebarDrawer} ${
             isCollapsed ? styles.sidebarDrawerCollapsed : ''
-          }`}
+          } ${isMobileOpen ? styles.mobileDrawerOpen : ''}`}
         >
           <div className={styles.sidebarHeader}>
-            {user && !isCollapsed && (
+            {user && (!isCollapsed || isMobileOpen) && (
               <div className={styles.userProfileCard}>
                 <div className={styles.userAvatar}>{userInitial}</div>
                 <div className={styles.userInfo}>
@@ -263,16 +229,28 @@ export default function PortalLayout({
             <button
               type="button"
               className={styles.collapseToggleBtn}
-              onClick={() => setIsCollapsed(!isCollapsed)}
+              onClick={() => {
+                if (isMobileOpen) {
+                  closeDrawer();
+                } else {
+                  setIsCollapsed(!isCollapsed);
+                }
+              }}
               title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
             >
-              {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+              {isMobileOpen ? (
+                <X size={18} />
+              ) : isCollapsed ? (
+                <ChevronRight size={18} />
+              ) : (
+                <ChevronLeft size={18} />
+              )}
             </button>
           </div>
 
-          {renderNavList(isCollapsed)}
+          {renderNavList(isCollapsed && !isMobileOpen)}
 
-          {/* Desktop Drawer Bottom Logout */}
+          {/* Drawer Bottom Logout */}
           <div className={styles.drawerFooter}>
             <button
               type="button"
@@ -281,7 +259,7 @@ export default function PortalLayout({
               title={isBn ? 'লগআউট' : 'Logout'}
             >
               <LogOut size={18} />
-              {!isCollapsed && <span>{isBn ? 'লগআউট' : 'Logout'}</span>}
+              {(!isCollapsed || isMobileOpen) && <span>{isBn ? 'লগআউট' : 'Logout'}</span>}
             </button>
           </div>
         </aside>

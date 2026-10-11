@@ -1,37 +1,30 @@
 'use client';
 
 import React from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { Link, usePathname } from '../../i18n/routing';
 import styles from './BottomNav.module.css';
-import { Home, Heart, FileText, BarChart3, User, PlusCircle } from 'lucide-react';
-import { useAuthStore, getRoleDashboardPath } from '../../lib/auth-store';
-import { isPanelRoute } from '../../lib/is-panel-route';
+import { Home, Heart, FileText, BarChart3, Menu, PlusCircle } from 'lucide-react';
+import { useAuthStore } from '../../lib/auth-store';
+import { useMobileDrawerStore } from '../../lib/drawer-store';
+import FinancialDonationModal from '../portal/FinancialDonationModal';
 
 export default function BottomNav() {
+  const [isFinancialModalOpen, setIsFinancialModalOpen] = React.useState(false);
   const navT = useTranslations('Nav');
+  const locale = useLocale();
+  const isBn = locale === 'bn';
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
 
-  const userRolePath = user ? getRoleDashboardPath(user.role) : '/login';
+  const toggleDrawer = useMobileDrawerStore((s) => s.toggleDrawer);
+  const isDrawerOpen = useMobileDrawerStore((s) => s.isOpen);
+
   const isMandatorySetup = pathname.includes('/set-password') || (user && !user.isPasswordSet);
 
-  // Dedicated User Panels (Admin, Student, Teacher, Org, Donor, MasterAdmin) have their own separate executive portal UI
-  if (isMandatorySetup || isPanelRoute(pathname)) {
+  if (isMandatorySetup) {
     return null;
   }
-
-  const roleTabLabel = user
-    ? (user.role === 'student'
-        ? 'ড্যাশবোর্ড'
-        : user.role === 'teacher'
-        ? 'শিক্ষক'
-        : user.role === 'organization'
-        ? 'প্রতিষ্ঠান'
-        : user.role === 'donor'
-        ? 'ডোনার'
-        : 'এডমিন')
-    : navT('portal');
 
   const isActive = (path: string) => {
     if (path === '/' && pathname === '/') return true;
@@ -46,7 +39,7 @@ export default function BottomNav() {
         className={`${styles.tab} ${isActive('/') ? styles.tabActive : ''}`}
       >
         <div className={styles.iconContainer}>
-          <Home size={21} />
+          <Home size={28} />
           {isActive('/') && <span className={styles.activeDot} />}
         </div>
         <span className={styles.tabLabel}>{navT('home')}</span>
@@ -57,7 +50,7 @@ export default function BottomNav() {
         className={`${styles.tab} ${isActive('/posts') ? styles.tabActive : ''}`}
       >
         <div className={styles.iconContainer}>
-          <FileText size={21} />
+          <FileText size={28} />
           {isActive('/posts') && <span className={styles.activeDot} />}
         </div>
         <span className={styles.tabLabel}>{navT('posts')}</span>
@@ -71,20 +64,22 @@ export default function BottomNav() {
           style={{ background: '#059669' }}
         >
           <div className={styles.donateIconWrapper}>
-            <PlusCircle size={22} className={styles.heartPulse} />
+            <PlusCircle size={36} className={styles.heartPulse} />
           </div>
-          <span className={styles.donateLabel}>আবেদন</span>
+          <span className={styles.donateLabel}>{isBn ? 'আবেদন' : 'Apply'}</span>
         </Link>
       ) : (
-        <Link
-          href="/donate"
+        <button
+          type="button"
+          onClick={() => setIsFinancialModalOpen(true)}
           className={`${styles.tab} ${styles.donateHighlight}`}
+          style={{ background: 'none', border: 'none', cursor: 'pointer' }}
         >
           <div className={styles.donateIconWrapper}>
-            <Heart size={22} className={styles.heartPulse} />
+            <Heart size={36} className={styles.heartPulse} />
           </div>
           <span className={styles.donateLabel}>{navT('donate')}</span>
-        </Link>
+        </button>
       )}
 
       <Link
@@ -92,23 +87,30 @@ export default function BottomNav() {
         className={`${styles.tab} ${isActive('/ledger') ? styles.tabActive : ''}`}
       >
         <div className={styles.iconContainer}>
-          <BarChart3 size={21} />
+          <BarChart3 size={28} />
           {isActive('/ledger') && <span className={styles.activeDot} />}
         </div>
         <span className={styles.tabLabel}>{navT('ledger')}</span>
       </Link>
 
-      <Link
-        href={userRolePath as any}
-        className={`${styles.tab} ${isActive(userRolePath) ? styles.tabActive : ''}`}
+      {/* Unified Mobile Drawer Trigger Tab */}
+      <button
+        type="button"
+        onClick={toggleDrawer}
+        className={`${styles.tab} ${isDrawerOpen ? styles.tabActive : ''}`}
+        style={{ background: 'none', border: 'none', cursor: 'pointer' }}
       >
         <div className={styles.iconContainer}>
-          <User size={21} />
-          {isActive(userRolePath) && <span className={styles.activeDot} />}
+          <Menu size={28} />
+          {isDrawerOpen && <span className={styles.activeDot} />}
         </div>
-        <span className={styles.tabLabel}>{roleTabLabel}</span>
-      </Link>
+        <span className={styles.tabLabel}>{isBn ? 'মেনু' : 'Menu'}</span>
+      </button>
+
+      <FinancialDonationModal
+        isOpen={isFinancialModalOpen}
+        onClose={() => setIsFinancialModalOpen(false)}
+      />
     </nav>
   );
 }
-

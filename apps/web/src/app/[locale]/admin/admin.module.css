@@ -321,32 +321,6 @@
   color: #34d399;
 }
 
-.mobileMenuTrigger {
-  display: none;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  width: 36px;
-  height: 36px;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: #34d399;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-}
-
-.mobileMenuTrigger:hover {
-  background-color: rgba(255, 255, 255, 0.16);
-  color: #6ee7b7;
-}
-
-@media (max-width: 991px) {
-  .mobileMenuTrigger {
-    display: flex;
-  }
-}
-
 @media (max-width: 767px) {
   .adminHeader {
     height: 56px;
@@ -792,6 +766,44 @@
   }
 }
 
+/* Top Executive Header */
+.adminHeader {
+  height: 60px;
+  background-color: var(--drawer-header-bg, #0b1120);
+  border-bottom: 1px solid var(--drawer-border, #1e293b);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.25rem;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.adminHeaderSubtitle {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* Mobile Drawer Trigger (Hidden on Desktop/Large Screens, Visible only on Mobile) */
+.mobileMenuTrigger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0.35rem;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #34d399;
+  transition: background 0.2s ease;
+}
+
+.mobileMenuTrigger:hover {
+  background: rgba(52, 211, 153, 0.12);
+}
+
 /* Public Site button in top bar */
 .publicSiteBtn {
   display: inline-flex;
@@ -825,6 +837,18 @@
 }
 
 @media (max-width: 767px) {
+  .adminHeader {
+    padding: 0 0.85rem;
+  }
+
+  .mobileMenuTrigger {
+    display: inline-flex;
+  }
+
+  .adminHeaderSubtitle {
+    display: none;
+  }
+
   .publicSiteBtn {
     width: 36px;
     height: 36px;
@@ -839,4 +863,298 @@
     display: none;
   }
 }
+
+/* ==========================================================================
+   Verification Center Tabs & History System
+   ========================================================================== */
+.verificationTabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 2px solid var(--color-border, #e2e8f0);
+  padding-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.verificationTabBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.15rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted, #64748b);
+  transition: all 0.2s ease;
+}
+
+.verificationTabBtn:hover {
+  background-color: var(--background-alt, #f8fafc);
+  color: var(--text-main, #0f172a);
+}
+
+.verificationTabBtnActive {
+  background-color: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.tabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+.verificationTabBtnActive .tabBadge {
+  background-color: #047857;
+  color: #ffffff;
+}
+
+.historyFilterBar {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.historySearchInput {
+  flex: 1 1 240px;
+  padding: 0.55rem 0.85rem 0.55rem 2.25rem;
+  border-radius: 10px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  font-size: 0.85rem;
+  background-color: var(--surface, #ffffff);
+  color: var(--text-main, #0f172a);
+  outline: none;
+}
+
+.historyFilterSelect {
+  padding: 0.55rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  font-size: 0.85rem;
+  background-color: var(--surface, #ffffff);
+  color: var(--text-main, #0f172a);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.historyCard {
+  padding: 1.25rem;
+  background-color: var(--background-alt, #f8fafc);
+  border-radius: 12px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.historyCard:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border-color: #cbd5e1;
+}
+
+.historyBadgeApproved {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  background-color: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.historyBadgeRejected {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+:global([data-theme="dark"]) .historyBadgeApproved {
+  background-color: rgba(16, 185, 129, 0.16);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+:global([data-theme="dark"]) .historyBadgeRejected {
+  background-color: rgba(239, 68, 68, 0.16);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+/* ==========================================================================
+   Expense Category Chips & Alerts (Dark & Light Mode Friendly)
+   ========================================================================== */
+.expenseBreakdownLabel {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-main, #334155);
+  margin-bottom: 0.4rem;
+}
+
+:global([data-theme="dark"]) .expenseBreakdownLabel {
+  color: #cbd5e1;
+}
+
+.expenseChip {
+  background-color: var(--surface, #ffffff);
+  border: 1px solid var(--color-border, #cbd5e1);
+  color: var(--text-main, #0f172a);
+  padding: 0.3rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+:global([data-theme="dark"]) .expenseChip {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+.expenseChipCat {
+  color: var(--text-muted, #475569);
+  font-weight: 600;
+}
+
+:global([data-theme="dark"]) .expenseChipCat {
+  color: #94a3b8;
+}
+
+.expenseChipAmt {
+  color: var(--color-primary-dark, #065f46);
+  font-weight: 800;
+}
+
+:global([data-theme="dark"]) .expenseChipAmt {
+  color: #34d399;
+}
+
+.historyWarningBox {
+  margin-top: 0.65rem;
+  padding: 0.65rem 0.85rem;
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: #92400e;
+}
+
+:global([data-theme="dark"]) .historyWarningBox {
+  background-color: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+}
+
+.historyRejectionBox {
+  margin-top: 0.65rem;
+  padding: 0.65rem 0.85rem;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: #991b1b;
+}
+
+:global([data-theme="dark"]) .historyRejectionBox {
+  background-color: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.readOnlyBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  margin-bottom: 1.25rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.readOnlyBannerApproved {
+  background-color: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+:global([data-theme="dark"]) .readOnlyBannerApproved {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.readOnlyBannerRejected {
+  background-color: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+:global([data-theme="dark"]) .readOnlyBannerRejected {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+/* ==========================================================================
+   Teachers & Students Modal Trigger Button (Theme Adaptive)
+   ========================================================================== */
+.orgMembersBtn {
+  padding: 0.45rem 0.85rem;
+  background-color: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.orgMembersBtn:hover {
+  background-color: #d1fae5;
+  border-color: #6ee7b7;
+  color: #065f46;
+  transform: translateY(-1px);
+}
+
+:global([data-theme="dark"]) .orgMembersBtn {
+  background-color: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #34d399;
+}
+
+:global([data-theme="dark"]) .orgMembersBtn:hover {
+  background-color: rgba(16, 185, 129, 0.24);
+  border-color: rgba(16, 185, 129, 0.5);
+  color: #6ee7b7;
+}
+
+
 

@@ -7,17 +7,16 @@ export const metadata = {
   robots: 'noindex, nofollow',
 };
 
-export default function MasterAdminRootLayout({
+export default function MasterAdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body style={{ backgroundColor: '#0f172a', minHeight: '100vh', color: '#f8fafc' }}>
-        <AuthInitializer />
-        {children}
-      </body>
-    </html>
+    <div style={{ backgroundColor: '#0f172a', minHeight: '100vh', color: '#f8fafc' }}>
+      <AuthInitializer />
+      {children}
+    </div>
   );
 }
+

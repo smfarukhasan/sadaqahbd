@@ -274,3 +274,114 @@
   padding: 0.5rem 0.85rem 0.25rem;
   letter-spacing: 0.05em;
 }
+
+/* ==========================================================================
+   Dark Theme Overrides ([data-theme="dark"])
+   ========================================================================== */
+:global([data-theme="dark"]) .notifBtn {
+  background-color: var(--surface, #111a28);
+  border-color: var(--surface-border, #1e293b);
+  color: var(--text-body, #cbd5e1);
+}
+
+:global([data-theme="dark"]) .notifBtn:hover,
+:global([data-theme="dark"]) .notifBtnOpen {
+  border-color: #10b981;
+  color: #34d399;
+  background-color: rgba(16, 185, 129, 0.16);
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.25);
+}
+
+:global([data-theme="dark"]) .badge {
+  border-color: #0b1120;
+}
+
+:global([data-theme="dark"]) .badgeDot {
+  border-color: #0b1120;
+}
+
+:global([data-theme="dark"]) .dropdownMenu {
+  background-color: var(--surface, #111a28);
+  border-color: var(--surface-border, #1e293b);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
+:global([data-theme="dark"]) .menuHeader {
+  background-color: var(--background-alt, #0d1522);
+  border-bottom-color: var(--surface-border, #1e293b);
+}
+
+:global([data-theme="dark"]) .menuHeaderTitle {
+  color: var(--text-main, #f8fafc);
+}
+
+:global([data-theme="dark"]) .menuHeaderBadge {
+  background-color: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+:global([data-theme="dark"]) .sectionHeading {
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .notifItem:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+:global([data-theme="dark"]) .notifItemLeft {
+  color: var(--text-main, #f8fafc);
+}
+
+:global([data-theme="dark"]) .notifItemIcon {
+  color: #34d399;
+}
+
+:global([data-theme="dark"]) .notifItemCount {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+:global([data-theme="dark"]) .feedItem {
+  border-bottom-color: var(--surface-border, #1e293b);
+}
+
+:global([data-theme="dark"]) .feedItem:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+:global([data-theme="dark"]) .feedItemUnread {
+  background-color: rgba(16, 185, 129, 0.12);
+  border-left: 3px solid #10b981;
+}
+
+:global([data-theme="dark"]) .feedItemIcon {
+  background-color: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+:global([data-theme="dark"]) .feedItemTitle {
+  color: var(--text-main, #f8fafc);
+}
+
+:global([data-theme="dark"]) .feedItemMessage {
+  color: var(--text-body, #cbd5e1);
+}
+
+:global([data-theme="dark"]) .feedItemTime {
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .feedItemDot {
+  background-color: #34d399;
+}
+
+:global([data-theme="dark"]) .emptyState {
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .emptyIcon {
+  color: #64748b;
+}
+

@@ -21,11 +21,14 @@ import {
 import { useAuthStore, getRoleDashboardPath } from '../../../lib/auth-store';
 import PortalLayout, { PortalNavItem } from '../../../components/layout/PortalLayout';
 import { getApiUrl } from '../../../lib/api-config';
+import { getAuthToken } from '../../../lib/auth-token';
 import EReceiptModal, { ReceiptData } from '../../../components/portal/EReceiptModal';
 import OrganizationApplyModal from '../../../components/portal/OrganizationApplyModal';
 import DonationLedgerTable from '../../../components/portal/DonationLedgerTable';
 import VerificationStatusView from '../../../components/portal/VerificationStatusView';
 import StudentDetailsModal from '../../../components/portal/StudentDetailsModal';
+
+import MyDonationsSection from '../../../components/portal/MyDonationsSection';
 
 export default function OrganizationDashboardPage() {
   const locale = useLocale();
@@ -34,7 +37,16 @@ export default function OrganizationDashboardPage() {
   const firebaseUser = useAuthStore((s) => s.firebaseUser);
   const loadingAuth = useAuthStore((s) => s.loading);
 
-  const [activeTab, setActiveTab] = useState<'affiliations' | 'clearances' | 'teachers' | 'donations'>('affiliations');
+  const [activeTab, setActiveTab] = useState<'affiliations' | 'clearances' | 'teachers' | 'my-donations' | 'donations'>('affiliations');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const tabParam = new URLSearchParams(window.location.search).get('tab');
+      if (tabParam === 'my-donations' || tabParam === 'affiliations' || tabParam === 'clearances' || tabParam === 'teachers' || tabParam === 'donations') {
+        setActiveTab(tabParam as any);
+      }
+    }
+  }, []);
   const [orgTeachers, setOrgTeachers] = useState<any[]>([]);
   const [orgPendingPosts, setOrgPendingPosts] = useState<any[]>([]);
   const [orgStatusData, setOrgStatusData] = useState<{
@@ -64,9 +76,10 @@ export default function OrganizationDashboardPage() {
   }, [user, loadingAuth, router]);
 
   const loadData = async () => {
-    if (!firebaseUser || !user) return;
+    if (!user) return;
     try {
-      const token = await firebaseUser.getIdToken();
+      const token = await getAuthToken();
+      if (!token) return;
       const apiUrl = getApiUrl();
       const headers = { Authorization: `Bearer ${token}` };
 
@@ -118,13 +131,14 @@ export default function OrganizationDashboardPage() {
         return () => clearInterval(timer);
       }
     }
-  }, [user, firebaseUser, orgStatusData?.status]);
+  }, [user, orgStatusData?.status]);
 
   // Handle reviewing pending teacher/student affiliation (Stage 1)
   const handleReviewAffiliation = async (role: 'teacher' | 'student', id: string, approved: boolean) => {
-    if (!firebaseUser) return;
+    if (!user) return;
     try {
-      const token = await firebaseUser.getIdToken();
+      const token = await getAuthToken();
+      if (!token) return;
       const apiUrl = getApiUrl();
       const res = await fetch(`${apiUrl}/organizations/affiliations/${role}/${id}/review`, {
         method: 'PATCH',
@@ -155,9 +169,10 @@ export default function OrganizationDashboardPage() {
 
   // Handle approving teacher affiliation (legacy)
   const handleApproveTeacher = async (teacherId: string) => {
-    if (!firebaseUser) return;
+    if (!user) return;
     try {
-      const token = await firebaseUser.getIdToken();
+      const token = await getAuthToken();
+      if (!token) return;
       const apiUrl = getApiUrl();
       const res = await fetch(`${apiUrl}/users/teacher/${teacherId}/verify`, {
         method: 'POST',
@@ -180,9 +195,10 @@ export default function OrganizationDashboardPage() {
 
   // Handle granting institutional clearance to student post
   const handleApproveStudentPost = async (postId: string) => {
-    if (!firebaseUser) return;
+    if (!user) return;
     try {
-      const token = await firebaseUser.getIdToken();
+      const token = await getAuthToken();
+      if (!token) return;
       const apiUrl = getApiUrl();
       const res = await fetch(`${apiUrl}/posts/${postId}/org-verify`, {
         method: 'POST',
@@ -240,13 +256,26 @@ export default function OrganizationDashboardPage() {
           badge: orgTeachers.length,
         },
         {
-          id: 'donations',
-          labelBn: 'অনুদান লেজার',
-          labelEn: 'Donation Ledger',
+          id: 'my-donations',
+          labelBn: 'আমার দান সমূহ',
+          labelEn: 'My Donations',
           icon: Heart,
         },
+        {
+          id: 'donations',
+          labelBn: 'গ্লোবাল অনুদান লেজার',
+          labelEn: 'Global Ledger',
+          icon: FileText,
+        },
       ]
-    : [];
+    : [
+        {
+          id: 'my-donations',
+          labelBn: 'আমার দান সমূহ',
+          labelEn: 'My Donations',
+          icon: Heart,
+        },
+      ];
 
   return (
     <PortalLayout
@@ -746,7 +775,10 @@ export default function OrganizationDashboardPage() {
               </div>
             )}
 
-            {/* Tab 4: Institutional Donations */}
+            {/* Tab 4: My Personal Donations */}
+            {activeTab === 'my-donations' && <MyDonationsSection />}
+
+            {/* Tab 5: Institutional Donations */}
             {activeTab === 'donations' && (
               <DonationLedgerTable
                 firebaseUser={firebaseUser}

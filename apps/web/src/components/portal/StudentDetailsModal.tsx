@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import styles from './StudentDetailsModal.module.css';
 import { useAuthStore } from '../../lib/auth-store';
 import { getApiUrl } from '../../lib/api-config';
+import { getAuthToken } from '../../lib/auth-token';
 import {
   GraduationCap,
   X,
@@ -110,7 +111,10 @@ export default function StudentDetailsModal({
     try {
       setLoading(true);
       setError('');
-      const token = await firebaseUser?.getIdToken();
+      const token = await getAuthToken();
+      if (!token) {
+        throw new Error(isBn ? 'লগইন সেশন পাওয়া যায়নি। অনুগ্রহ করে পুনরায় লগইন করুন।' : 'Authentication required. Please log in again.');
+      }
       const apiUrl = getApiUrl();
       const res = await fetch(`${apiUrl}/users/students/${id}/details`, {
         headers: {
@@ -140,7 +144,10 @@ export default function StudentDetailsModal({
       setSavingCorrection(true);
       setError('');
       setSuccessMessage('');
-      const token = await firebaseUser?.getIdToken();
+      const token = await getAuthToken();
+      if (!token) {
+        throw new Error(isBn ? 'লগইন সেশন পাওয়া যায়নি। অনুগ্রহ করে পুনরায় লগইন করুন।' : 'Authentication required. Please log in again.');
+      }
       const apiUrl = getApiUrl();
       const res = await fetch(`${apiUrl}/organizations/affiliations/student/${profile.id}/correct`, {
         method: 'PATCH',

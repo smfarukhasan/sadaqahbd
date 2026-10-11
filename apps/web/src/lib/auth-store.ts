@@ -58,6 +58,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (res.ok) {
         const userData: AppUser = await res.json();
+        if ((userData as any).token && typeof window !== 'undefined') {
+          localStorage.setItem('sadaqahbd_auth_token', (userData as any).token);
+          localStorage.setItem('sadaqahbd_local_user', JSON.stringify(userData));
+        }
         set({ user: userData, firebaseUser: fbUser, loading: false, initialized: true });
         return userData;
       }
@@ -73,8 +77,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('sadaqahbd_master_admin');
+        localStorage.removeItem('sadaqahbd_local_user');
+        localStorage.removeItem('sadaqahbd_auth_token');
       }
-      await logoutUser();
+      try {
+        await logoutUser();
+      } catch {}
       set({ user: null, firebaseUser: null, loading: false });
     } catch (err) {
       console.error('Error logging out:', err);

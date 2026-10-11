@@ -171,6 +171,11 @@
   border-color: var(--surface-border) !important;
 }
 
+[data-theme="dark"] select option {
+  background-color: var(--surface) !important;
+  color: var(--text-main) !important;
+}
+
 [data-theme="dark"] input::placeholder,
 [data-theme="dark"] textarea::placeholder {
   color: var(--text-subtle) !important;
@@ -180,6 +185,45 @@
   background-color: var(--surface) !important;
   border-color: var(--surface-border) !important;
   color: var(--text-main) !important;
+}
+
+[data-theme="dark"] .btn-secondary {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+[data-theme="dark"] .btn-secondary:hover {
+  background: #334155 !important;
+  border-color: #475569 !important;
+}
+
+[data-theme="dark"] .btn-outline {
+  background: rgba(30, 41, 59, 0.6) !important;
+  color: #60a5fa !important;
+  border-color: #1d4ed8 !important;
+}
+
+[data-theme="dark"] .btn-outline:hover {
+  background: rgba(29, 78, 216, 0.25) !important;
+  border-color: #3b82f6 !important;
+  color: #93c5fd !important;
+}
+
+[data-theme="dark"] .btn-outline-emerald {
+  background: rgba(16, 185, 129, 0.12) !important;
+  color: #34d399 !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+
+[data-theme="dark"] .btn-outline-emerald:hover {
+  background: rgba(16, 185, 129, 0.25) !important;
+  border-color: #10b981 !important;
+  color: #6ee7b7 !important;
+}
+
+[data-theme="dark"] .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
 }
 
 * {

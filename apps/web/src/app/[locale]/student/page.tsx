@@ -13,23 +13,37 @@ import {
   AlertCircle,
   Send,
   Building2,
+  Heart,
 } from 'lucide-react';
 import { useAuthStore, getRoleDashboardPath } from '../../../lib/auth-store';
 import PortalLayout, { PortalNavItem } from '../../../components/layout/PortalLayout';
 import { getApiUrl } from '../../../lib/api-config';
+import { getAuthToken } from '../../../lib/auth-token';
 import AffiliationApplyModal from '../../../components/portal/AffiliationApplyModal';
 import VerificationStatusView from '../../../components/portal/VerificationStatusView';
 import StudentApplicationForm from '../../../components/portal/StudentApplicationForm';
 import UserProfileModal from '../../../components/profile/UserProfileModal';
 
+import MyDonationsSection from '../../../components/portal/MyDonationsSection';
+
 export default function StudentDashboardPage() {
   const locale = useLocale();
+  const isBn = locale === 'bn';
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const firebaseUser = useAuthStore((s) => s.firebaseUser);
   const loadingAuth = useAuthStore((s) => s.loading);
 
-  const [activeNav, setActiveNav] = useState<'overview' | 'applications' | 'complaints'>('overview');
+  const [activeNav, setActiveNav] = useState<'overview' | 'applications' | 'complaints' | 'my-donations'>('overview');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const tabParam = new URLSearchParams(window.location.search).get('tab');
+      if (tabParam === 'my-donations' || tabParam === 'overview' || tabParam === 'applications' || tabParam === 'complaints') {
+        setActiveNav(tabParam as any);
+      }
+    }
+  }, []);
   const [isCreatingPost, setIsCreatingPost] = useState(false);
   const [studentPosts, setStudentPosts] = useState<any[]>([]);
   const [affiliationData, setAffiliationData] = useState<{
@@ -117,9 +131,9 @@ export default function StudentDashboardPage() {
   }, [user, loadingAuth, router]);
 
   const loadData = async () => {
-    if (!firebaseUser || !user) return;
+    if (!user) return;
     try {
-      const token = await firebaseUser.getIdToken();
+      const token = await getAuthToken();
       const apiUrl = getApiUrl();
       const headers = { Authorization: `Bearer ${token}` };
 
@@ -178,7 +192,7 @@ export default function StudentDashboardPage() {
     if (!complaintSubject.trim() || !complaintDesc.trim()) return;
 
     try {
-      const token = await firebaseUser?.getIdToken();
+      const token = await getAuthToken();
       const apiUrl = getApiUrl();
       const res = await fetch(`${apiUrl}/complaints`, {
         method: 'POST',
@@ -247,8 +261,21 @@ export default function StudentDashboardPage() {
           icon: MessageSquareWarning,
           badge: complaintsList.length,
         },
+        {
+          id: 'my-donations',
+          labelBn: 'আমার দান সমূহ',
+          labelEn: 'My Donations',
+          icon: Heart,
+        },
       ]
-    : [];
+    : [
+        {
+          id: 'my-donations',
+          labelBn: 'আমার দান সমূহ',
+          labelEn: 'My Donations',
+          icon: Heart,
+        },
+      ];
 
   return (
     <PortalLayout
@@ -375,10 +402,12 @@ export default function StudentDashboardPage() {
                 >
                   <div>
                     <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-                      স্বাগতম, {user.fullName}
+                      {isBn ? `স্বাগতম, ${user.fullName}` : `Welcome, ${user.fullName}`}
                     </h1>
                     <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
-                      আপনার শিক্ষা সহায়তা আবেদন ও অগ্রগতির সামগ্রিক চিত্র
+                      {isBn
+                        ? 'আপনার শিক্ষা সহায়তা আবেদন ও অগ্রগতির সামগ্রিক চিত্র'
+                        : 'Overview of your aid applications, verification status, and progress'}
                     </p>
                   </div>
 
@@ -392,7 +421,7 @@ export default function StudentDashboardPage() {
                     style={{ cursor: 'pointer', border: 'none' }}
                   >
                     <PlusCircle size={18} />
-                    <span>নতুন আবেদন তৈরি করুন</span>
+                    <span>{isBn ? 'নতুন আবেদন তৈরি করুন' : 'Create New Application'}</span>
                   </button>
                 </div>
                 {/* KPI Cards */}
@@ -414,9 +443,11 @@ export default function StudentDashboardPage() {
                   boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
                 }}
               >
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>মোট জমাকৃত আবেদন</span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  {isBn ? 'মোট জমাকৃত আবেদন' : 'Total Applications'}
+                </span>
                 <h3 style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--text-main)', margin: '0.25rem 0 0' }}>
-                  {studentPosts.length} টি
+                  {studentPosts.length} {isBn ? 'টি' : ''}
                 </h3>
               </div>
 
@@ -429,7 +460,9 @@ export default function StudentDashboardPage() {
                   boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
                 }}
               >
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>প্রয়োজনীয় সহায়তার অর্থ</span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  {isBn ? 'প্রয়োজনীয় সহায়তার অর্থ' : 'Target Required Amount'}
+                </span>
                 <h3 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#059669', margin: '0.25rem 0 0' }}>
                   ৳{totalReq.toLocaleString()}
                 </h3>
@@ -444,7 +477,9 @@ export default function StudentDashboardPage() {
                   boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
                 }}
               >
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>সংগৃহীত সহায়তার অর্থ</span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  {isBn ? 'সংগৃহীত সহায়তার অর্থ' : 'Total Raised Amount'}
+                </span>
                 <h3 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#047857', margin: '0.25rem 0 0' }}>
                   ৳{totalRec.toLocaleString()}
                 </h3>
@@ -464,7 +499,7 @@ export default function StudentDashboardPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                 <h3 style={{ fontSize: '1.15rem', fontWeight: '800', margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <FileText size={20} color="#059669" />
-                  সাম্প্রতিক আবেদনসমূহ
+                  {isBn ? 'সাম্প্রতিক আবেদনসমূহ' : 'Recent Applications'}
                 </h3>
                 <button
                   onClick={() => setActiveNav('applications')}
@@ -477,7 +512,7 @@ export default function StudentDashboardPage() {
                     cursor: 'pointer',
                   }}
                 >
-                  সব দেখুন ({studentPosts.length}) →
+                  {isBn ? `সব দেখুন (${studentPosts.length}) →` : `View All (${studentPosts.length}) →`}
                 </button>
               </div>
 
@@ -573,10 +608,12 @@ export default function StudentDashboardPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                   <div>
                     <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-                      আমার জমাকৃত আবেদনসমূহ
+                      {isBn ? 'আমার জমাকৃত আবেদনসমূহ' : 'My Submitted Aid Requests'}
                     </h1>
                     <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
-                      আপনার সমস্ত শিক্ষা সহায়তা আবেদনের বর্তমান অবস্থা এবং সত্যায়ন অগ্রগতি
+                      {isBn
+                        ? 'আপনার সমস্ত শিক্ষা সহায়তা আবেদনের বর্তমান অবস্থা এবং সত্যায়ন অগ্রগতি'
+                        : 'Track verification stages and progress for all your financial assistance applications'}
                     </p>
                   </div>
 
@@ -599,7 +636,7 @@ export default function StudentDashboardPage() {
                     }}
                   >
                     <PlusCircle size={18} />
-                    <span>{locale === 'bn' ? 'নতুন আবেদন তৈরি করুন' : 'Create New Application'}</span>
+                    <span>{isBn ? 'নতুন আবেদন তৈরি করুন' : 'Create New Application'}</span>
                   </button>
                 </div>
 
@@ -613,7 +650,9 @@ export default function StudentDashboardPage() {
                   }}
                 >
                   {loadingData ? (
-                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>লোড হচ্ছে...</div>
+                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      {isBn ? 'লোড হচ্ছে...' : 'Loading...'}
+                    </div>
                   ) : studentPosts.length === 0 ? (
                     <div
                       style={{
@@ -626,10 +665,12 @@ export default function StudentDashboardPage() {
                     >
                       <GraduationCap size={42} color="#059669" style={{ margin: '0 auto 0.75rem' }} />
                       <h4 style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '0.35rem' }}>
-                        কোনো আবেদন পাওয়া যায়নি
+                        {isBn ? 'কোনো আবেদন পাওয়া যায়নি' : 'No Applications Found'}
                       </h4>
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
-                        আপনার নতুন একটি শিক্ষা সহায়তার আবেদন তৈরি করে সাবমিট করুন।
+                        {isBn
+                          ? 'আপনার নতুন একটি শিক্ষা সহায়তার আবেদন তৈরি করে সাবমিট করুন।'
+                          : 'Create and submit a new financial assistance application.'}
                       </p>
                       <button
                         type="button"
@@ -647,7 +688,8 @@ export default function StudentDashboardPage() {
                           borderRadius: 'var(--radius-md, 8px)',
                         }}
                       >
-                        <PlusCircle size={16} style={{ marginRight: '0.4rem' }} /> নতুন আবেদন তৈরি করুন
+                        <PlusCircle size={16} style={{ marginRight: '0.4rem' }} />
+                        {isBn ? 'নতুন আবেদন তৈরি করুন' : 'Create Application'}
                       </button>
                     </div>
                   ) : (
@@ -681,13 +723,19 @@ export default function StudentDashboardPage() {
                               fontWeight: '700',
                             }}
                           >
-                            {step4Done ? 'অনুমোদিত ও উন্মুক্ত' : post.verificationStatus === 'rejected' ? 'প্রত্যাখ্যাত' : 'যাচাই প্রক্রিয়াধীন'}
+                            {step4Done
+                              ? isBn ? 'অনুমোদিত ও উন্মুক্ত' : 'Approved & Live'
+                              : post.verificationStatus === 'rejected'
+                              ? isBn ? 'প্রত্যাখ্যাত' : 'Rejected'
+                              : isBn ? 'যাচাই প্রক্রিয়াধীন' : 'Under Review'}
                           </span>
                         </div>
 
                         <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '0.75rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.65rem' }}>
                           <span>
-                            প্রয়োজনীয় অর্থ: <strong style={{ color: '#059669' }}>৳{Number(post.totalRequiredAmount).toLocaleString()}</strong> • সংগৃহীত: ৳{Number(post.receivedAmount).toLocaleString()}
+                            {isBn ? 'প্রয়োজনীয় অর্থ: ' : 'Required: '}
+                            <strong style={{ color: '#059669' }}>৳{Number(post.totalRequiredAmount).toLocaleString()}</strong>
+                            {isBn ? ' • সংগৃহীত: ' : ' • Raised: '}৳{Number(post.receivedAmount).toLocaleString()}
                           </span>
                           {post.durationText && (
                             <span style={{ padding: '0.2rem 0.6rem', background: 'rgba(13, 148, 136, 0.1)', color: '#0f766e', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '600' }}>
@@ -709,20 +757,24 @@ export default function StudentDashboardPage() {
                         {/* 4-Step Verification Stage Tracker */}
                         <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--surface-border, #e2e8f0)' }}>
                           <span style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '0.65rem' }}>
-                            যাচাইকরণ অগ্রগতি ধাপসমূহ:
+                            {isBn ? 'যাচাইকরণ অগ্রগতি ধাপসমূহ:' : 'Verification Progress Tracker:'}
                           </span>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.6rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.84rem', color: '#059669' }}>
-                              <CheckCircle2 size={16} /> <span><strong>ধাপ ১:</strong> আবেদন দাখিল সম্পন্ন</span>
+                              <CheckCircle2 size={16} />
+                              <span><strong>{isBn ? 'ধাপ ১:' : 'Step 1:'}</strong> {isBn ? 'আবেদন দাখিল সম্পন্ন' : 'Submitted'}</span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.84rem', color: step2Done ? '#059669' : 'var(--text-muted)' }}>
-                              {step2Done ? <CheckCircle2 size={16} /> : <Clock size={16} />} <span><strong>ধাপ ২:</strong> শিক্ষক সত্যায়ন {step2Done ? 'সম্পন্ন' : 'অপেক্ষমান'}</span>
+                              {step2Done ? <CheckCircle2 size={16} /> : <Clock size={16} />}
+                              <span><strong>{isBn ? 'ধাপ ২:' : 'Step 2:'}</strong> {isBn ? `শিক্ষক সত্যায়ন ${step2Done ? 'সম্পন্ন' : 'অপেক্ষমান'}` : `Teacher ${step2Done ? 'Verified' : 'Pending'}`}</span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.84rem', color: step3Done ? '#059669' : 'var(--text-muted)' }}>
-                              {step3Done ? <CheckCircle2 size={16} /> : <Clock size={16} />} <span><strong>ধাপ ৩:</strong> প্রতিষ্ঠান ছাড়পত্র {step3Done ? 'সম্পন্ন' : 'অপেক্ষমান'}</span>
+                              {step3Done ? <CheckCircle2 size={16} /> : <Clock size={16} />}
+                              <span><strong>{isBn ? 'ধাপ ৩:' : 'Step 3:'}</strong> {isBn ? `প্রতিষ্ঠান ছাড়পত্র ${step3Done ? 'সম্পন্ন' : 'অপেক্ষমান'}` : `Institute ${step3Done ? 'Approved' : 'Pending'}`}</span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.84rem', color: step4Done ? '#059669' : 'var(--text-muted)' }}>
-                              {step4Done ? <CheckCircle2 size={16} /> : <Clock size={16} />} <span><strong>ধাপ ৪:</strong> কেন্দ্রীয় অনুমোদন {step4Done ? 'সম্পন্ন' : 'অপেক্ষমান'}</span>
+                              {step4Done ? <CheckCircle2 size={16} /> : <Clock size={16} />}
+                              <span><strong>{isBn ? 'ধাপ ৪:' : 'Step 4:'}</strong> {isBn ? `কেন্দ্রীয় অনুমোদন ${step4Done ? 'সম্পন্ন' : 'অপেক্ষমান'}` : `Admin ${step4Done ? 'Cleared' : 'Pending'}`}</span>
                             </div>
                           </div>
                         </div>
@@ -887,6 +939,9 @@ export default function StudentDashboardPage() {
             </div>
           </div>
         )}
+
+        {/* VIEW 4: MY DONATIONS */}
+        {activeNav === 'my-donations' && <MyDonationsSection />}
       </div>
     )}
 

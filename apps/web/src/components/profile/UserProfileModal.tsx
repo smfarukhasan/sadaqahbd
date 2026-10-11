@@ -172,7 +172,7 @@ export default function UserProfileModal({
   const loadStudentProfile = async () => {
     try {
       setFetchingStudent(true);
-      const token = await firebaseUser?.getIdToken();
+      const token = await getAuthToken();
       const apiUrl = getApiUrl();
       const res = await fetch(`${apiUrl}/users/my-student-profile`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -230,7 +230,7 @@ export default function UserProfileModal({
     setAvatarUploading(true);
     setProfileError('');
     try {
-      const token = await firebaseUser?.getIdToken();
+      const token = await getAuthToken();
       const apiUrl = getApiUrl();
       const endpoint = isStudent ? `${apiUrl}/users/my-student-profile` : `${apiUrl}/auth/profile`;
       const res = await fetch(endpoint, {
@@ -265,7 +265,7 @@ export default function UserProfileModal({
 
     try {
       setProfileLoading(true);
-      const token = await firebaseUser?.getIdToken();
+      const token = await getAuthToken();
       const apiUrl = getApiUrl();
 
       let res: Response;

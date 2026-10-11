@@ -11,7 +11,7 @@ import { DRIZZLE_DB } from '../../../database/database.module';
 import { DrizzleDB, users, userPermissions } from '../../../database';
 import { eq } from 'drizzle-orm';
 import { UserRole } from '@sadaqahbd/schema';
-import { verifyMasterToken } from '../master-token.util';
+import { verifyAuthToken } from '../master-token.util';
 
 @Injectable()
 export class FirebaseAuthGuard implements CanActivate {
@@ -30,36 +30,60 @@ export class FirebaseAuthGuard implements CanActivate {
 
     const idToken = authHeader.split('Bearer ')[1].trim();
 
-    // 1. Fast-path: Check if token is a valid Master Admin session token
-    const masterPayload = verifyMasterToken(idToken);
-    if (masterPayload && masterPayload.isMasterSession) {
-      let [masterUser] = await this.db
+    if (!idToken || idToken === 'undefined' || idToken === 'null') {
+      throw new UnauthorizedException('Authorization token missing or invalid');
+    }
+
+    // 1. Fast-path: Check if token is a local session token (local auth or Master Admin)
+    const isLocalJwt =
+      idToken.startsWith('eyJhbGciOiJIUzI1NiI') ||
+      idToken === 'sadaqahbd_master_secret_session';
+
+    if (isLocalJwt) {
+      const localPayload = verifyAuthToken(idToken);
+      if (!localPayload) {
+        throw new UnauthorizedException('Session has expired. Please log in again.');
+      }
+
+      let [matchedUser] = await this.db
         .select()
         .from(users)
-        .where(eq(users.role, UserRole.MASTER_ADMIN))
+        .where(eq(users.id, localPayload.id))
         .limit(1);
 
-      if (!masterUser) {
+      if (!matchedUser && localPayload.email) {
         const [byEmail] = await this.db
           .select()
           .from(users)
-          .where(eq(users.email, masterPayload.email))
+          .where(eq(users.email, localPayload.email))
           .limit(1);
-        masterUser = byEmail;
+        matchedUser = byEmail;
       }
 
-      if (masterUser) {
-        const perms = await this.db
-          .select()
-          .from(userPermissions)
-          .where(eq(userPermissions.userId, masterUser.id));
-
-        request.user = {
-          ...masterUser,
-          permissions: perms,
-        };
-        return true;
+      if (!matchedUser) {
+        throw new UnauthorizedException('User session not found. Please log in again.');
       }
+
+      // Block suspended users from accessing protected API endpoints
+      if (
+        matchedUser.status === 'suspended' &&
+        matchedUser.role !== UserRole.MASTER_ADMIN
+      ) {
+        throw new ForbiddenException(
+          'Your account has been deactivated by administration. Platform actions are restricted.'
+        );
+      }
+
+      const perms = await this.db
+        .select()
+        .from(userPermissions)
+        .where(eq(userPermissions.userId, matchedUser.id));
+
+      request.user = {
+        ...matchedUser,
+        permissions: perms,
+      };
+      return true;
     }
 
     try {

@@ -7,13 +7,15 @@ import styles from './Navbar.module.css';
 import {
   HeartHandshake,
   User,
-  Heart,
   ShieldCheck,
   LogOut,
   Lock,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useAuthStore, getRoleDashboardPath } from '../../lib/auth-store';
 import { isPanelRoute } from '../../lib/is-panel-route';
+import { useThemeStore } from '../../lib/theme-store';
 
 export default function Navbar() {
   const t = useTranslations('Common');
@@ -24,6 +26,17 @@ export default function Navbar() {
 
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+
+  const theme = useThemeStore((s) => s.theme);
+  const toggleTheme = useThemeStore((s) => s.toggleTheme);
+  const initTheme = useThemeStore((s) => s.initTheme);
+
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    initTheme();
+    setMounted(true);
+  }, [initTheme]);
 
   const toggleLanguage = () => {
     const nextLocale = locale === 'bn' ? 'en' : 'bn';
@@ -126,6 +139,29 @@ export default function Navbar() {
                 <span className={`${styles.langTag} ${locale === 'en' ? styles.langActive : styles.langInactive}`}>EN</span>
               </button>
 
+              {/* Theme Toggle Button */}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className={styles.themeToggleBtn}
+                title={
+                  locale === 'bn'
+                    ? theme === 'dark'
+                      ? 'লাইট মোডে পরিবর্তন করুন'
+                      : 'ডার্ক মোডে পরিবর্তন করুন'
+                    : theme === 'dark'
+                      ? 'Switch to Light Mode'
+                      : 'Switch to Dark Mode'
+                }
+                aria-label="Toggle theme"
+              >
+                {mounted && theme === 'dark' ? (
+                  <Sun size={18} className={styles.themeIconSun} />
+                ) : (
+                  <Moon size={18} className={styles.themeIconMoon} />
+                )}
+              </button>
+
               {/* Logout button */}
               <button
                 type="button"
@@ -168,11 +204,28 @@ export default function Navbar() {
                 <span className={`${styles.langTag} ${locale === 'en' ? styles.langActive : styles.langInactive}`}>EN</span>
               </button>
 
-              {/* Donate CTA */}
-              <Link href="/donate" className={styles.donateBtn}>
-                <Heart size={16} />
-                <span>{t('donateNow')}</span>
-              </Link>
+              {/* Theme Toggle Button */}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className={styles.themeToggleBtn}
+                title={
+                  locale === 'bn'
+                    ? theme === 'dark'
+                      ? 'লাইট মোডে পরিবর্তন করুন'
+                      : 'ডার্ক মোডে পরিবর্তন করুন'
+                    : theme === 'dark'
+                      ? 'Switch to Light Mode'
+                      : 'Switch to Dark Mode'
+                }
+                aria-label="Toggle theme"
+              >
+                {mounted && theme === 'dark' ? (
+                  <Sun size={18} className={styles.themeIconSun} />
+                ) : (
+                  <Moon size={18} className={styles.themeIconMoon} />
+                )}
+              </button>
 
               {/* Login / Profile */}
               {user ? (
@@ -186,18 +239,18 @@ export default function Navbar() {
                     </div>
                     <div className={styles.userMeta}>
                       <span className={styles.userName}>
-                        {user.fullName ? user.fullName.split(' ')[0] : 'ইউজার'}
+                        {user.fullName ? user.fullName.split(' ')[0] : (locale === 'bn' ? 'ইউজার' : 'User')}
                       </span>
                       <span className={styles.userRoleBadge}>
                         {user.role === 'donor'
-                          ? 'দাতা'
+                          ? (locale === 'bn' ? 'দাতা' : 'Donor')
                           : user.role === 'student'
-                          ? 'শিক্ষার্থী'
+                          ? (locale === 'bn' ? 'শিক্ষার্থী' : 'Student')
                           : user.role === 'teacher'
-                          ? 'শিক্ষক'
+                          ? (locale === 'bn' ? 'শিক্ষক' : 'Teacher')
                           : user.role === 'organization'
-                          ? 'প্রতিষ্ঠান'
-                          : 'এডমিন'}
+                          ? (locale === 'bn' ? 'প্রতিষ্ঠান' : 'Organization')
+                          : (locale === 'bn' ? 'এডমিন' : 'Admin')}
                       </span>
                     </div>
                   </Link>

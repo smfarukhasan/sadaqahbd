@@ -21,30 +21,51 @@ export default function AuthInitializer() {
         await syncProfile(fbUser);
       } else {
         if (typeof window !== 'undefined') {
+          // 1. Check local session token (local MySQL user or master admin)
+          const storedToken = localStorage.getItem('sadaqahbd_auth_token');
+          const storedLocalUser = localStorage.getItem('sadaqahbd_local_user');
           const storedMaster = localStorage.getItem('sadaqahbd_master_admin');
-          if (storedMaster) {
+
+          if (storedLocalUser) {
             try {
-              const parsed = JSON.parse(storedMaster);
-              if (parsed && parsed.role === 'master_admin') {
-                // Ensure auth token is cached for API requests
-                if (!localStorage.getItem('sadaqahbd_auth_token')) {
-                  fetch('http://127.0.0.1:4000/api/v1/auth/master-login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: 'admin@sadaqahbd.com', password: '12331233' }),
-                  })
-                    .then((r) => r.json())
-                    .then((d) => {
-                      if (d.token) {
-                        localStorage.setItem('sadaqahbd_auth_token', d.token);
-                      }
-                    })
-                    .catch(() => {});
-                }
+              const parsed = JSON.parse(storedLocalUser);
+              if (parsed && parsed.id) {
                 setUser(parsed);
-                return;
               }
             } catch {}
+          } else if (storedMaster) {
+            try {
+              const parsedMaster = JSON.parse(storedMaster);
+              if (parsedMaster && parsedMaster.role === 'master_admin') {
+                setUser(parsedMaster);
+              }
+            } catch {}
+          }
+
+          if (storedToken) {
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000/api/v1';
+            fetch(`${apiUrl}/auth/me`, {
+              headers: {
+                Authorization: `Bearer ${storedToken}`,
+              },
+            })
+              .then(async (res) => {
+                if (res.ok) {
+                  const meData = await res.json();
+                  if (meData && meData.id) {
+                    setUser(meData);
+                    localStorage.setItem('sadaqahbd_local_user', JSON.stringify(meData));
+                  }
+                } else if (res.status === 401 || res.status === 403) {
+                  localStorage.removeItem('sadaqahbd_auth_token');
+                  localStorage.removeItem('sadaqahbd_local_user');
+                  setUser(null);
+                }
+              })
+              .catch(() => {
+                // Offline fallback retains storedLocalUser
+              });
+            return;
           }
         }
         setUser(null);

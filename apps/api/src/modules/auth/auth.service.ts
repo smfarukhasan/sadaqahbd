@@ -7,14 +7,19 @@ import {
 import { DRIZZLE_DB } from '../../database/database.module';
 import { DrizzleDB, users, userPermissions, studentProfiles } from '../../database';
 import { FirebaseAdminService } from './firebase-admin.service';
-import { eq, ne, and, isNull } from 'drizzle-orm';
+import { eq, ne, and, or, isNull } from 'drizzle-orm';
 import {
   RegisterUserInput,
   SetPasswordInput,
   ChangePasswordInput,
+  LocalLoginInput,
+  LocalRegisterInput,
   UserRole,
 } from '@sadaqahbd/schema';
-import { signMasterToken } from './master-token.util';
+import { signAuthToken, signMasterToken } from './master-token.util';
+import { hashPassword, verifyPassword } from './password.util';
+import * as crypto from 'crypto';
+
 
 @Injectable()
 export class AuthService {
@@ -301,6 +306,7 @@ export class AuthService {
     }
 
     const updates: any = {
+      passwordHash: hashPassword(input.password),
       isPasswordSet: true,
       mustChangePassword: false,
     };
@@ -387,12 +393,17 @@ export class AuthService {
       user.role === UserRole.MASTER_ADMIN ||
       (user.email && user.email.toLowerCase() === 'admin@sadaqahbd.com');
 
-    if (isMasterAdmin) {
-      if (input.oldPassword !== '12331233' && input.oldPassword !== 'admin123') {
-        throw new BadRequestException('আপনার পুরাতন পাসওয়ার্ড সঠিক না');
-      }
-    } else {
-      // Validate old password using Firebase Identity Toolkit REST API
+    let isOldValid = false;
+    if (isMasterAdmin && (input.oldPassword === '12331233' || input.oldPassword === 'admin123')) {
+      isOldValid = true;
+    } else if (user.passwordHash) {
+      isOldValid = verifyPassword(input.oldPassword, user.passwordHash);
+    } else if (isMasterAdmin) {
+      isOldValid = input.oldPassword === '12331233' || input.oldPassword === 'admin123';
+    }
+
+    if (!isOldValid) {
+      // Check Firebase REST API fallback for accounts originally created via Firebase
       const apiKey =
         process.env.NEXT_PUBLIC_FIREBASE_API_KEY ||
         process.env.FIREBASE_API_KEY ||
@@ -410,45 +421,35 @@ export class AuthService {
               returnSecureToken: true,
             }),
           });
-
-          if (!res.ok) {
-            const errData: any = await res.json().catch(() => ({}));
-            const errMsg = errData?.error?.message || '';
-            if (
-              errMsg.includes('INVALID_') ||
-              errMsg.includes('WRONG_') ||
-              errMsg.includes('NOT_FOUND')
-            ) {
-              throw new BadRequestException('আপনার পুরাতন পাসওয়ার্ড সঠিক না');
-            }
+          if (res.ok) {
+            isOldValid = true;
           }
-        } catch (err: any) {
-          if (err instanceof BadRequestException) {
-            throw err;
-          }
-        }
+        } catch {}
       }
     }
 
-    // Update password in Firebase Auth
+    if (!isOldValid) {
+      throw new BadRequestException('আপনার পুরাতন পাসওয়ার্ড সঠিক নয়।');
+    }
+
+    const newHash = hashPassword(input.newPassword);
+
+    // Update password in Firebase Auth if firebaseUid exists (silent try-catch)
     if (user.firebaseUid) {
       try {
         await this.firebaseAdmin.auth.updateUser(user.firebaseUid, {
           password: input.newPassword,
         });
       } catch (err: any) {
-        if (!isMasterAdmin) {
-          throw new BadRequestException(
-            err.message || 'পাসওয়ার্ড আপডেট করতে সমস্যা হয়েছে।'
-          );
-        }
+        // Firebase sync is secondary, MySQL is primary
       }
     }
 
-    // Reset mustChangePassword flag in DB & mark password as set
+    // Reset mustChangePassword flag in DB & save new password hash
     await this.db
       .update(users)
       .set({
+        passwordHash: newHash,
         mustChangePassword: false,
         isPasswordSet: true,
       })
@@ -563,6 +564,7 @@ export class AuthService {
         fullName: 'Master Admin Owner',
         role: UserRole.MASTER_ADMIN,
         status: 'active',
+        passwordHash: hashPassword(cleanPassword),
         isPasswordSet: true,
         mustChangePassword: false,
       });
@@ -572,6 +574,12 @@ export class AuthService {
         .from(users)
         .where(eq(users.id, masterUserId))
         .limit(1);
+    } else if (!masterUser.passwordHash) {
+      await this.db
+        .update(users)
+        .set({ passwordHash: hashPassword(cleanPassword) })
+        .where(eq(users.id, masterUser.id));
+      masterUser.passwordHash = hashPassword(cleanPassword);
     }
 
     const perms = await this.db
@@ -591,6 +599,180 @@ export class AuthService {
       user: {
         ...masterUser,
         permissions: perms,
+      },
+    };
+  }
+
+  async localLogin(identifier?: string, password?: string) {
+    const cleanIdentifier = (identifier || '').trim();
+    const cleanPassword = (password || '').trim();
+
+    if (!cleanIdentifier || !cleanPassword) {
+      throw new BadRequestException('অনুগ্রহ করে আপনার ইমেইল/ফোন এবং পাসওয়ার্ড প্রদান করুন।');
+    }
+
+    const cleanEmail = cleanIdentifier.toLowerCase();
+
+    // Direct master admin intercept
+    if (
+      cleanEmail === 'admin@sadaqahbd.com' &&
+      (cleanPassword === '12331233' || cleanPassword === 'admin123')
+    ) {
+      return this.masterLogin(cleanEmail, cleanPassword);
+    }
+
+    // Match by email or phone
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(
+        and(
+          or(
+            eq(users.email, cleanEmail),
+            eq(users.phone, cleanIdentifier)
+          ),
+          isNull(users.deletedAt)
+        )
+      )
+      .limit(1);
+
+    if (!user) {
+      throw new BadRequestException('প্রদত্ত ইমেইল বা ফোন নম্বরে কোনো অ্যাকাউন্ট পাওয়া যায়নি।');
+    }
+
+    if (user.status === 'suspended') {
+      throw new BadRequestException('আপনার অ্যাকাউন্টটি সাময়িকভাবে স্থগিত (Suspended) করা হয়েছে।');
+    }
+
+    if (user.status === 'rejected') {
+      throw new BadRequestException('আপনার অ্যাকাউন্টটি বাতিল (Rejected) করা হয়েছে।');
+    }
+
+    // Verify password against DB hash
+    let isMatch = false;
+    if (user.passwordHash) {
+      isMatch = verifyPassword(cleanPassword, user.passwordHash);
+    } else {
+      // Legacy fallback: if user is master admin or default pass1233 for new admin
+      if (user.role === UserRole.MASTER_ADMIN && (cleanPassword === '12331233' || cleanPassword === 'admin123')) {
+        isMatch = true;
+      } else if (cleanPassword === 'pass1233' && user.mustChangePassword) {
+        isMatch = true;
+      }
+    }
+
+    if (!isMatch) {
+      throw new BadRequestException('পাসওয়ার্ড সঠিক নয়।');
+    }
+
+    // Auto-migrate hash if user logged in via fallback without existing hash
+    if (!user.passwordHash && isMatch) {
+      await this.db
+        .update(users)
+        .set({ passwordHash: hashPassword(cleanPassword) })
+        .where(eq(users.id, user.id));
+    }
+
+    const perms = await this.db
+      .select()
+      .from(userPermissions)
+      .where(eq(userPermissions.userId, user.id));
+
+    const token = signAuthToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      fullName: user.fullName,
+      isMasterSession: user.role === UserRole.MASTER_ADMIN,
+    });
+
+    return {
+      success: true,
+      token,
+      user: {
+        ...user,
+        permissions: perms,
+      },
+    };
+  }
+
+  async localRegister(input: LocalRegisterInput) {
+    const cleanEmail = (input.email || '').trim().toLowerCase();
+    const cleanPassword = (input.password || '').trim();
+    const cleanFullName = (input.fullName || '').trim();
+    const cleanPhone = input.phone?.trim() ? input.phone.trim().replace(/[\s-]/g, '') : null;
+    const cleanAddress = input.address?.trim() || null;
+    const requestedRole = (input.role as any) || UserRole.DONOR;
+
+    if (!cleanEmail || !cleanPassword || !cleanFullName) {
+      throw new BadRequestException('প্রয়োজনীয় তথ্য সঠিকভাবে পূরণ করুন।');
+    }
+
+    if (cleanEmail === 'admin@sadaqahbd.com' || cleanEmail === 'admin@sadaqahbd.co') {
+      throw new BadRequestException('admin@sadaqahbd.com শুধুমাত্র মাস্টার এডমিনের জন্য সংরক্ষিত।');
+    }
+
+    // Check duplicate email
+    const existingEmail = await this.db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.email, cleanEmail), isNull(users.deletedAt)))
+      .limit(1);
+
+    if (existingEmail.length > 0) {
+      throw new BadRequestException('এই ইমেইল দিয়ে ইতোমধ্যে একটি অ্যাকাউন্ট রয়েছে। অনুগ্রহ করে লগইন করুন।');
+    }
+
+    // Check duplicate phone if provided
+    if (cleanPhone) {
+      const existingPhone = await this.db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.phone, cleanPhone), isNull(users.deletedAt)))
+        .limit(1);
+
+      if (existingPhone.length > 0) {
+        throw new BadRequestException('এই ফোন নম্বর দিয়ে ইতোমধ্যে একটি অ্যাকাউন্ট রয়েছে। অনুগ্রহ করে অন্য ফোন নম্বর ব্যবহার করুন।');
+      }
+    }
+
+    const newUserId = crypto.randomUUID();
+    const hashedPw = hashPassword(cleanPassword);
+
+    await this.db.insert(users).values({
+      id: newUserId,
+      firebaseUid: null,
+      email: cleanEmail,
+      phone: cleanPhone,
+      fullName: cleanFullName,
+      role: requestedRole,
+      address: cleanAddress,
+      status: requestedRole === UserRole.DONOR ? 'active' : 'pending',
+      passwordHash: hashedPw,
+      isPasswordSet: true,
+      mustChangePassword: false,
+    });
+
+    const [newUser] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.id, newUserId))
+      .limit(1);
+
+    const token = signAuthToken({
+      id: newUser.id,
+      email: newUser.email,
+      role: newUser.role,
+      fullName: newUser.fullName,
+      isMasterSession: newUser.role === UserRole.MASTER_ADMIN,
+    });
+
+    return {
+      success: true,
+      token,
+      user: {
+        ...newUser,
+        permissions: [],
       },
     };
   }

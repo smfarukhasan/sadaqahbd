@@ -213,25 +213,45 @@
   transform: translateY(-1px);
 }
 
-.donateBtn {
+.themeToggleBtn {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.55rem 1.35rem;
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #ffffff;
-  background: #059669;
-  border-radius: var(--radius-full);
-  box-shadow: 0 6px 18px -3px rgba(5, 150, 105, 0.38);
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full, 9999px);
+  background-color: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  transition: all 0.25s ease;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
 }
 
-.donateBtn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px -3px rgba(5, 150, 105, 0.5);
-  background: #047857;
+.themeToggleBtn:hover {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.4);
+  background-color: rgba(251, 191, 36, 0.12);
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: 0 4px 14px rgba(251, 191, 36, 0.2);
+}
+
+.themeIconSun {
+  color: #fbbf24;
+  transition: transform 0.3s ease;
+}
+
+.themeToggleBtn:hover .themeIconSun {
+  transform: rotate(45deg);
+}
+
+.themeIconMoon {
+  color: #38bdf8;
+  transition: transform 0.3s ease;
+}
+
+.themeToggleBtn:hover .themeIconMoon {
+  transform: rotate(-15deg);
 }
 
 .loginBtn {

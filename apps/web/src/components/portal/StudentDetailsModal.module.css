@@ -415,3 +415,29 @@
 .editActionBtnSecondary:hover {
   background: #e2e8f0;
 }
+
+:global([data-theme="dark"]) .modal {
+  background-color: var(--surface) !important;
+  border-color: var(--surface-border) !important;
+}
+
+:global([data-theme="dark"]) .header {
+  background: var(--background-alt) !important;
+  border-color: var(--surface-border) !important;
+}
+
+:global([data-theme="dark"]) .postItem,
+:global([data-theme="dark"]) .emptyPosts {
+  background: var(--background-alt) !important;
+  border-color: var(--surface-border) !important;
+}
+
+:global([data-theme="dark"]) .progressContainer {
+  background: #1e2d42 !important;
+}
+
+:global([data-theme="dark"]) .editActionBtnSecondary {
+  background: #1e293b !important;
+  color: #cbd5e1 !important;
+  border-color: #334155 !important;
+}

@@ -5,21 +5,26 @@ const MASTER_TOKEN_SECRET =
   process.env.JWT_SECRET ||
   'sadaqahbd-master-admin-root-token-secret-2026';
 
-export interface MasterTokenPayload {
+export interface AuthTokenPayload {
   id: string;
   email: string;
   role: string;
-  isMasterSession: boolean;
+  fullName?: string;
+  isMasterSession?: boolean;
   exp: number;
 }
 
+export type MasterTokenPayload = AuthTokenPayload;
+
 /**
- * Signs a stateless, secure HMAC-SHA256 JWT for Master Admin operations.
+ * Signs a stateless, secure HMAC-SHA256 JWT for session authentication.
  */
-export function signMasterToken(payload: {
+export function signAuthToken(payload: {
   id: string;
   email: string;
-  role?: string;
+  role: string;
+  fullName?: string;
+  isMasterSession?: boolean;
   expSeconds?: number;
 }): string {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
@@ -28,8 +33,9 @@ export function signMasterToken(payload: {
     JSON.stringify({
       id: payload.id,
       email: payload.email,
-      role: payload.role || 'master_admin',
-      isMasterSession: true,
+      role: payload.role,
+      fullName: payload.fullName,
+      isMasterSession: payload.isMasterSession ?? (payload.role === 'master_admin'),
       exp,
     })
   ).toString('base64url');
@@ -43,10 +49,28 @@ export function signMasterToken(payload: {
 }
 
 /**
- * Verifies a token string against the Master Admin secret.
+ * Signs Master Admin token (backward compatibility helper).
+ */
+export function signMasterToken(payload: {
+  id: string;
+  email: string;
+  role?: string;
+  expSeconds?: number;
+}): string {
+  return signAuthToken({
+    id: payload.id,
+    email: payload.email,
+    role: payload.role || 'master_admin',
+    isMasterSession: true,
+    expSeconds: payload.expSeconds,
+  });
+}
+
+/**
+ * Verifies any session token against the secret.
  * Returns decoded payload if valid and unexpired, otherwise null.
  */
-export function verifyMasterToken(token: string): MasterTokenPayload | null {
+export function verifyAuthToken(token: string): AuthTokenPayload | null {
   if (!token || typeof token !== 'string') return null;
 
   // Development convenience fallback: exact master session identifier
@@ -76,7 +100,7 @@ export function verifyMasterToken(token: string): MasterTokenPayload | null {
       return null;
     }
 
-    const payload: MasterTokenPayload = JSON.parse(
+    const payload: AuthTokenPayload = JSON.parse(
       Buffer.from(body, 'base64url').toString('utf-8')
     );
 
@@ -84,12 +108,19 @@ export function verifyMasterToken(token: string): MasterTokenPayload | null {
       return null;
     }
 
-    if (!payload.isMasterSession) {
-      return null;
-    }
-
     return payload;
   } catch {
     return null;
   }
+}
+
+/**
+ * Verifies a token string strictly for Master Admin operations.
+ */
+export function verifyMasterToken(token: string): MasterTokenPayload | null {
+  const payload = verifyAuthToken(token);
+  if (!payload || !payload.isMasterSession) {
+    return null;
+  }
+  return payload;
 }

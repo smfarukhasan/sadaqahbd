@@ -11,6 +11,7 @@ import {
   AlertCircle,
   XCircle,
 } from 'lucide-react';
+import { getOrganizationTypeLabel } from '@sadaqahbd/schema';
 
 export type VerificationStatusType =
   | 'unapplied'
@@ -267,8 +268,8 @@ export default function VerificationStatusView({
                   <span style={{ color: '#64748b', fontSize: '0.78rem', display: 'block' }}>
                     {isBn ? 'প্রতিষ্ঠানের ধরন' : 'Organization Type'}
                   </span>
-                  <strong style={{ color: '#0f172a', textTransform: 'capitalize' }}>
-                    {organizationDetails.type}
+                  <strong style={{ color: '#0f172a' }}>
+                    {getOrganizationTypeLabel(organizationDetails.type, isBn)}
                   </strong>
                 </div>
               )}

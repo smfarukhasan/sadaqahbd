@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TerminusModule } from '@nestjs/terminus';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -10,6 +11,7 @@ import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { MasterAdminModule } from './modules/masteradmin/masteradmin.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -30,5 +32,12 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
     NotificationsModule,
     OrganizationsModule,
   ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
+  controllers: [HealthController],
 })
 export class AppModule {}

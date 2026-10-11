@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from '../../i18n/routing';
 import { Heart, DollarSign, FileText } from 'lucide-react';
 import { getApiUrl } from '../../lib/api-config';
+import { getAuthToken } from '../../lib/auth-token';
 import { ReceiptData } from './EReceiptModal';
 
 export interface DonationLedgerTableProps {
@@ -37,18 +38,20 @@ export default function DonationLedgerTable({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!firebaseUser) return;
     let isMounted = true;
 
-    firebaseUser
-      .getIdToken()
-      .then((token: string) => {
+    getAuthToken()
+      .then((token: string | null) => {
+        if (!token) {
+          if (isMounted) setLoading(false);
+          return null;
+        }
         const apiUrl = getApiUrl();
         return fetch(`${apiUrl}/donations/my-history`, {
           headers: { Authorization: `Bearer ${token}` },
         });
       })
-      .then((res: any) => res.json())
+      .then((res: any) => (res ? res.json() : null))
       .then((data: any) => {
         if (isMounted && Array.isArray(data)) {
           setDonations(data);

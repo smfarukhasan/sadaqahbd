@@ -21,9 +21,12 @@ import {
   Sparkles,
   Award,
   GraduationCap,
+  Package,
 } from "lucide-react";
 import { useAuthStore } from "../../../../lib/auth-store";
 import { getApiUrl } from '../../../../lib/api-config';
+import FinancialDonationModal from '../../../../components/portal/FinancialDonationModal';
+import ItemDonationModal from '../../../../components/portal/ItemDonationModal';
 import styles from './page.module.css';
 
 export default function PostDetailPage({
@@ -42,6 +45,8 @@ export default function PostDetailPage({
   const [post, setPost] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [expandedPrevious, setExpandedPrevious] = React.useState<Record<string, boolean>>({});
+  const [isFinancialModalOpen, setIsFinancialModalOpen] = React.useState(false);
+  const [isItemModalOpen, setIsItemModalOpen] = React.useState(false);
 
   const toggleExpandPrevious = (prevId: string) => {
     setExpandedPrevious((prev) => ({
@@ -105,6 +110,7 @@ export default function PostDetailPage({
               }))
             : [],
           previousPosts: Array.isArray(data.previousPosts) ? data.previousPosts : [],
+          receivedItems: Array.isArray(data.receivedItems) ? data.receivedItems : [],
         });
       })
       .catch((err) => {
@@ -552,6 +558,70 @@ export default function PostDetailPage({
               </div>
             </div>
           </div>
+
+          {/* 7. Received Items / Equipment Section (If any) */}
+          {post.receivedItems && post.receivedItems.length > 0 && (
+            <div className={styles.contentCard}>
+              <div className={styles.cardSectionHeader}>
+                <Package size={20} color="#f59e0b" />
+                <h2 className={styles.cardSectionTitle}>
+                  {isBn ? "প্রাপ্ত শিক্ষাসামগ্রী ও উপহার সমূহ" : "Received Educational Equipment & Items"} ({post.receivedItems.length})
+                </h2>
+              </div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 1rem', lineHeight: 1.5 }}>
+                {isBn
+                  ? "দাতাদের থেকে এই শিক্ষার্থীর জন্য সরাসরি অথবা সাধারণ তহবিল থেকে হস্তান্তরিত শিক্ষাসামগ্রীর স্বচ্ছ বিবরণ:"
+                  : "Physical items, equipment, and learning materials received by this student:"}
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {post.receivedItems.map((item: any) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      padding: '1rem',
+                      borderRadius: '12px',
+                      backgroundColor: 'var(--background, #f8fafc)',
+                      border: '1px solid var(--surface-border, #e2e8f0)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '0.75rem',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                        <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-main)' }}>
+                          {item.itemName} ({item.quantity})
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '10px',
+                            fontWeight: 700,
+                            backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                            color: '#059669',
+                          }}
+                        >
+                          {isBn ? '✓ শিক্ষার্থীকে প্রদানকৃত' : 'Delivered'}
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                        {item.description}
+                      </p>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                        {isBn ? 'দাতা: ' : 'Donor: '}
+                        <strong>{item.donorName || (isBn ? 'নাম প্রকাশে অনিচ্ছুক দাতা' : 'Anonymous Donor')}</strong>
+                        {item.createdAt && ` • ${new Date(item.createdAt).toLocaleDateString(isBn ? 'bn-BD' : 'en-US')}`}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Column: Sticky Donation Action Box */}
@@ -630,13 +700,39 @@ export default function PostDetailPage({
                 </Link>
               </div>
             ) : (
-              <Link
-                href={`/${locale}/donate?postId=${post.id}&amount=${post.remainingAmount}`}
-                className={styles.donateActionBtn}
-              >
-                <Heart size={20} fill="currentColor" />
-                <span>{isBn ? "এখনই এই শিক্ষার্থীকে সহায়তা করুন" : "Donate to this Student"}</span>
-              </Link>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                <button
+                  onClick={() => setIsFinancialModalOpen(true)}
+                  className={styles.donateActionBtn}
+                >
+                  <Heart size={20} fill="currentColor" />
+                  <span>{isBn ? "অর্থ সহায়তা প্রদান করুন" : "Donate Financial Aid"}</span>
+                </button>
+
+                <button
+                  onClick={() => setIsItemModalOpen(true)}
+                  type="button"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '10px',
+                    border: '1.5px solid #f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                    color: '#b45309',
+                    fontSize: '0.92rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <Package size={19} color="#d97706" />
+                  <span>{isBn ? "পণ্য / শিক্ষাসামগ্রী উপহার দিন" : "Donate Equipment / Goods"}</span>
+                </button>
+              </div>
             )}
 
             {/* Trust Assurance Bullets */}
@@ -657,6 +753,21 @@ export default function PostDetailPage({
           </div>
         </div>
       </div>
+
+      <FinancialDonationModal
+        isOpen={isFinancialModalOpen}
+        onClose={() => setIsFinancialModalOpen(false)}
+        defaultPostId={post.id}
+        defaultPostTitle={post.title}
+        isDirectOnly={true}
+      />
+
+      <ItemDonationModal
+        isOpen={isItemModalOpen}
+        onClose={() => setIsItemModalOpen(false)}
+        defaultPostId={post.id}
+        defaultPostTitle={post.title}
+      />
     </div>
   );
 }

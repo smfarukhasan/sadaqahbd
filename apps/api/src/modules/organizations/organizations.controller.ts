@@ -91,4 +91,13 @@ export class OrganizationsController {
       body
     );
   }
+
+  @Get(':id/members')
+  @UseGuards(FirebaseAuthGuard)
+  async getOrganizationMembers(
+    @CurrentUser() user: any,
+    @Param('id') id: string
+  ) {
+    return this.organizationsService.getOrganizationMembers(user, id);
+  }
 }

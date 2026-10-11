@@ -52,7 +52,7 @@ export const users = mysqlTable(
   'users',
   {
     id: varchar('id', { length: 36 }).primaryKey(),
-    firebaseUid: varchar('firebase_uid', { length: 128 }).notNull().unique(),
+    firebaseUid: varchar('firebase_uid', { length: 128 }).unique(),
     email: varchar('email', { length: 255 }).notNull().unique(),
     phone: varchar('phone', { length: 20 }),
     fullName: varchar('full_name', { length: 150 }).notNull(),
@@ -73,6 +73,7 @@ export const users = mysqlTable(
     status: mysqlEnum('status', ['pending', 'active', 'suspended', 'rejected'])
       .default('active')
       .notNull(),
+    passwordHash: varchar('password_hash', { length: 255 }),
     isPasswordSet: boolean('is_password_set').default(false).notNull(),
     mustChangePassword: boolean('must_change_password')
       .default(false)
@@ -323,6 +324,48 @@ export const donations = mysqlTable(
     index('donation_donor_idx').on(table.donorId),
     index('donation_post_idx').on(table.postId),
     index('donation_random_idx').on(table.isRandom),
+  ]
+);
+
+// ----------------------------------------------------
+// 7b. Item Donations Table (Non-Monetary Goods / Items)
+// ----------------------------------------------------
+export const itemDonations = mysqlTable(
+  'item_donations',
+  {
+    id: varchar('id', { length: 36 }).primaryKey(),
+    donorId: varchar('donor_id', { length: 36 }).references(() => users.id),
+    donorName: varchar('donor_name', { length: 255 }),
+    donorPhone: varchar('donor_phone', { length: 50 }).notNull(),
+    itemName: varchar('item_name', { length: 255 }).notNull(),
+    description: text('description').notNull(),
+    quantity: varchar('quantity', { length: 100 }).notNull(),
+    isRandom: boolean('is_random').default(false).notNull(),
+    postId: varchar('post_id', { length: 36 }).references(() => studentPosts.id),
+    pickupAddress: text('pickup_address'),
+    status: mysqlEnum('status', ['pending', 'accepted', 'rejected'])
+      .default('pending')
+      .notNull(),
+    adminInstruction: text('admin_instruction'),
+    donorShipmentNote: text('donor_shipment_note'),
+    donorShippedAt: timestamp('donor_shipped_at'),
+    adminFollowUpReply: text('admin_follow_up_reply'),
+    assignedStudentId: varchar('assigned_student_id', { length: 36 }).references(
+      () => users.id
+    ),
+    deliveryStatus: varchar('delivery_status', { length: 50 })
+      .default('pending_review')
+      .notNull(),
+    reviewedBy: varchar('reviewed_by', { length: 36 }).references(() => users.id),
+    reviewedAt: timestamp('reviewed_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    index('item_donation_status_idx').on(table.status),
+    index('item_donation_donor_idx').on(table.donorId),
+    index('item_donation_post_idx').on(table.postId),
+    index('item_donation_assigned_student_idx').on(table.assignedStudentId),
   ]
 );
 

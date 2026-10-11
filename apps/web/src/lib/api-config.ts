@@ -13,18 +13,21 @@ export function getApiUrl(): string {
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return 'http://127.0.0.1:4000/api/v1';
     }
-    // LAN numeric IP (e.g. 192.168.0.27 or 192.168.0.106): route to the same host on port 4000
+    // LAN numeric IP (e.g. 192.168.0.106): route to the same host on port 4000
     if (/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) {
       return `http://${hostname}:4000/api/v1`;
     }
-    // Development fallback for custom local domains/hosts
-    if (process.env.NODE_ENV === 'development') {
-      return `http://${hostname}:4000/api/v1`;
+    // Production domain
+    if (hostname.includes('sadaqahbd.com')) {
+      return 'https://api.sadaqahbd.com/api/v1';
     }
+    // Development fallback for custom local domains/hosts
+    return `http://${hostname}:4000/api/v1`;
   }
 
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
+  const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
+  if (configuredApiUrl) {
+    return configuredApiUrl;
   }
 
   return 'http://127.0.0.1:4000/api/v1';

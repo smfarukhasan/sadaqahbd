@@ -5,6 +5,7 @@ import { useLocale } from 'next-intl';
 import { X, Building2, Send, Loader2, CheckCircle2 } from 'lucide-react';
 import { auth } from '../../lib/firebase';
 import { getApiUrl } from '../../lib/api-config';
+import { getAuthToken } from '../../lib/auth-token';
 import styles from './RequestNewOrgModal.module.css';
 
 interface RequestNewOrgModalProps {
@@ -25,7 +26,7 @@ export default function RequestNewOrgModal({
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [type, setType] = useState('school');
+  const [type, setType] = useState('qawmi_madrasa');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -43,7 +44,7 @@ export default function RequestNewOrgModal({
     try {
       setLoading(true);
       setError('');
-      const token = await auth.currentUser?.getIdToken();
+      const token = await getAuthToken();
       const apiUrl = getApiUrl();
       const res = await fetch(`${apiUrl}/organizations/request-new`, {
         method: 'POST',
@@ -132,7 +133,7 @@ export default function RequestNewOrgModal({
                   type="text"
                   required
                   className={styles.formInput}
-                  placeholder={isBn ? 'যেমন: আদর্শ উচ্চ বিদ্যালয় / বায়তুল কুরআন মাদ্রাসা' : 'e.g., Ideal High School'}
+                  placeholder={isBn ? 'যেমন: জামিয়া ইসলামিয়া / বায়তুল কুরআন মাদ্রাসা' : 'e.g., Jamia Islamia / Baitul Quran Madrasa'}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
@@ -147,12 +148,11 @@ export default function RequestNewOrgModal({
                   value={type}
                   onChange={(e) => setType(e.target.value)}
                 >
-                  <option value="school">{isBn ? 'স্কুল / বিদ্যালয়' : 'School'}</option>
-                  <option value="college">{isBn ? 'কলেজ' : 'College'}</option>
-                  <option value="madrasa">{isBn ? 'মাদ্রাসা' : 'Madrasa'}</option>
-                  <option value="orphanage">{isBn ? 'এতিমখানা' : 'Orphanage'}</option>
-                  <option value="university">{isBn ? 'বিশ্ববিদ্যালয়' : 'University'}</option>
-                  <option value="technical">{isBn ? 'কারিগরি প্রতিষ্ঠান' : 'Technical Institute'}</option>
+                  <option value="qawmi_madrasa">{isBn ? 'কওমি মাদ্রাসা' : 'Qawmi Madrasa'}</option>
+                  <option value="hafezia_madrasa">{isBn ? 'হাফেজীয়া মাদ্রাসা' : 'Hafezia Madrasa'}</option>
+                  <option value="ebtedayee_madrasa">{isBn ? 'এবতেদায়ী মাদ্রাসা' : 'Ebtedayee Madrasa'}</option>
+                  <option value="alia_madrasa">{isBn ? 'আলিয়া মাদ্রাসা' : 'Alia Madrasa'}</option>
+                  <option value="orphanage">{isBn ? 'এতিম খানা' : 'Orphanage'}</option>
                   <option value="other">{isBn ? 'অন্যান্য' : 'Other'}</option>
                 </select>
               </div>

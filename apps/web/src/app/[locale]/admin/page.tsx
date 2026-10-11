@@ -34,11 +34,20 @@ import {
   UserX,
   Search,
   Lock,
+  Mail,
+  Phone,
+  Clock,
+  History as HistoryIcon,
+  Package,
+  TrendingUp,
+  Check,
+  Copy,
 } from 'lucide-react';
 import {
   PermissionModuleKey,
   UserRole,
   ModulePermission,
+  getOrganizationTypeLabel,
 } from '@sadaqahbd/schema';
 import { useAuthStore, getRoleDashboardPath } from '@/lib/auth-store';
 import { auth } from '@/lib/firebase';
@@ -48,6 +57,9 @@ import PanelHeader from '@/components/layout/PanelHeader';
 import UserMenuDropdown from '@/components/profile/UserMenuDropdown';
 import AdminNotificationDropdown from '@/components/layout/AdminNotificationDropdown';
 import StudentDetailsModal from '@/components/portal/StudentDetailsModal';
+import OrgMembersModal from '@/components/portal/OrgMembersModal';
+import DonorDetailsModal from '@/components/portal/DonorDetailsModal';
+import MyDonationsSection from '@/components/portal/MyDonationsSection';
 import styles from './admin.module.css';
 
 
@@ -59,7 +71,11 @@ const ALL_MODULES = [
   { key: PermissionModuleKey.TEACHER_LIST, name: 'শিক্ষক তালিকা', nameEn: 'Teacher Directory', superAdminOnly: false },
   { key: PermissionModuleKey.STUDENT_LIST, name: 'শিক্ষার্থী তালিকা', nameEn: 'Student Directory', superAdminOnly: false },
   { key: PermissionModuleKey.STUDENT_POST_VERIFICATION_REQUESTS, name: 'শিক্ষার্থী পোস্ট ছাড়পত্র', nameEn: 'Student Campaign Clearances', superAdminOnly: false },
-  { key: PermissionModuleKey.ACCOUNTS_DONATION_APPROVAL, name: 'অ্যাকাউন্টস ও অনুদান অনুমোদন', nameEn: 'Accounts & Donation Approval', superAdminOnly: true },
+  { key: PermissionModuleKey.DONOR_PROFILE, name: 'দাতা প্রোফাইল ও অনুদান হিস্টোরি', nameEn: 'Donor Profile & History', superAdminOnly: false },
+  { key: PermissionModuleKey.DONATION_AMOUNT, name: 'অনুদানের পরিমাণ ও পরিসংখ্যান', nameEn: 'Donation Amounts & Stats', superAdminOnly: false },
+  { key: PermissionModuleKey.ACCOUNTS_DONATION_APPROVAL, name: 'অনুদান পেমেন্ট যাচাই ও অনুমোদন', nameEn: 'Accounts & Donation Approval', superAdminOnly: true },
+  { key: PermissionModuleKey.ITEM_DONATION_APPROVAL, name: 'পণ্য অনুদান অনুমোদন ও ছাড়পত্র', nameEn: 'Item Donation Verification', superAdminOnly: false },
+  { key: PermissionModuleKey.ACCOUNTS_FUND_ALLOCATION, name: 'তহবিল বরাদ্দকরণ', nameEn: 'Fund Allocation', superAdminOnly: true },
 ];
 
 export default function AdminDashboardPage() {
@@ -118,18 +134,74 @@ export default function AdminDashboardPage() {
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string>('');
   const [selectedStudentDetailsId, setSelectedStudentDetailsId] = useState<string | null>(null);
+  const [selectedOrgMembersId, setSelectedOrgMembersId] = useState<string | null>(null);
+  const [selectedOrgMembersName, setSelectedOrgMembersName] = useState<string>('');
+  const [selectedDonorDetailsId, setSelectedDonorDetailsId] = useState<string | null>(null);
+
+  // Financial Donations History & Sub-tab State
+  const [donationsHistory, setDonationsHistory] = useState<any[]>([]);
+  const [pendingDonationsTab, setPendingDonationsTab] = useState<'pending' | 'history'>('pending');
+  const [donationHistorySearch, setDonationHistorySearch] = useState<string>('');
+  const [donationHistoryStatusFilter, setDonationHistoryStatusFilter] = useState<'all' | 'accepted' | 'rejected'>('all');
+
+  // Item Donations Verification & History State
+  const [itemDonationsList, setItemDonationsList] = useState<any[]>([]);
+  const [itemDonationsTab, setItemDonationsTab] = useState<'pending' | 'history'>('pending');
+  const [itemHistorySearch, setItemHistorySearch] = useState<string>('');
+  const [itemHistoryStatusFilter, setItemHistoryStatusFilter] = useState<'all' | 'accepted' | 'rejected'>('all');
+  const [itemAdminInstruction, setItemAdminInstruction] = useState<string>('');
+
+  // Donor List Search
+  const [donorListSearch, setDonorListSearch] = useState<string>('');
+
+  // ----------------------------------------------------
+  // Verification Center Histories & Sub-tabs State
+  // ----------------------------------------------------
+  const [orgRequestsHistory, setOrgRequestsHistory] = useState<any[]>([]);
+  const [adminAffiliationsHistory, setAdminAffiliationsHistory] = useState<{ teachers: any[]; students: any[] }>({
+    teachers: [],
+    students: [],
+  });
+  const [studentPostHistory, setStudentPostHistory] = useState<any[]>([]);
+
+  // Active sub-tabs ('pending' vs 'history')
+  const [orgVerificationTab, setOrgVerificationTab] = useState<'pending' | 'history'>('pending');
+  const [affiliationVerificationTab, setAffiliationVerificationTab] = useState<'pending' | 'history'>('pending');
+  const [postVerificationTab, setPostVerificationTab] = useState<'pending' | 'history'>('pending');
+
+  // Search & Filters for History
+  const [orgHistorySearch, setOrgHistorySearch] = useState<string>('');
+  const [orgHistoryStatusFilter, setOrgHistoryStatusFilter] = useState<'all' | 'active' | 'rejected'>('all');
+
+  const [affHistorySearch, setAffHistorySearch] = useState<string>('');
+  const [affHistoryRoleFilter, setAffHistoryRoleFilter] = useState<'all' | 'teacher' | 'student'>('all');
+  const [affHistoryStatusFilter, setAffHistoryStatusFilter] = useState<'all' | 'verified' | 'rejected'>('all');
+
+  const [postHistorySearch, setPostHistorySearch] = useState<string>('');
+  const [postHistoryStatusFilter, setPostHistoryStatusFilter] = useState<'all' | 'approved' | 'rejected'>('all');
+
+  // One-click copy toast feedback state
+  const [copiedFieldKey, setCopiedFieldKey] = useState<string | null>(null);
+  const handleCopyText = (text: string, key: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedFieldKey(key);
+    setTimeout(() => setCopiedFieldKey(null), 2000);
+  };
 
   // Action / Inspection Slide-Over Drawer State
   const [actionDrawer, setActionDrawer] = useState<{
     isOpen: boolean;
-    type: 'org_review' | 'post_review' | 'donation_review' | 'add_super_admin' | 'affiliation_review' | 'edit_permissions';
+    type: 'org_review' | 'post_review' | 'donation_review' | 'item_donation_review' | 'add_super_admin' | 'affiliation_review' | 'edit_permissions';
     itemData: any;
     reason: string;
+    isReadOnly?: boolean;
   }>({
     isOpen: false,
     type: 'org_review',
     itemData: null,
     reason: '',
+    isReadOnly: false,
   });
 
   // Pending Teacher & Student Final Approvals (Stage 2)
@@ -169,7 +241,7 @@ export default function AdminDashboardPage() {
 
   // Edit Organization Request State (allows Master/Super Admin to correct details prior to approving)
   const [orgEditName, setOrgEditName] = useState('');
-  const [orgEditType, setOrgEditType] = useState('school');
+  const [orgEditType, setOrgEditType] = useState('qawmi_madrasa');
   const [orgEditRegNo, setOrgEditRegNo] = useState('');
   const [orgEditContact, setOrgEditContact] = useState('');
   const [orgEditPhone, setOrgEditPhone] = useState('');
@@ -182,7 +254,7 @@ export default function AdminDashboardPage() {
   const [editedExpenses, setEditedExpenses] = useState<{ category: string; amount: number }[]>([]);
   const [expenseModificationReason, setExpenseModificationReason] = useState('');
 
-  const handleOpenPostReview = (post: any) => {
+  const handleOpenPostReview = (post: any, isReadOnly = false) => {
     setIsEditingExpenses(false);
     setEditedExpenses(
       Array.isArray(post.expenses)
@@ -192,18 +264,19 @@ export default function AdminDashboardPage() {
           }))
         : []
     );
-    setExpenseModificationReason('');
+    setExpenseModificationReason(post.adminModificationReason || '');
     setActionDrawer({
       isOpen: true,
       type: 'post_review',
       itemData: post,
-      reason: '',
+      reason: post.rejectionReason || '',
+      isReadOnly,
     });
   };
 
-  const handleOpenOrgReview = (org: any) => {
+  const handleOpenOrgReview = (org: any, isReadOnly = false) => {
     setOrgEditName(org.name || '');
-    setOrgEditType(org.type || 'school');
+    setOrgEditType(org.type || 'qawmi_madrasa');
     setOrgEditRegNo(org.regNo || org.registrationNumber || '');
     setOrgEditContact(org.contact || org.contactPerson || '');
     setOrgEditPhone(org.phone || org.contactPhone || '');
@@ -214,7 +287,29 @@ export default function AdminDashboardPage() {
       isOpen: true,
       type: 'org_review',
       itemData: org,
-      reason: '',
+      reason: org.rejectionReason || '',
+      isReadOnly,
+    });
+  };
+
+  const handleOpenDonationReview = (don: any, isReadOnly = false) => {
+    setActionDrawer({
+      isOpen: true,
+      type: 'donation_review',
+      itemData: don,
+      reason: don.rejectionReason || '',
+      isReadOnly,
+    });
+  };
+
+  const handleOpenItemDonationReview = (item: any, isReadOnly = false) => {
+    setItemAdminInstruction(item.adminInstruction || '');
+    setActionDrawer({
+      isOpen: true,
+      type: 'item_donation_review',
+      itemData: item,
+      reason: item.rejectionReason || '',
+      isReadOnly,
     });
   };
 
@@ -302,7 +397,7 @@ export default function AdminDashboardPage() {
         }
       } catch (e) {}
 
-      // 3. Org Verification Requests
+      // 3. Org Verification Requests & History
       try {
         const res = await fetch(`${apiUrl}/users/org-requests`, { headers });
         if (res.ok) {
@@ -310,7 +405,14 @@ export default function AdminDashboardPage() {
         }
       } catch (e) {}
 
-      // 4. Student Post Approvals
+      try {
+        const res = await fetch(`${apiUrl}/users/org-requests/history`, { headers });
+        if (res.ok) {
+          setOrgRequestsHistory(await res.json());
+        }
+      } catch (e) {}
+
+      // 4. Student Post Approvals & History
       try {
         const res = await fetch(`${apiUrl}/posts/pending-approvals`, { headers });
         if (res.ok) {
@@ -318,7 +420,14 @@ export default function AdminDashboardPage() {
         }
       } catch (e) {}
 
-      // 5. Pending Donations
+      try {
+        const res = await fetch(`${apiUrl}/posts/approvals-history`, { headers });
+        if (res.ok) {
+          setStudentPostHistory(await res.json());
+        }
+      } catch (e) {}
+
+      // 5. Pending Donations & History
       try {
         const res = await fetch(`${apiUrl}/donations/pending`, { headers });
         if (res.ok) {
@@ -326,7 +435,14 @@ export default function AdminDashboardPage() {
         }
       } catch (e) {}
 
-      // 6. Pending Teacher & Student Final Affiliations
+      try {
+        const res = await fetch(`${apiUrl}/donations/history`, { headers });
+        if (res.ok) {
+          setDonationsHistory(await res.json());
+        }
+      } catch (e) {}
+
+      // 6. Pending Teacher & Student Final Affiliations & History
       try {
         const res = await fetch(`${apiUrl}/users/pending-affiliations`, { headers });
         if (res.ok) {
@@ -335,7 +451,23 @@ export default function AdminDashboardPage() {
         }
       } catch (e) {}
 
-      // 7. Donors List
+      try {
+        const res = await fetch(`${apiUrl}/users/affiliations-history`, { headers });
+        if (res.ok) {
+          const affHist = await res.json();
+          setAdminAffiliationsHistory(affHist || { teachers: [], students: [] });
+        }
+      } catch (e) {}
+
+      // 7. Item Donations List & History
+      try {
+        const res = await fetch(`${apiUrl}/donations/items/requests`, { headers });
+        if (res.ok) {
+          setItemDonationsList(await res.json());
+        }
+      } catch (e) {}
+
+      // 8. Donors List
       try {
         const res = await fetch(`${apiUrl}/users/by-role/donor`, { headers });
         if (res.ok) {
@@ -557,10 +689,27 @@ export default function AdminDashboardPage() {
             ? `${role === 'teacher' ? 'শিক্ষক' : 'শিক্ষার্থী'} চূড়ান্তভাবে অনুমোদিত ও সক্রিয় করা হয়েছে।`
             : `${role === 'teacher' ? 'শিক্ষক' : 'শিক্ষার্থী'} আবেদন বাতিল করা হয়েছে।`
         );
-        loadAdminData();
+      } else if (actionDrawer.type === 'item_donation_review') {
+        if (actionType === 'approve' && !itemAdminInstruction.trim()) {
+          alert(isBn ? 'অনুগ্রহ করে দাতাকে প্রেরণের নির্দেশনা বা কুরিয়ার ঠিকানা উল্লেখ করুন।' : 'Please provide dispatch instructions or courier address.');
+          return;
+        }
+        const res = await fetch(`${apiUrl}/donations/items/review`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            itemDonationId: id,
+            status: actionType === 'approve' ? 'accepted' : 'rejected',
+            adminInstruction: actionType === 'approve' ? itemAdminInstruction.trim() : (actionDrawer.reason.trim() || 'আবেদন বাতিল করা হয়েছে।'),
+          }),
+        });
+
+        if (!res.ok) throw new Error('পণ্য অনুদান পর্যালোচনা ব্যর্থ হয়েছে');
+        setFeedbackMsg(actionType === 'approve' ? 'পণ্য অনুদান সফলভাবে অনুমোদিত হয়েছে।' : 'পণ্য অনুদান বাতিল করা হয়েছে।');
       }
 
       setActionDrawer({ isOpen: false, type: 'org_review', itemData: null, reason: '' });
+      loadAdminData(true);
     } catch (err: any) {
       alert(err.message || 'অপারেশন সম্পন্ন করতে সমস্যা হয়েছে');
     } finally {
@@ -603,8 +752,8 @@ export default function AdminDashboardPage() {
 
       setFeedbackMsg(
         isBn
-          ? `${newAdminRole === 'super_admin' ? 'সুপার এডমিন' : 'এডমিন'} "${newAdminName}" সফলভাবে তৈরি হয়েছে। ডিফল্ট পাসওয়ার্ড: pass1233`
-          : `${newAdminRole === 'super_admin' ? 'Super Admin' : 'Admin'} "${newAdminName}" created successfully. Default password: pass1233`
+          ? `${newAdminRole === 'super_admin' ? 'সুপার এডমিন' : 'এডমিন'} "${newAdminName}" সফলভাবে তৈরি হয়েছে।`
+          : `${newAdminRole === 'super_admin' ? 'Super Admin' : 'Admin'} "${newAdminName}" created successfully.`
       );
       setActionDrawer((prev) => ({ ...prev, isOpen: false }));
       resetAdminForm();
@@ -651,7 +800,7 @@ export default function AdminDashboardPage() {
     setIsMobileDrawerOpen(false);
   };
 
-  const displayName = user?.fullName || 'এডমিন কর্মকর্তা';
+  const displayName = user?.fullName || (isBn ? 'এডমিন কর্মকর্তা' : 'Admin Officer');
   const displayRole = user?.role || UserRole.ADMIN;
 
   const notificationCategories = [
@@ -699,7 +848,7 @@ export default function AdminDashboardPage() {
             type="button"
             className={styles.mobileMenuTrigger}
             onClick={() => setIsMobileDrawerOpen(true)}
-            aria-label="এডমিন মেনু ড্রয়ার খুলুন"
+            aria-label={isBn ? 'এডমিন মেনু ড্রয়ার খুলুন' : 'Open Admin Menu Drawer'}
           >
             <Menu size={22} color="#34d399" />
           </button>
@@ -722,7 +871,7 @@ export default function AdminDashboardPage() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
             <span style={{ fontWeight: 800, fontSize: '0.98rem', color: '#ffffff', whiteSpace: 'nowrap' }}>
-              সাদাকাহ বিডি
+              {isBn ? 'সাদাকাহ বিডি' : 'Sadaqahbd'}
             </span>
             <span className={styles.adminHeaderSubtitle}>
               {user?.role === UserRole.MASTER_ADMIN
@@ -780,7 +929,7 @@ export default function AdminDashboardPage() {
           <button
             className={styles.collapseBtn}
             onClick={() => setIsMobileDrawerOpen(false)}
-            aria-label="ড্রয়ার বন্ধ করুন"
+            aria-label={isBn ? 'ড্রয়ার বন্ধ করুন' : 'Close Drawer'}
           >
             <X size={18} />
           </button>
@@ -797,7 +946,9 @@ export default function AdminDashboardPage() {
             user?.role,
             false,
             (adminPendingAffiliations?.teachers?.length || 0) + (adminPendingAffiliations?.students?.length || 0),
-            allUsers.length
+            allUsers.length,
+            itemDonationsList.filter((i: any) => i.status === 'pending').length,
+            isBn
           )}
         </div>
 
@@ -812,7 +963,7 @@ export default function AdminDashboardPage() {
             className={styles.drawerLogoutBtn}
           >
             <LogOut size={18} />
-            <span>লগআউট</span>
+            <span>{isBn ? 'লগআউট' : 'Logout'}</span>
           </button>
         </div>
       </aside>
@@ -839,7 +990,7 @@ export default function AdminDashboardPage() {
           <button
             className={styles.collapseBtn}
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            title={isSidebarCollapsed ? 'ড্রয়ার প্রসারিত করুন' : 'ড্রয়ার সংকুচিত করুন'}
+            title={isSidebarCollapsed ? (isBn ? 'ড্রয়ার প্রসারিত করুন' : 'Expand Sidebar') : (isBn ? 'ড্রয়ার সংকুচিত করুন' : 'Collapse Sidebar')}
           >
             {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           </button>
@@ -856,7 +1007,9 @@ export default function AdminDashboardPage() {
             user?.role,
             isSidebarCollapsed,
             (adminPendingAffiliations?.teachers?.length || 0) + (adminPendingAffiliations?.students?.length || 0),
-            allUsers.length
+            allUsers.length,
+            itemDonationsList.filter((i: any) => i.status === 'pending').length,
+            isBn
           )}
         </div>
 
@@ -869,10 +1022,10 @@ export default function AdminDashboardPage() {
               window.location.href = '/login';
             }}
             className={styles.drawerLogoutBtn}
-            title="লগআউট"
+            title={isBn ? 'লগআউট' : 'Logout'}
           >
             <LogOut size={18} />
-            {!isSidebarCollapsed && <span>লগআউট</span>}
+            {!isSidebarCollapsed && <span>{isBn ? 'লগআউট' : 'Logout'}</span>}
           </button>
         </div>
       </aside>
@@ -918,10 +1071,12 @@ export default function AdminDashboardPage() {
               <div>
                 <h1 className={styles.pageTitle}>
                   <ShieldCheck size={28} color="var(--color-primary)" />
-                  এডমিন ড্যাশবোর্ড ওভারভিউ
+                  {isBn ? 'এডমিন ড্যাশবোর্ড ওভারভিউ' : 'Admin Dashboard Overview'}
                 </h1>
                 <p style={{ color: 'var(--color-text-muted)', fontSize: '0.95rem', marginTop: '0.25rem' }}>
-                  সাদাকাহ বিডি কেন্দ্রীয় অ্যাডমিনিস্ট্রেশন ও দ্রুত সিদ্ধান্ত কেন্দ্র।
+                  {isBn
+                    ? 'সাদাকাহ বিডি কেন্দ্রীয় অ্যাডমিনিস্ট্রেশন ও নির্বাহী সিদ্ধান্ত কেন্দ্র।'
+                    : 'Sadaqahbd Central Administration & Executive Control Center.'}
                 </p>
               </div>
 
@@ -931,11 +1086,11 @@ export default function AdminDashboardPage() {
                 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', padding: '0.5rem 1rem' }}
               >
                 <RefreshCw size={14} className={loadingData ? 'spin' : ''} />
-                <span>রিফ্রেশ</span>
+                <span>{isBn ? 'রিফ্রেশ' : 'Refresh'}</span>
               </button>
             </div>
 
-            {/* Quick KPI Stat Cards (Real Live Data) */}
+            {/* Quick KPI Stat Cards */}
             <div className={styles.kpiGrid}>
               <div
                 className={`${styles.kpiCard} card`}
@@ -947,11 +1102,11 @@ export default function AdminDashboardPage() {
                 }}
               >
                 <span className={styles.kpiTitle} style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-                  প্রতিষ্ঠান আবেদন (পেন্ডিং)
+                  {isBn ? 'প্রতিষ্ঠান আবেদন (অপেক্ষমাণ)' : 'Institute Applications (Pending)'}
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
                   <span className={styles.kpiValue} style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f59e0b' }}>
-                    {loadingData ? '...' : orgVerificationRequests.length}
+                    {loadingData ? '...' : (isBn ? orgVerificationRequests.length.toLocaleString('bn-BD') : orgVerificationRequests.length)}
                   </span>
                   <Building2 size={28} color="#f59e0b" opacity={0.6} />
                 </div>
@@ -968,7 +1123,7 @@ export default function AdminDashboardPage() {
                     cursor: 'pointer',
                   }}
                 >
-                  যাচাই করুন →
+                  {isBn ? 'যাচাই করুন →' : 'Review →'}
                 </button>
               </div>
 
@@ -982,11 +1137,50 @@ export default function AdminDashboardPage() {
                 }}
               >
                 <span className={styles.kpiTitle} style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-                  শিক্ষার্থী পোস্ট (পেন্ডিং)
+                  {isBn ? 'শিক্ষক ও শিক্ষার্থী ছাড়পত্র' : 'Teacher & Student Clearances'}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
+                  <span className={styles.kpiValue} style={{ fontSize: '1.75rem', fontWeight: 800, color: '#06b6d4' }}>
+                    {loadingData
+                      ? '...'
+                      : (isBn
+                          ? ((adminPendingAffiliations?.teachers?.length || 0) + (adminPendingAffiliations?.students?.length || 0)).toLocaleString('bn-BD')
+                          : (adminPendingAffiliations?.teachers?.length || 0) + (adminPendingAffiliations?.students?.length || 0))}
+                  </span>
+                  <UserCheck size={28} color="#06b6d4" opacity={0.6} />
+                </div>
+                <button
+                  onClick={() => setActiveNav('affiliation_requests')}
+                  style={{
+                    marginTop: '0.75rem',
+                    fontSize: '0.8rem',
+                    color: 'var(--color-primary)',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {isBn ? 'ছাড়পত্র দিন →' : 'Clearances →'}
+                </button>
+              </div>
+
+              <div
+                className={`${styles.kpiCard} card`}
+                style={{
+                  padding: '1.25rem',
+                  backgroundColor: 'var(--surface, #ffffff)',
+                  borderRadius: '12px',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <span className={styles.kpiTitle} style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                  {isBn ? 'শিক্ষার্থী পোস্ট (অপেক্ষমাণ)' : 'Student Campaigns (Pending)'}
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
                   <span className={styles.kpiValue} style={{ fontSize: '1.75rem', fontWeight: 800, color: '#3b82f6' }}>
-                    {loadingData ? '...' : studentPostRequests.length}
+                    {loadingData ? '...' : (isBn ? studentPostRequests.length.toLocaleString('bn-BD') : studentPostRequests.length)}
                   </span>
                   <GraduationCap size={28} color="#3b82f6" opacity={0.6} />
                 </div>
@@ -1003,7 +1197,7 @@ export default function AdminDashboardPage() {
                     cursor: 'pointer',
                   }}
                 >
-                  পোস্ট যাচাই করুন →
+                  {isBn ? 'পোস্ট যাচাই করুন →' : 'Review Campaigns →'}
                 </button>
               </div>
 
@@ -1017,11 +1211,11 @@ export default function AdminDashboardPage() {
                 }}
               >
                 <span className={styles.kpiTitle} style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-                  অনুদান পেমেন্ট যাচাই
+                  {isBn ? 'অনুদান পেমেন্ট যাচাই' : 'Donation Verifications'}
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
                   <span className={styles.kpiValue} style={{ fontSize: '1.75rem', fontWeight: 800, color: '#10b981' }}>
-                    {loadingData ? '...' : pendingDonations.length}
+                    {loadingData ? '...' : (isBn ? pendingDonations.length.toLocaleString('bn-BD') : pendingDonations.length)}
                   </span>
                   <DollarSign size={28} color="#10b981" opacity={0.6} />
                 </div>
@@ -1038,7 +1232,7 @@ export default function AdminDashboardPage() {
                     cursor: 'pointer',
                   }}
                 >
-                  অনুদান যাচাই করুন →
+                  {isBn ? 'অনুদান যাচাই করুন →' : 'Verify Donations →'}
                 </button>
               </div>
 
@@ -1052,11 +1246,50 @@ export default function AdminDashboardPage() {
                 }}
               >
                 <span className={styles.kpiTitle} style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-                  সক্রিয় সুপার এডমিন
+                  {isBn ? 'পণ্য অনুদান যাচাই' : 'Item Donations (Pending)'}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
+                  <span className={styles.kpiValue} style={{ fontSize: '1.75rem', fontWeight: 800, color: '#ec4899' }}>
+                    {loadingData
+                      ? '...'
+                      : (isBn
+                          ? itemDonationsList.filter((i: any) => i.status === 'pending').length.toLocaleString('bn-BD')
+                          : itemDonationsList.filter((i: any) => i.status === 'pending').length)}
+                  </span>
+                  <Package size={28} color="#ec4899" opacity={0.6} />
+                </div>
+                <button
+                  onClick={() => setActiveNav('item_donations')}
+                  style={{
+                    marginTop: '0.75rem',
+                    fontSize: '0.8rem',
+                    color: 'var(--color-primary)',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {isBn ? 'পণ্য যাচাই করুন →' : 'Verify Items →'}
+                </button>
+              </div>
+
+              <div
+                className={`${styles.kpiCard} card`}
+                style={{
+                  padding: '1.25rem',
+                  backgroundColor: 'var(--surface, #ffffff)',
+                  borderRadius: '12px',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <span className={styles.kpiTitle} style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                  {isBn ? 'সক্রিয় সুপার এডমিন' : 'Active Super Admins'}
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
                   <span className={styles.kpiValue} style={{ fontSize: '1.75rem', fontWeight: 800, color: '#8b5cf6' }}>
-                    {loadingData ? '...' : superAdmins.length}
+                    {loadingData ? '...' : (isBn ? superAdmins.length.toLocaleString('bn-BD') : superAdmins.length)}
                   </span>
                   <Users size={28} color="#8b5cf6" opacity={0.6} />
                 </div>
@@ -1073,12 +1306,12 @@ export default function AdminDashboardPage() {
                     cursor: 'pointer',
                   }}
                 >
-                  স্টাফ পরিচালনা →
+                  {isBn ? 'স্টাফ পরিচালনা →' : 'Manage Staff →'}
                 </button>
               </div>
             </div>
 
-            {/* Quick action helper guide */}
+            {/* Quick Action Approval Queues Overview Card */}
             <div
               className="card"
               style={{
@@ -1088,12 +1321,256 @@ export default function AdminDashboardPage() {
                 border: '1px solid var(--color-border)',
               }}
             >
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-main, #0f172a)' }}>
-                সরাসরি ডাটাবেজ তথ্য ও ড্রয়ার অ্যাকশন
-              </h3>
-              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', lineHeight: 1.6 }}>
-                এখানে প্রদর্শিত সকল তথ্য সরাসরি MySQL ডাটাবেজ ও ক্লাউড সার্ভার থেকে লোড হচ্ছে। ড্রয়ারের যেকোনো অপশনে ক্লিক করে বাস্তব আবেদনপত্র পর্যালোচনা ও সরাসরি অ্যাকশন নিতে পারবেন।
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
+                <SlidersHorizontal size={20} color="var(--color-primary)" />
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-main, #0f172a)' }}>
+                  {isBn ? 'অপেক্ষমাণ ছাড়পত্র ও সিদ্ধান্ত সারসংক্ষেপ' : 'Pending Clearances & Action Queue Summary'}
+                </h3>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {/* Queue 1: Institute Requests */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.75rem 1rem',
+                    backgroundColor: 'var(--background-alt, #f8fafc)',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <Building2 size={18} color="#f59e0b" />
+                    <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                      {isBn ? 'শিক্ষা প্রতিষ্ঠান অনুমোদন আবেদন' : 'Institution Verification Requests'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                    <span
+                      style={{
+                        padding: '0.2rem 0.65rem',
+                        borderRadius: '9999px',
+                        backgroundColor: orgVerificationRequests.length > 0 ? '#fef3c7' : '#ecfdf5',
+                        color: orgVerificationRequests.length > 0 ? '#92400e' : '#047857',
+                        fontWeight: 700,
+                        fontSize: '0.8rem',
+                      }}
+                    >
+                      {isBn
+                        ? `${orgVerificationRequests.length.toLocaleString('bn-BD')} টি অপেক্ষমাণ`
+                        : `${orgVerificationRequests.length} Pending`}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem', fontWeight: 600 }}
+                      onClick={() => setActiveNav('org_requests')}
+                    >
+                      {isBn ? 'যাচাই করুন' : 'Review'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Queue 2: Teacher & Student Affiliations */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.75rem 1rem',
+                    backgroundColor: 'var(--background-alt, #f8fafc)',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <UserCheck size={18} color="#06b6d4" />
+                    <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                      {isBn ? 'শিক্ষক ও শিক্ষার্থী চূড়ান্ত ছাড়পত্র' : 'Teacher & Student Clearances'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                    <span
+                      style={{
+                        padding: '0.2rem 0.65rem',
+                        borderRadius: '9999px',
+                        backgroundColor:
+                          ((adminPendingAffiliations?.teachers?.length || 0) + (adminPendingAffiliations?.students?.length || 0)) > 0
+                            ? '#e0f2fe'
+                            : '#ecfdf5',
+                        color:
+                          ((adminPendingAffiliations?.teachers?.length || 0) + (adminPendingAffiliations?.students?.length || 0)) > 0
+                            ? '#0369a1'
+                            : '#047857',
+                        fontWeight: 700,
+                        fontSize: '0.8rem',
+                      }}
+                    >
+                      {isBn
+                        ? `${((adminPendingAffiliations?.teachers?.length || 0) + (adminPendingAffiliations?.students?.length || 0)).toLocaleString('bn-BD')} টি অপেক্ষমাণ`
+                        : `${(adminPendingAffiliations?.teachers?.length || 0) + (adminPendingAffiliations?.students?.length || 0)} Pending`}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem', fontWeight: 600 }}
+                      onClick={() => setActiveNav('affiliation_requests')}
+                    >
+                      {isBn ? 'ছাড়পত্র দিন' : 'Clearances'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Queue 3: Student Campaigns */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.75rem 1rem',
+                    backgroundColor: 'var(--background-alt, #f8fafc)',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <GraduationCap size={18} color="#3b82f6" />
+                    <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                      {isBn ? 'শিক্ষার্থী পোস্ট ও আর্থিক খরচ যাচাই' : 'Student Campaign & Expense Verifications'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                    <span
+                      style={{
+                        padding: '0.2rem 0.65rem',
+                        borderRadius: '9999px',
+                        backgroundColor: studentPostRequests.length > 0 ? '#dbeafe' : '#ecfdf5',
+                        color: studentPostRequests.length > 0 ? '#1d4ed8' : '#047857',
+                        fontWeight: 700,
+                        fontSize: '0.8rem',
+                      }}
+                    >
+                      {isBn
+                        ? `${studentPostRequests.length.toLocaleString('bn-BD')} টি অপেক্ষমাণ`
+                        : `${studentPostRequests.length} Pending`}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem', fontWeight: 600 }}
+                      onClick={() => setActiveNav('student_posts')}
+                    >
+                      {isBn ? 'যাচাই করুন' : 'Review'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Queue 4: Monetary Donations */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.75rem 1rem',
+                    backgroundColor: 'var(--background-alt, #f8fafc)',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <DollarSign size={18} color="#10b981" />
+                    <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                      {isBn ? 'আর্থিক অনুদান পেমেন্ট যাচাই' : 'Financial Donation Verifications'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                    <span
+                      style={{
+                        padding: '0.2rem 0.65rem',
+                        borderRadius: '9999px',
+                        backgroundColor: pendingDonations.length > 0 ? '#ecfdf5' : '#f1f5f9',
+                        color: pendingDonations.length > 0 ? '#047857' : '#64748b',
+                        fontWeight: 700,
+                        fontSize: '0.8rem',
+                      }}
+                    >
+                      {isBn
+                        ? `${pendingDonations.length.toLocaleString('bn-BD')} টি অপেক্ষমাণ`
+                        : `${pendingDonations.length} Pending`}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem', fontWeight: 600 }}
+                      onClick={() => setActiveNav('pending_donations')}
+                    >
+                      {isBn ? 'অনুমোদন করুন' : 'Verify'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Queue 5: Item Donations */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.75rem 1rem',
+                    backgroundColor: 'var(--background-alt, #f8fafc)',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border)',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <Package size={18} color="#ec4899" />
+                    <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                      {isBn ? 'পণ্য অনুদান গ্রহণ ও ছাড়পত্র' : 'Item Donations Verification'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                    <span
+                      style={{
+                        padding: '0.2rem 0.65rem',
+                        borderRadius: '9999px',
+                        backgroundColor:
+                          itemDonationsList.filter((i: any) => i.status === 'pending').length > 0
+                            ? '#fce7f3'
+                            : '#f1f5f9',
+                        color:
+                          itemDonationsList.filter((i: any) => i.status === 'pending').length > 0
+                            ? '#9d174d'
+                            : '#64748b',
+                        fontWeight: 700,
+                        fontSize: '0.8rem',
+                      }}
+                    >
+                      {isBn
+                        ? `${itemDonationsList.filter((i: any) => i.status === 'pending').length.toLocaleString('bn-BD')} টি অপেক্ষমাণ`
+                        : `${itemDonationsList.filter((i: any) => i.status === 'pending').length} Pending`}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem', fontWeight: 600 }}
+                      onClick={() => setActiveNav('item_donations')}
+                    >
+                      {isBn ? 'তদারকি করুন' : 'Review'}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1763,12 +2240,37 @@ export default function AdminDashboardPage() {
               <div>
                 <h1 className={styles.pageTitle}>
                   <Building2 size={26} color="var(--color-primary)" />
-                  {t('orgVerificationReq')} ({orgVerificationRequests.length})
+                  {isBn ? 'প্রতিষ্ঠান ছাড়পত্র ও অনুমোদন' : 'Institution Clearances & Governance'}
                 </h1>
                 <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
-                  শিক্ষা প্রতিষ্ঠানসমূহ কর্তৃক প্রেরিত প্রাতিষ্ঠানিক ছাড়পত্র ও নিবন্ধন অনুমোদন ড্রয়ার।
+                  {isBn
+                    ? 'শিক্ষা প্রতিষ্ঠানসমূহের প্রাতিষ্ঠানিক ছাড়পত্র আবেদন, পর্যালোচনা ও নিষ্পত্তির পূর্বের ইতিহাস।'
+                    : 'Institutional verification requests, review drawer, and full historical records.'}
                 </p>
               </div>
+            </div>
+
+            {/* Sub-tabs: Pending vs History */}
+            <div className={styles.verificationTabs}>
+              <button
+                type="button"
+                className={`${styles.verificationTabBtn} ${orgVerificationTab === 'pending' ? styles.verificationTabBtnActive : ''}`}
+                onClick={() => setOrgVerificationTab('pending')}
+              >
+                <Clock size={16} />
+                <span>{isBn ? 'পেন্ডিং আবেদন' : 'Pending Requests'}</span>
+                <span className={styles.tabBadge}>{orgVerificationRequests.length}</span>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.verificationTabBtn} ${orgVerificationTab === 'history' ? styles.verificationTabBtnActive : ''}`}
+                onClick={() => setOrgVerificationTab('history')}
+              >
+                <HistoryIcon size={16} />
+                <span>{isBn ? 'অনুমোদন ও বাতিলের ইতিহাস' : 'Clearance History'}</span>
+                <span className={styles.tabBadge}>{orgRequestsHistory.length}</span>
+              </button>
             </div>
 
             <div
@@ -1780,53 +2282,255 @@ export default function AdminDashboardPage() {
                 border: '1px solid var(--color-border)',
               }}
             >
-              {loadingData ? (
-                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>ডাটা লোড হচ্ছে...</p>
-              ) : orgVerificationRequests.length === 0 ? (
-                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
-                  কোনো প্রতিষ্ঠান ছাড়পত্র রিকোয়েস্ট পেন্ডিং নেই।
-                </p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {orgVerificationRequests.map((org) => (
-                    <div
-                      key={org.id}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '1.25rem',
-                        backgroundColor: 'var(--background-alt, #f8fafc)',
-                        borderRadius: '10px',
-                        border: '1px solid var(--color-border)',
-                        flexWrap: 'wrap',
-                        gap: '1rem',
-                      }}
-                    >
-                      <div>
-                        <h4 style={{ fontWeight: '700', fontSize: '1.05rem', marginBottom: '0.25rem', color: 'var(--text-main, #0f172a)' }}>
-                          {org.name}
-                        </h4>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                          রেজিস্ট্রেশন কোড: <strong>{org.regNo}</strong> | প্রতিনিধি: {org.contact} ({org.phone || 'ফোন নেই'})
-                        </p>
-                        {org.address && (
-                          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted, #64748b)', marginTop: '0.2rem' }}>
-                            ঠিকানা: {org.address}
-                          </p>
-                        )}
-                      </div>
+              {orgVerificationTab === 'pending' ? (
+                <>
+                  {loadingData ? (
+                    <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>ডাটা লোড হচ্ছে...</p>
+                  ) : orgVerificationRequests.length === 0 ? (
+                    <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                      {isBn ? 'কোনো প্রতিষ্ঠান ছাড়পত্র রিকোয়েস্ট পেন্ডিং নেই।' : 'No pending institution clearance requests.'}
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {orgVerificationRequests.map((org) => (
+                        <div
+                          key={org.id}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '1.25rem',
+                            backgroundColor: 'var(--background-alt, #f8fafc)',
+                            borderRadius: '10px',
+                            border: '1px solid var(--color-border)',
+                            flexWrap: 'wrap',
+                            gap: '1rem',
+                          }}
+                        >
+                          <div>
+                            <h4 style={{ fontWeight: '700', fontSize: '1.05rem', marginBottom: '0.25rem', color: 'var(--text-main, #0f172a)' }}>
+                              {org.name}
+                            </h4>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: 0 }}>
+                              {isBn ? 'রেজিস্ট্রেশন কোড:' : 'Reg Code:'} <strong>{org.regNo}</strong> | {isBn ? 'প্রতিনিধি:' : 'Contact:'} {org.contact} ({org.phone || 'ফোন নেই'})
+                            </p>
+                            {org.address && (
+                              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted, #64748b)', marginTop: '0.2rem', marginBottom: 0 }}>
+                                {isBn ? 'ঠিকানা:' : 'Address:'} {org.address}
+                              </p>
+                            )}
+                          </div>
 
-                      <button
-                        className="btn btn-primary"
-                        style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
-                        onClick={() => handleOpenOrgReview(org)}
-                      >
-                        <Eye size={16} /> ড্রয়ারে যাচাই করুন
-                      </button>
+                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              className={styles.orgMembersBtn}
+                              onClick={() => {
+                                setSelectedOrgMembersId(org.id);
+                                setSelectedOrgMembersName(org.name);
+                              }}
+                            >
+                              <Users size={15} /> {isBn ? 'শিক্ষক ও শিক্ষার্থী' : 'Teachers & Students'}
+                            </button>
+
+                            <button
+                              className="btn btn-primary"
+                              style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+                              onClick={() => handleOpenOrgReview(org)}
+                            >
+                              <Eye size={16} /> {isBn ? 'ড্রয়ারে যাচাই করুন' : 'Review in Drawer'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
+              ) : (
+                /* History Tab View */
+                <>
+                  <div className={styles.historyFilterBar}>
+                    <div style={{ flex: '1 1 240px', position: 'relative' }}>
+                      <Search
+                        size={16}
+                        style={{
+                          position: 'absolute',
+                          left: '0.75rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: '#94a3b8',
+                        }}
+                      />
+                      <input
+                        type="text"
+                        className={styles.historySearchInput}
+                        placeholder={isBn ? 'প্রতিষ্ঠান নাম, কোড বা যোগাযোগ দিয়ে খুঁজুন...' : 'Search by name, code, contact...'}
+                        value={orgHistorySearch}
+                        onChange={(e) => setOrgHistorySearch(e.target.value)}
+                      />
+                    </div>
+
+                    <select
+                      className={styles.historyFilterSelect}
+                      value={orgHistoryStatusFilter}
+                      onChange={(e) => setOrgHistoryStatusFilter(e.target.value as any)}
+                    >
+                      <option value="all">{isBn ? 'সকল স্ট্যাটাস (All)' : 'All Statuses'}</option>
+                      <option value="active">{isBn ? 'অনুমোদিত ও সক্রিয়' : 'Approved'}</option>
+                      <option value="rejected">{isBn ? 'আবেদন বাতিলকৃত' : 'Rejected'}</option>
+                    </select>
+                  </div>
+
+                  {(() => {
+                    const term = orgHistorySearch.toLowerCase().trim();
+                    const filtered = orgRequestsHistory.filter((org) => {
+                      const matchStatus =
+                        orgHistoryStatusFilter === 'all' || org.status === orgHistoryStatusFilter;
+                      const matchSearch =
+                        !term ||
+                        (org.name && org.name.toLowerCase().includes(term)) ||
+                        (org.regNo && org.regNo.toLowerCase().includes(term)) ||
+                        (org.contact && org.contact.toLowerCase().includes(term)) ||
+                        (org.phone && org.phone.includes(term)) ||
+                        (org.email && org.email.toLowerCase().includes(term));
+                      return matchStatus && matchSearch;
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2.5rem' }}>
+                          {isBn ? 'কোনো পূর্বের রেকর্ড পাওয়া যায়নি।' : 'No historical organization records found.'}
+                        </p>
+                      );
+                    }
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        {filtered.map((org) => {
+                          const isApproved = org.status === 'active';
+                          return (
+                            <div key={org.id} className={styles.historyCard}>
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'flex-start',
+                                  flexWrap: 'wrap',
+                                  gap: '0.75rem',
+                                  marginBottom: '0.75rem',
+                                }}
+                              >
+                                <div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                    <h4 style={{ fontWeight: 800, fontSize: '1.1rem', margin: 0, color: 'var(--text-main, #0f172a)' }}>
+                                      {org.name}
+                                    </h4>
+                                    {org.type && (
+                                      <span style={{ fontSize: '0.75rem', padding: '0.15rem 0.5rem', backgroundColor: '#f1f5f9', color: '#475569', borderRadius: '6px', fontWeight: 600 }}>
+                                        {getOrganizationTypeLabel(org.type, isBn)}
+                                      </span>
+                                    )}
+                                    {org.isRequestedByMember && (
+                                      <span style={{ fontSize: '0.75rem', padding: '0.15rem 0.5rem', backgroundColor: '#fef3c7', color: '#92400e', borderRadius: '6px', fontWeight: 700 }}>
+                                        {isBn ? 'সদস্য প্রস্তাবিত' : 'Member Suggested'}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: '0.35rem', marginBottom: 0 }}>
+                                    {isBn ? 'রেজিস্ট্রেশন কোড:' : 'Reg Code:'} <strong>{org.regNo || 'নেই'}</strong> | {isBn ? 'প্রতিনিধি:' : 'Contact:'} {org.contact} ({org.phone || 'ফোন নেই'})
+                                    {org.email && ` | ইমেইল: ${org.email}`}
+                                  </p>
+                                  {org.address && (
+                                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted, #64748b)', margin: '0.25rem 0 0' }}>
+                                      {isBn ? 'ঠিকানা:' : 'Address:'} {org.address}
+                                    </p>
+                                  )}
+                                  {org.description && (
+                                    <p style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic', margin: '0.25rem 0 0' }}>
+                                      "{org.description}"
+                                    </p>
+                                  )}
+                                </div>
+
+                                <div>
+                                  {isApproved ? (
+                                    <span className={styles.historyBadgeApproved}>
+                                      <CheckCircle2 size={13} /> {isBn ? 'অনুমোদিত ও সক্রিয়' : 'Approved & Active'}
+                                    </span>
+                                  ) : (
+                                    <span className={styles.historyBadgeRejected}>
+                                      <XCircle size={13} /> {isBn ? 'আবেদন বাতিলকৃত' : 'Rejected'}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  paddingTop: '0.75rem',
+                                  borderTop: '1px solid var(--color-border, #e2e8f0)',
+                                  flexWrap: 'wrap',
+                                  gap: '0.75rem',
+                                  fontSize: '0.8rem',
+                                  color: 'var(--text-muted, #64748b)',
+                                }}
+                              >
+                                <div>
+                                  <span>{isBn ? 'নিষ্পত্তির তারিখ:' : 'Verified on:'} </span>
+                                  <strong>
+                                    {org.verifiedAt
+                                      ? new Date(org.verifiedAt).toLocaleString(isBn ? 'bn-BD' : 'en-US')
+                                      : org.updatedAt
+                                      ? new Date(org.updatedAt).toLocaleString(isBn ? 'bn-BD' : 'en-US')
+                                      : '—'}
+                                  </strong>
+                                  {org.verifierName && (
+                                    <span style={{ marginLeft: '0.5rem' }}>
+                                      | {isBn ? 'যাচাইকারী:' : 'Verified by:'} <strong>{org.verifierName}</strong>
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  <button
+                                    type="button"
+                                    className={styles.orgMembersBtn}
+                                    style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}
+                                    onClick={() => {
+                                      setSelectedOrgMembersId(org.id);
+                                      setSelectedOrgMembersName(org.name);
+                                    }}
+                                  >
+                                    <Users size={14} /> {isBn ? 'শিক্ষক ও শিক্ষার্থী' : 'Teachers & Students'}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline"
+                                    style={{
+                                      padding: '0.35rem 0.75rem',
+                                      fontSize: '0.8rem',
+                                      fontWeight: 600,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem',
+                                    }}
+                                    onClick={() => handleOpenOrgReview(org, true)}
+                                  >
+                                    <Eye size={14} /> {isBn ? 'বিস্তারিত ড্রয়ার' : 'Review Details'}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </>
               )}
             </div>
           </div>
@@ -1839,12 +2543,37 @@ export default function AdminDashboardPage() {
               <div>
                 <h1 className={styles.pageTitle}>
                   <GraduationCap size={26} color="var(--color-primary)" />
-                  {t('postVerificationReq')} ({studentPostRequests.length})
+                  {isBn ? 'শিক্ষার্থী পোস্ট যাচাই ও ছাড়পত্র' : 'Student Campaign Verifications'}
                 </h1>
                 <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
-                  শিক্ষক ও প্রতিষ্ঠান প্রধান কর্তৃক ডাবল ভেরিফাইড আবেদন। চূড়ান্ত অনুমোদন পেলে লাইভ হবে।
+                  {isBn
+                    ? 'শিক্ষক ও প্রতিষ্ঠান প্রধান কর্তৃক ডাবল ভেরিফাইড আবেদনসমূহ, বাজেট সমন্বয় ও চূড়ান্ত অনুমোদনের ইতিহাস।'
+                    : 'Double-verified student campaigns, budget adjustment, and final approval records.'}
                 </p>
               </div>
+            </div>
+
+            {/* Sub-tabs: Pending vs History */}
+            <div className={styles.verificationTabs}>
+              <button
+                type="button"
+                className={`${styles.verificationTabBtn} ${postVerificationTab === 'pending' ? styles.verificationTabBtnActive : ''}`}
+                onClick={() => setPostVerificationTab('pending')}
+              >
+                <Clock size={16} />
+                <span>{isBn ? 'পেন্ডিং অনুমোদন' : 'Pending Clearances'}</span>
+                <span className={styles.tabBadge}>{studentPostRequests.length}</span>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.verificationTabBtn} ${postVerificationTab === 'history' ? styles.verificationTabBtnActive : ''}`}
+                onClick={() => setPostVerificationTab('history')}
+              >
+                <HistoryIcon size={16} />
+                <span>{isBn ? 'পোস্ট যাচাই ইতিহাস' : 'Clearance History'}</span>
+                <span className={styles.tabBadge}>{studentPostHistory.length}</span>
+              </button>
             </div>
 
             <div
@@ -1856,97 +2585,337 @@ export default function AdminDashboardPage() {
                 border: '1px solid var(--color-border)',
               }}
             >
-              {loadingData ? (
-                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>ডাটা লোড হচ্ছে...</p>
-              ) : studentPostRequests.length === 0 ? (
-                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
-                  কোনো শিক্ষার্থী পোস্ট অনুমোদনের অপেক্ষায় নেই।
-                </p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  {studentPostRequests.map((post) => (
-                    <div
-                      key={post.id}
-                      style={{
-                        padding: '1.25rem',
-                        backgroundColor: 'var(--background-alt, #f8fafc)',
-                        borderRadius: '12px',
-                        border: '1px solid var(--color-border)',
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'flex-start',
-                          marginBottom: '0.5rem',
-                          flexWrap: 'wrap',
-                          gap: '0.5rem',
-                        }}
-                      >
-                        <div>
-                          <h4 style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--color-primary-dark)' }}>
-                            {post.title}
-                          </h4>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                            শিক্ষার্থী: <strong>{post.studentName}</strong> | প্রতিষ্ঠান: <strong>{post.institution}</strong>
-                          </p>
-                        </div>
-                        <span style={{ fontWeight: '800', color: 'var(--color-primary)', fontSize: '1.2rem' }}>
-                          ৳{Number(post.amount || 0).toLocaleString()}
-                        </span>
-                      </div>
-
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginTop: '1rem',
-                          flexWrap: 'wrap',
-                          gap: '0.75rem',
-                        }}
-                      >
-                        <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.8rem', flexWrap: 'wrap' }}>
-                          {post.teacherVerified && (
-                            <span
-                              style={{
-                                padding: '0.2rem 0.6rem',
-                                backgroundColor: 'rgba(13, 148, 136, 0.12)',
-                                color: 'var(--color-primary)',
-                                borderRadius: '6px',
-                                fontWeight: 600,
-                              }}
-                            >
-                              ✓ শিক্ষক যাচাইকৃত
-                            </span>
-                          )}
-                          {post.orgVerified && (
-                            <span
-                              style={{
-                                padding: '0.2rem 0.6rem',
-                                backgroundColor: 'rgba(13, 148, 136, 0.12)',
-                                color: 'var(--color-primary)',
-                                borderRadius: '6px',
-                                fontWeight: 600,
-                              }}
-                            >
-                              ✓ প্রতিষ্ঠান সিলমোহর
-                            </span>
-                          )}
-                        </div>
-
-                        <button
-                          className="btn btn-primary"
-                          style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
-                          onClick={() => handleOpenPostReview(post)}
+              {postVerificationTab === 'pending' ? (
+                <>
+                  {loadingData ? (
+                    <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>ডাটা লোড হচ্ছে...</p>
+                  ) : studentPostRequests.length === 0 ? (
+                    <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                      {isBn ? 'কোনো শিক্ষার্থী পোস্ট অনুমোদনের অপেক্ষায় নেই।' : 'No student posts pending approval.'}
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      {studentPostRequests.map((post) => (
+                        <div
+                          key={post.id}
+                          style={{
+                            padding: '1.25rem',
+                            backgroundColor: 'var(--background-alt, #f8fafc)',
+                            borderRadius: '12px',
+                            border: '1px solid var(--color-border)',
+                          }}
                         >
-                          <Eye size={16} /> ড্রয়ারে বিস্তারিত দেখুন ও অনুমোদন করুন
-                        </button>
-                      </div>
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'flex-start',
+                              marginBottom: '0.5rem',
+                              flexWrap: 'wrap',
+                              gap: '0.5rem',
+                            }}
+                          >
+                            <div>
+                              <h4 style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--color-primary-dark)' }}>
+                                {post.title}
+                              </h4>
+                              <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', margin: '0.2rem 0 0' }}>
+                                শিক্ষার্থী: <strong>{post.studentName}</strong> | প্রতিষ্ঠান: <strong>{post.institution}</strong>
+                              </p>
+                            </div>
+                            <span style={{ fontWeight: '800', color: 'var(--color-primary)', fontSize: '1.2rem' }}>
+                              ৳{Number(post.amount || 0).toLocaleString()}
+                            </span>
+                          </div>
+
+                          {post.expenses && post.expenses.length > 0 && (
+                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                              {post.expenses.map((exp: any, i: number) => (
+                                <span key={i} className={styles.expenseChip}>
+                                        <span className={styles.expenseChipCat}>{exp.category}:</span>
+                                        <span className={styles.expenseChipAmt}>৳{Number(exp.amount || 0).toLocaleString()}</span>
+                                      </span>
+                              ))}
+                            </div>
+                          )}
+
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              marginTop: '1rem',
+                              flexWrap: 'wrap',
+                              gap: '0.75rem',
+                            }}
+                          >
+                            <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.8rem', flexWrap: 'wrap' }}>
+                              {post.teacherVerified && (
+                                <span
+                                  style={{
+                                    padding: '0.2rem 0.6rem',
+                                    backgroundColor: 'rgba(13, 148, 136, 0.12)',
+                                    color: 'var(--color-primary)',
+                                    borderRadius: '6px',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  ✓ শিক্ষক যাচাইকৃত
+                                </span>
+                              )}
+                              {post.orgVerified && (
+                                <span
+                                  style={{
+                                    padding: '0.2rem 0.6rem',
+                                    backgroundColor: 'rgba(13, 148, 136, 0.12)',
+                                    color: 'var(--color-primary)',
+                                    borderRadius: '6px',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  ✓ প্রতিষ্ঠান সিলমোহর
+                                </span>
+                              )}
+                            </div>
+
+                            <button
+                              className="btn btn-primary"
+                              style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+                              onClick={() => handleOpenPostReview(post)}
+                            >
+                              <Eye size={16} /> {isBn ? 'ড্রয়ারে বিস্তারিত দেখুন ও অনুমোদন করুন' : 'Review & Approve'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
+              ) : (
+                /* History Tab View */
+                <>
+                  <div className={styles.historyFilterBar}>
+                    <div style={{ flex: '1 1 240px', position: 'relative' }}>
+                      <Search
+                        size={16}
+                        style={{
+                          position: 'absolute',
+                          left: '0.75rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: '#94a3b8',
+                        }}
+                      />
+                      <input
+                        type="text"
+                        className={styles.historySearchInput}
+                        placeholder={isBn ? 'পোস্টের শিরোনাম, শিক্ষার্থী বা প্রতিষ্ঠান দিয়ে খুঁজুন...' : 'Search by title, student, institution...'}
+                        value={postHistorySearch}
+                        onChange={(e) => setPostHistorySearch(e.target.value)}
+                      />
+                    </div>
+
+                    <select
+                      className={styles.historyFilterSelect}
+                      value={postHistoryStatusFilter}
+                      onChange={(e) => setPostHistoryStatusFilter(e.target.value as any)}
+                    >
+                      <option value="all">{isBn ? 'সকল স্ট্যাটাস (All)' : 'All Statuses'}</option>
+                      <option value="approved">{isBn ? 'অনুমোদিত ও লাইভ' : 'Approved'}</option>
+                      <option value="rejected">{isBn ? 'পোস্ট বাতিলকৃত' : 'Rejected'}</option>
+                    </select>
+                  </div>
+
+                  {(() => {
+                    const term = postHistorySearch.toLowerCase().trim();
+                    const filtered = studentPostHistory.filter((post) => {
+                      const matchStatus =
+                        postHistoryStatusFilter === 'all' || post.status === postHistoryStatusFilter;
+                      const matchSearch =
+                        !term ||
+                        (post.title && post.title.toLowerCase().includes(term)) ||
+                        (post.studentName && post.studentName.toLowerCase().includes(term)) ||
+                        (post.institution && post.institution.toLowerCase().includes(term));
+                      return matchStatus && matchSearch;
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2.5rem' }}>
+                          {isBn ? 'কোনো পূর্বের পোস্ট রেকর্ড পাওয়া যায়নি।' : 'No historical student post records found.'}
+                        </p>
+                      );
+                    }
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        {filtered.map((post) => {
+                          const isApproved = post.status === 'approved';
+                          return (
+                            <div key={post.id} className={styles.historyCard}>
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'flex-start',
+                                  flexWrap: 'wrap',
+                                  gap: '0.75rem',
+                                  marginBottom: '0.75rem',
+                                }}
+                              >
+                                <div style={{ flex: '1 1 300px' }}>
+                                  <h4 style={{ fontWeight: 800, fontSize: '1.1rem', margin: 0, color: 'var(--text-main, #0f172a)' }}>
+                                    {post.title}
+                                  </h4>
+                                  <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', margin: '0.35rem 0 0' }}>
+                                    শিক্ষার্থী: <strong>{post.studentName}</strong> | প্রতিষ্ঠান: <strong>{post.institution}</strong>
+                                    {post.studentPhone && ` | ফোন: ${post.studentPhone}`}
+                                    {post.studentEmail && ` | ইমেইল: ${post.studentEmail}`}
+                                  </p>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                  <div style={{ textAlign: 'right' }}>
+                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>প্রয়োজনীয় অনুদান</div>
+                                    <div style={{ fontWeight: 800, color: 'var(--color-primary)', fontSize: '1.15rem' }}>
+                                      ৳{Number(post.amount || 0).toLocaleString()}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    {isApproved ? (
+                                      <span className={styles.historyBadgeApproved}>
+                                        <CheckCircle2 size={13} /> {isBn ? 'অনুমোদিত ও লাইভ' : 'Approved & Live'}
+                                      </span>
+                                    ) : (
+                                      <span className={styles.historyBadgeRejected}>
+                                        <XCircle size={13} /> {isBn ? 'পোস্ট বাতিলকৃত' : 'Rejected'}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Problem Description Preview */}
+                              {post.problemDesc && (
+                                <p style={{ fontSize: '0.85rem', color: 'var(--text-main, #334155)', margin: '0.5rem 0', lineHeight: 1.5 }}>
+                                  {post.problemDesc.length > 200 ? `${post.problemDesc.slice(0, 200)}...` : post.problemDesc}
+                                </p>
+                              )}
+
+                              {/* Itemized Expenses Breakdown */}
+                              {post.expenses && post.expenses.length > 0 && (
+                                <div style={{ margin: '0.65rem 0' }}>
+                                  <div className={styles.expenseBreakdownLabel}>
+                                    {isBn ? 'খরচের ক্যাটাগরি ও বিভাজন:' : 'Expense Breakdown:'}
+                                  </div>
+                                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                    {post.expenses.map((exp: any, i: number) => (
+                                      <span key={i} className={styles.expenseChip}>
+                                        <span className={styles.expenseChipCat}>{exp.category}:</span>
+                                        <span className={styles.expenseChipAmt}>৳{Number(exp.amount || 0).toLocaleString()}</span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Admin Notes */}
+                              {post.adminModificationReason && (
+                                <div
+                                  style={{
+                                    marginTop: '0.65rem',
+                                    padding: '0.6rem 0.85rem',
+                                    backgroundColor: '#fffbeb',
+                                    border: '1px solid #fde68a',
+                                    borderRadius: '8px',
+                                    fontSize: '0.82rem',
+                                    color: '#92400e',
+                                  }}
+                                >
+                                  <strong>⚠️ {isBn ? 'এডমিন খরচের বিভাজন সমন্বয় নোট:' : 'Admin Modification Note:'}</strong> {post.adminModificationReason}
+                                </div>
+                              )}
+
+                              {post.rejectionReason && (
+                                <div
+                                  className={styles.historyRejectionBox}
+                                >
+                                  <strong>❌ {isBn ? 'প্রত্যাখ্যানের কারণ:' : 'Rejection Reason:'}</strong> {post.rejectionReason}
+                                </div>
+                              )}
+
+                              {/* Footer Action & Dates */}
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  paddingTop: '0.75rem',
+                                  borderTop: '1px solid var(--color-border, #e2e8f0)',
+                                  marginTop: '0.75rem',
+                                  flexWrap: 'wrap',
+                                  gap: '0.75rem',
+                                  fontSize: '0.8rem',
+                                  color: 'var(--text-muted, #64748b)',
+                                }}
+                              >
+                                <div>
+                                  <span>{isBn ? 'নিষ্পত্তির তারিখ:' : 'Reviewed on:'} </span>
+                                  <strong>
+                                    {post.updatedAt
+                                      ? new Date(post.updatedAt).toLocaleString(isBn ? 'bn-BD' : 'en-US')
+                                      : post.createdAt
+                                      ? new Date(post.createdAt).toLocaleString(isBn ? 'bn-BD' : 'en-US')
+                                      : '—'}
+                                  </strong>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  {post.studentId && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-outline"
+                                      style={{
+                                        padding: '0.35rem 0.75rem',
+                                        backgroundColor: '#eff6ff',
+                                        borderColor: '#bfdbfe',
+                                        color: '#1d4ed8',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 700,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.35rem',
+                                      }}
+                                      onClick={() => setSelectedStudentDetailsId(post.studentId)}
+                                    >
+                                      <GraduationCap size={14} /> {isBn ? 'শিক্ষার্থীর প্রোফাইল' : 'Student Profile'}
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline"
+                                    style={{
+                                      padding: '0.35rem 0.75rem',
+                                      fontSize: '0.8rem',
+                                      fontWeight: 600,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem',
+                                    }}
+                                    onClick={() => handleOpenPostReview(post, true)}
+                                  >
+                                    <Eye size={14} /> {isBn ? 'বিস্তারিত ড্রয়ার' : 'Review Details'}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </>
               )}
             </div>
           </div>
@@ -1959,158 +2928,96 @@ export default function AdminDashboardPage() {
               <div>
                 <h1 className={styles.pageTitle}>
                   <UserCheck size={26} color="var(--color-primary)" />
-                  শিক্ষক ও শিক্ষার্থী চূড়ান্ত অনুমোদন (স্টেজ ২)
+                  {isBn ? 'শিক্ষক ও শিক্ষার্থী ছাড়পত্র ও অনুমোদন' : 'Teacher & Student Clearances'}
                 </h1>
                 <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
-                  শিক্ষা প্রতিষ্ঠান কর্তৃক প্রাথমিকভাবে অনুমোদিত আবেদনসমূহ। মাস্টার বা সুপার এডমিন চূড়ান্ত ছাড়পত্র দিলে অ্যাকাউন্ট সক্রিয় ও ফিচার উন্মুক্ত হবে।
+                  {isBn
+                    ? 'প্রতিষ্ঠান কর্তৃক প্রাথমিকভাবে অনুমোদিত শিক্ষক ও শিক্ষার্থীদের চূড়ান্ত অনুমোদন ও নিষ্পত্তির পূর্বের ইতিহাস।'
+                    : 'Institutional affiliation clearance requests and historical verification records.'}
                 </p>
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-              {/* Teacher Approvals */}
-              <div
-                className="card"
-                style={{
-                  padding: '1.5rem',
-                  backgroundColor: 'var(--surface, #ffffff)',
-                  borderRadius: '12px',
-                  border: '1px solid var(--color-border)',
-                }}
+            {/* Sub-tabs: Pending vs History */}
+            <div className={styles.verificationTabs}>
+              <button
+                type="button"
+                className={`${styles.verificationTabBtn} ${affiliationVerificationTab === 'pending' ? styles.verificationTabBtnActive : ''}`}
+                onClick={() => setAffiliationVerificationTab('pending')}
               >
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <UserCheck size={20} color="#2563eb" />
-                  প্রতিষ্ঠান অনুমোদিত শিক্ষক তালিকা ({adminPendingAffiliations.teachers.length})
-                </h3>
+                <Clock size={16} />
+                <span>{isBn ? 'পেন্ডিং ছাড়পত্র' : 'Pending Clearances'}</span>
+                <span className={styles.tabBadge}>
+                  {adminPendingAffiliations.teachers.length + adminPendingAffiliations.students.length}
+                </span>
+              </button>
 
-                {adminPendingAffiliations.teachers.length === 0 ? (
-                  <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '1.5rem', margin: 0 }}>
-                    কোনো শিক্ষক চূড়ান্ত অনুমোদনের জন্য অপেক্ষমাণ নেই।
-                  </p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {adminPendingAffiliations.teachers.map((t) => (
-                      <div
-                        key={t.profileId}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          padding: '1.25rem',
-                          backgroundColor: 'var(--background-alt, #f8fafc)',
-                          borderRadius: '10px',
-                          border: '1px solid var(--color-border)',
-                          flexWrap: 'wrap',
-                          gap: '1rem',
-                        }}
-                      >
-                        <div>
-                          <h4 style={{ fontWeight: '700', fontSize: '1.05rem', margin: 0, color: 'var(--text-main, #0f172a)' }}>
-                            {t.fullName}
-                          </h4>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #64748b)', margin: '0.25rem 0 0' }}>
-                            প্রতিষ্ঠান: <strong style={{ color: 'var(--text-main, #0f172a)' }}>{t.institutionName}</strong>
-                            {t.designation && ` | পদবী: ${t.designation}`}
-                            {t.department && ` | বিভাগ: ${t.department}`}
-                            {t.employeeId && ` | আইডি: ${t.employeeId}`}
-                          </p>
-                          <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '0.2rem 0 0' }}>
-                            ইমেইল: {t.email} | ফোন: {t.phone || 'নেই'}
-                          </p>
-                        </div>
+              <button
+                type="button"
+                className={`${styles.verificationTabBtn} ${affiliationVerificationTab === 'history' ? styles.verificationTabBtnActive : ''}`}
+                onClick={() => setAffiliationVerificationTab('history')}
+              >
+                <HistoryIcon size={16} />
+                <span>{isBn ? 'ছাড়পত্রের পূর্বের ইতিহাস' : 'Clearance History'}</span>
+                <span className={styles.tabBadge}>
+                  {adminAffiliationsHistory.teachers.length + adminAffiliationsHistory.students.length}
+                </span>
+              </button>
+            </div>
 
-                        <button
-                          className="btn btn-primary"
-                          style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
-                          onClick={() =>
-                            setActionDrawer({
-                              isOpen: true,
-                              type: 'affiliation_review',
-                              itemData: { ...t, role: 'teacher' },
-                              reason: '',
-                            })
-                          }
+            {affiliationVerificationTab === 'pending' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                {/* Teacher Approvals */}
+                <div
+                  className="card"
+                  style={{
+                    padding: '1.5rem',
+                    backgroundColor: 'var(--surface, #ffffff)',
+                    borderRadius: '12px',
+                    border: '1px solid var(--color-border)',
+                  }}
+                >
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <UserCheck size={20} color="#2563eb" />
+                    {isBn ? 'প্রতিষ্ঠান অনুমোদিত শিক্ষক তালিকা' : 'Institute-Approved Teacher List'} ({adminPendingAffiliations.teachers.length})
+                  </h3>
+
+                  {adminPendingAffiliations.teachers.length === 0 ? (
+                    <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '1.5rem', margin: 0 }}>
+                      {isBn ? 'কোনো শিক্ষক চূড়ান্ত অনুমোদনের জন্য অপেক্ষমাণ নেই।' : 'No teachers pending final approval.'}
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {adminPendingAffiliations.teachers.map((t) => (
+                        <div
+                          key={t.profileId}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '1.25rem',
+                            backgroundColor: 'var(--background-alt, #f8fafc)',
+                            borderRadius: '10px',
+                            border: '1px solid var(--color-border)',
+                            flexWrap: 'wrap',
+                            gap: '1rem',
+                          }}
                         >
-                          <Eye size={16} /> যাচাই ও চূড়ান্ত অনুমোদন
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                          <div>
+                            <h4 style={{ fontWeight: '700', fontSize: '1.05rem', margin: 0, color: 'var(--text-main, #0f172a)' }}>
+                              {t.fullName}
+                            </h4>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #64748b)', margin: '0.25rem 0 0' }}>
+                              {isBn ? 'প্রতিষ্ঠান: ' : 'Institution: '}<strong style={{ color: 'var(--text-main, #0f172a)' }}>{t.institutionName}</strong>
+                              {t.designation && ` | ${isBn ? 'পদবী: ' : 'Designation: '}${t.designation}`}
+                              {t.department && ` | ${isBn ? 'বিভাগ: ' : 'Dept: '}${t.department}`}
+                              {t.employeeId && ` | ${isBn ? 'আইডি: ' : 'ID: '}${t.employeeId}`}
+                            </p>
+                            <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '0.2rem 0 0' }}>
+                              {isBn ? 'ইমেইল: ' : 'Email: '}{t.email} | {isBn ? 'ফোন: ' : 'Phone: '}{t.phone || (isBn ? 'নেই' : 'N/A')}
+                            </p>
+                          </div>
 
-              {/* Student Approvals */}
-              <div
-                className="card"
-                style={{
-                  padding: '1.5rem',
-                  backgroundColor: 'var(--surface, #ffffff)',
-                  borderRadius: '12px',
-                  border: '1px solid var(--color-border)',
-                }}
-              >
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <GraduationCap size={20} color="#059669" />
-                  প্রতিষ্ঠান অনুমোদিত শিক্ষার্থী তালিকা ({adminPendingAffiliations.students.length})
-                </h3>
-
-                {adminPendingAffiliations.students.length === 0 ? (
-                  <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '1.5rem', margin: 0 }}>
-                    কোনো শিক্ষার্থী চূড়ান্ত অনুমোদনের জন্য অপেক্ষমাণ নেই।
-                  </p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {adminPendingAffiliations.students.map((s) => (
-                      <div
-                        key={s.profileId}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          padding: '1.25rem',
-                          backgroundColor: 'var(--background-alt, #f8fafc)',
-                          borderRadius: '10px',
-                          border: '1px solid var(--color-border)',
-                          flexWrap: 'wrap',
-                          gap: '1rem',
-                        }}
-                      >
-                        <div>
-                          <h4 style={{ fontWeight: '700', fontSize: '1.05rem', margin: 0, color: 'var(--text-main, #0f172a)' }}>
-                            {s.fullName}
-                          </h4>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #64748b)', margin: '0.25rem 0 0' }}>
-                            প্রতিষ্ঠান: <strong style={{ color: 'var(--text-main, #0f172a)' }}>{s.institutionName}</strong>
-                            {s.studentClassRoll && ` | ক্লাস/রোল: ${s.studentClassRoll}`}
-                            {s.address && ` | ঠিকানা: ${s.address}`}
-                          </p>
-                          <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '0.2rem 0 0' }}>
-                            ইমেইল: {s.email} | ফোন: {s.phone || 'নেই'}
-                          </p>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                          <button
-                            type="button"
-                            className="btn btn-outline"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                              padding: '0.45rem 0.85rem',
-                              fontSize: '0.85rem',
-                              color: '#1d4ed8',
-                              borderColor: '#bfdbfe',
-                              backgroundColor: '#eff6ff',
-                              borderRadius: '8px',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                            onClick={() => setSelectedStudentDetailsId(s.profileId || s.userId)}
-                          >
-                            <Eye size={15} />
-                            {isBn ? 'বিস্তারিত' : 'Details'}
-                          </button>
                           <button
                             className="btn btn-primary"
                             style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
@@ -2118,12 +3025,737 @@ export default function AdminDashboardPage() {
                               setActionDrawer({
                                 isOpen: true,
                                 type: 'affiliation_review',
-                                itemData: { ...s, role: 'student' },
+                                itemData: { ...t, role: 'teacher' },
                                 reason: '',
                               })
                             }
                           >
-                            <Eye size={16} /> যাচাই ও চূড়ান্ত অনুমোদন
+                            <Eye size={16} /> {isBn ? 'যাচাই ও চূড়ান্ত অনুমোদন' : 'Verify & Approve'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Student Approvals */}
+                <div
+                  className="card"
+                  style={{
+                    padding: '1.5rem',
+                    backgroundColor: 'var(--surface, #ffffff)',
+                    borderRadius: '12px',
+                    border: '1px solid var(--color-border)',
+                  }}
+                >
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <GraduationCap size={20} color="#059669" />
+                    {isBn ? 'প্রতিষ্ঠান অনুমোদিত শিক্ষার্থী তালিকা' : 'Institute-Approved Student List'} ({adminPendingAffiliations.students.length})
+                  </h3>
+
+                  {adminPendingAffiliations.students.length === 0 ? (
+                    <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '1.5rem', margin: 0 }}>
+                      {isBn ? 'কোনো শিক্ষার্থী চূড়ান্ত অনুমোদনের জন্য অপেক্ষমাণ নেই।' : 'No students pending final approval.'}
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {adminPendingAffiliations.students.map((s) => (
+                        <div
+                          key={s.profileId}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '1.25rem',
+                            backgroundColor: 'var(--background-alt, #f8fafc)',
+                            borderRadius: '10px',
+                            border: '1px solid var(--color-border)',
+                            flexWrap: 'wrap',
+                            gap: '1rem',
+                          }}
+                        >
+                          <div>
+                            <h4 style={{ fontWeight: '700', fontSize: '1.05rem', margin: 0, color: 'var(--text-main, #0f172a)' }}>
+                              {s.fullName}
+                            </h4>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #64748b)', margin: '0.25rem 0 0' }}>
+                              {isBn ? 'প্রতিষ্ঠান: ' : 'Institution: '}<strong style={{ color: 'var(--text-main, #0f172a)' }}>{s.institutionName}</strong>
+                              {s.studentClassRoll && ` | ${isBn ? 'ক্লাস/রোল: ' : 'Class/Roll: '}${s.studentClassRoll}`}
+                              {s.address && ` | ${isBn ? 'ঠিকানা: ' : 'Address: '}${s.address}`}
+                            </p>
+                            <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '0.2rem 0 0' }}>
+                              {isBn ? 'ইমেইল: ' : 'Email: '}{s.email} | {isBn ? 'ফোন: ' : 'Phone: '}{s.phone || (isBn ? 'নেই' : 'N/A')}
+                            </p>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              className="btn btn-outline"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0.45rem 0.85rem',
+                                fontSize: '0.85rem',
+                                color: '#1d4ed8',
+                                borderColor: '#bfdbfe',
+                                backgroundColor: '#eff6ff',
+                                borderRadius: '8px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                              onClick={() => setSelectedStudentDetailsId(s.profileId || s.userId)}
+                            >
+                              <Eye size={15} />
+                              {isBn ? 'বিস্তারিত' : 'Details'}
+                            </button>
+                            <button
+                              className="btn btn-primary"
+                              style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+                              onClick={() =>
+                                setActionDrawer({
+                                  isOpen: true,
+                                  type: 'affiliation_review',
+                                  itemData: { ...s, role: 'student' },
+                                  reason: '',
+                                })
+                              }
+                            >
+                              <Eye size={16} /> {isBn ? 'যাচাই ও চূড়ান্ত অনুমোদন' : 'Verify & Approve'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* History Tab View */
+              <div
+                className="card"
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'var(--surface, #ffffff)',
+                  borderRadius: '12px',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                {/* Search & Filter Bar */}
+                <div className={styles.historyFilterBar}>
+                  <div style={{ flex: '1 1 240px', position: 'relative' }}>
+                    <Search
+                      size={16}
+                      style={{
+                        position: 'absolute',
+                        left: '0.75rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#94a3b8',
+                      }}
+                    />
+                    <input
+                      type="text"
+                      className={styles.historySearchInput}
+                      placeholder={isBn ? 'নাম, ইমেইল, ফোন, বিভাগ, রোল বা প্রতিষ্ঠান দিয়ে খুঁজুন...' : 'Search by name, email, roll, org...'}
+                      value={affHistorySearch}
+                      onChange={(e) => setAffHistorySearch(e.target.value)}
+                    />
+                  </div>
+
+                  <select
+                    className={styles.historyFilterSelect}
+                    value={affHistoryRoleFilter}
+                    onChange={(e) => setAffHistoryRoleFilter(e.target.value as any)}
+                  >
+                    <option value="all">
+                      {isBn ? 'সকল সদস্য' : 'All Members'} ({adminAffiliationsHistory.teachers.length + adminAffiliationsHistory.students.length})
+                    </option>
+                    <option value="teacher">
+                      {isBn ? 'শিক্ষক' : 'Teachers'} ({adminAffiliationsHistory.teachers.length})
+                    </option>
+                    <option value="student">
+                      {isBn ? 'শিক্ষার্থী' : 'Students'} ({adminAffiliationsHistory.students.length})
+                    </option>
+                  </select>
+
+                  <select
+                    className={styles.historyFilterSelect}
+                    value={affHistoryStatusFilter}
+                    onChange={(e) => setAffHistoryStatusFilter(e.target.value as any)}
+                  >
+                    <option value="all">{isBn ? 'সকল স্ট্যাটাস' : 'All Statuses'}</option>
+                    <option value="verified">{isBn ? 'চূড়ান্ত অনুমোদিত' : 'Verified'}</option>
+                    <option value="rejected">{isBn ? 'আবেদন বাতিলকৃত' : 'Rejected'}</option>
+                  </select>
+                </div>
+
+                {(() => {
+                  const term = affHistorySearch.toLowerCase().trim();
+                  const combined = [
+                    ...adminAffiliationsHistory.teachers.map((t) => ({ ...t, role: 'teacher' as const })),
+                    ...adminAffiliationsHistory.students.map((s) => ({ ...s, role: 'student' as const })),
+                  ].filter((item) => {
+                    const matchRole =
+                      affHistoryRoleFilter === 'all' || item.role === affHistoryRoleFilter;
+                    const matchStatus =
+                      affHistoryStatusFilter === 'all' || item.verificationStatus === affHistoryStatusFilter;
+                    const matchSearch =
+                      !term ||
+                      (item.fullName && item.fullName.toLowerCase().includes(term)) ||
+                      (item.email && item.email.toLowerCase().includes(term)) ||
+                      (item.phone && item.phone.includes(term)) ||
+                      (item.institutionName && item.institutionName.toLowerCase().includes(term)) ||
+                      (item.orgName && item.orgName.toLowerCase().includes(term)) ||
+                      (item.department && item.department.toLowerCase().includes(term)) ||
+                      (item.studentClassRoll && item.studentClassRoll.toLowerCase().includes(term));
+                    return matchRole && matchStatus && matchSearch;
+                  });
+
+                  if (combined.length === 0) {
+                    return (
+                      <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2.5rem' }}>
+                        {isBn ? 'কোনো পূর্বের ছাড়পত্র রেকর্ড পাওয়া যায়নি।' : 'No historical affiliation records found.'}
+                      </p>
+                    );
+                  }
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {combined.map((item) => {
+                        const isVerified = item.verificationStatus === 'verified';
+                        const isTeacher = item.role === 'teacher';
+
+                        return (
+                          <div key={item.profileId} className={styles.historyCard}>
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'flex-start',
+                                flexWrap: 'wrap',
+                                gap: '0.75rem',
+                                marginBottom: '0.75rem',
+                              }}
+                            >
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  <h4 style={{ fontWeight: 800, fontSize: '1.05rem', margin: 0, color: 'var(--text-main, #0f172a)' }}>
+                                    {item.fullName}
+                                  </h4>
+
+                                  {isTeacher ? (
+                                    <span
+                                      style={{
+                                        backgroundColor: '#eff6ff',
+                                        color: '#1d4ed8',
+                                        border: '1px solid #bfdbfe',
+                                        padding: '0.15rem 0.55rem',
+                                        borderRadius: '999px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 700,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.25rem',
+                                      }}
+                                    >
+                                      <UserCheck size={12} /> {isBn ? 'শিক্ষক' : 'Teacher'}
+                                    </span>
+                                  ) : (
+                                    <span
+                                      style={{
+                                        backgroundColor: '#f0fdf4',
+                                        color: '#15803d',
+                                        border: '1px solid #bbf7d0',
+                                        padding: '0.15rem 0.55rem',
+                                        borderRadius: '999px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 700,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.25rem',
+                                      }}
+                                    >
+                                      <GraduationCap size={12} /> {isBn ? 'শিক্ষার্থী' : 'Student'}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #64748b)', margin: '0.3rem 0 0' }}>
+                                  প্রতিষ্ঠান: <strong style={{ color: 'var(--text-main, #0f172a)' }}>{item.institutionName || item.orgName}</strong>
+                                  {isTeacher && item.designation && ` | পদবী: ${item.designation}`}
+                                  {isTeacher && item.department && ` | বিভাগ: ${item.department}`}
+                                  {isTeacher && item.employeeId && ` | আইডি: ${item.employeeId}`}
+                                  {!isTeacher && item.studentClassRoll && ` | ক্লাস ও রোল: ${item.studentClassRoll}`}
+                                  {!isTeacher && item.className && ` | শ্রেণি: ${item.className}`}
+                                  {!isTeacher && item.department && ` | বিভাগ: ${item.department}`}
+                                  {!isTeacher && item.fatherName && ` | পিতা: ${item.fatherName}`}
+                                </p>
+
+                                {!isTeacher && item.guardianName && (
+                                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0.2rem 0 0' }}>
+                                    অভিভাবক: {item.guardianName} ({item.guardianPhone || 'ফোন নেই'})
+                                  </p>
+                                )}
+
+                                {item.address && (
+                                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0.2rem 0 0' }}>
+                                    ঠিকানা: {item.address}
+                                  </p>
+                                )}
+
+                                {/* Contact info with copy action */}
+                                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.4rem', fontSize: '0.8rem', color: '#475569' }}>
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                                    ইমেইল: <strong>{item.email}</strong>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyText(item.email, `aff-email-${item.profileId}`)}
+                                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, color: '#059669' }}
+                                      title={isBn ? 'ইমেইল কপি করুন' : 'Copy Email'}
+                                    >
+                                      {copiedFieldKey === `aff-email-${item.profileId}` ? <Check size={12} color="#059669" /> : <Copy size={12} />}
+                                    </button>
+                                  </span>
+
+                                  {item.phone && (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                                      | ফোন: <strong>{item.phone}</strong>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCopyText(item.phone, `aff-phone-${item.profileId}`)}
+                                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, color: '#059669' }}
+                                        title={isBn ? 'ফোন নম্বর কপি করুন' : 'Copy Phone'}
+                                      >
+                                        {copiedFieldKey === `aff-phone-${item.profileId}` ? <Check size={12} color="#059669" /> : <Copy size={12} />}
+                                      </button>
+                                    </span>
+                                  )}
+                                </div>
+
+                                {item.rejectionReason && (
+                                  <div
+                                    style={{
+                                      marginTop: '0.5rem',
+                                      padding: '0.5rem 0.75rem',
+                                      backgroundColor: '#fef2f2',
+                                      border: '1px solid #fecaca',
+                                      borderRadius: '8px',
+                                      fontSize: '0.8rem',
+                                      color: '#991b1b',
+                                    }}
+                                  >
+                                    <strong>❌ প্রত্যাখ্যানের কারণ:</strong> {item.rejectionReason}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div>
+                                {isVerified ? (
+                                  <span className={styles.historyBadgeApproved}>
+                                    <CheckCircle2 size={13} /> {isBn ? 'চূড়ান্ত অনুমোদিত' : 'Verified'}
+                                  </span>
+                                ) : (
+                                  <span className={styles.historyBadgeRejected}>
+                                    <XCircle size={13} /> {isBn ? 'আবেদন বাতিল' : 'Rejected'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                paddingTop: '0.75rem',
+                                borderTop: '1px solid var(--color-border, #e2e8f0)',
+                                marginTop: '0.75rem',
+                                flexWrap: 'wrap',
+                                gap: '0.75rem',
+                                fontSize: '0.8rem',
+                                color: 'var(--text-muted, #64748b)',
+                              }}
+                            >
+                              <div>
+                                <span>{isBn ? 'নিষ্পত্তির তারিখ:' : 'Reviewed on:'} </span>
+                                <strong>
+                                  {item.adminApprovedAt
+                                    ? new Date(item.adminApprovedAt).toLocaleString(isBn ? 'bn-BD' : 'en-US')
+                                    : item.updatedAt
+                                    ? new Date(item.updatedAt).toLocaleString(isBn ? 'bn-BD' : 'en-US')
+                                    : '—'}
+                                </strong>
+                              </div>
+
+                              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                {!isTeacher && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline"
+                                    style={{
+                                      padding: '0.35rem 0.75rem',
+                                      backgroundColor: '#eff6ff',
+                                      borderColor: '#bfdbfe',
+                                      color: '#1d4ed8',
+                                      fontSize: '0.8rem',
+                                      fontWeight: 700,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem',
+                                    }}
+                                    onClick={() => setSelectedStudentDetailsId(item.profileId || item.userId)}
+                                  >
+                                    <Eye size={14} /> {isBn ? 'বিস্তারিত প্রোফাইল ও পোস্ট' : 'Student Profile'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* VIEW 5: Donor List & Profiles */}
+        {activeNav === 'donors' && (
+          <div>
+            <div className={styles.contentHeader}>
+              <div>
+                <h1 className={styles.pageTitle}>
+                  <Heart size={26} color="#ec4899" />
+                  {isBn ? 'সম্মানিত ডোনার তালিকা ও প্রোফাইল' : 'Donor Directory & Profiles'} ({donorsList.length})
+                </h1>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                  {isBn
+                    ? 'প্ল্যাটফর্মের নিবন্ধিত দাতা, তাদের মোট আর্থিক অবদান ও বিস্তারিত লেনদেন হিস্ট্রি পর্যালোচনা।'
+                    : 'Registered donors, total contributions, and detailed donation activity oversight.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Donor Search Bar */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '0.75rem',
+                alignItems: 'center',
+                marginBottom: '1rem',
+                backgroundColor: 'var(--surface, #ffffff)',
+                padding: '0.75rem 1rem',
+                borderRadius: '12px',
+                border: '1px solid var(--color-border)',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: '240px' }}>
+                <Search size={18} color="var(--color-text-muted)" />
+                <input
+                  type="text"
+                  placeholder={isBn ? 'নাম, ইমেইল অথবা ফোন নম্বর দিয়ে দাতা খুঁজুন...' : 'Search donors by name, email, or phone...'}
+                  value={donorListSearch}
+                  onChange={(e) => setDonorListSearch(e.target.value)}
+                  style={{
+                    width: '100%',
+                    border: 'none',
+                    outline: 'none',
+                    fontSize: '0.9rem',
+                    backgroundColor: 'transparent',
+                    color: 'var(--text-main, #0f172a)',
+                  }}
+                />
+              </div>
+
+              {donorListSearch && (
+                <button
+                  type="button"
+                  onClick={() => setDonorListSearch('')}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem',
+                    color: 'var(--text-muted, #64748b)',
+                  }}
+                >
+                  {isBn ? 'রিসেট' : 'Clear'}
+                </button>
+              )}
+            </div>
+
+            <div
+              className="card"
+              style={{
+                padding: '1.5rem',
+                backgroundColor: 'var(--surface, #ffffff)',
+                borderRadius: '12px',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              {loadingData ? (
+                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                  {isBn ? 'ডাটা লোড হচ্ছে...' : 'Loading data...'}
+                </p>
+              ) : donorsList.length === 0 ? (
+                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                  {isBn ? 'কোনো নিবন্ধিত দাতা পাওয়া যায়নি।' : 'No registered donors found.'}
+                </p>
+              ) : (
+                (() => {
+                  const filteredDonors = donorsList.filter((d) => {
+                    if (!donorListSearch) return true;
+                    const q = donorListSearch.toLowerCase();
+                    return (
+                      (d.fullName && d.fullName.toLowerCase().includes(q)) ||
+                      (d.email && d.email.toLowerCase().includes(q)) ||
+                      (d.phone && d.phone.toLowerCase().includes(q))
+                    );
+                  });
+
+                  if (filteredDonors.length === 0) {
+                    return (
+                      <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                        {isBn ? 'অনুসন্ধানের সাথে কোনো দাতা মেলেনি।' : 'No donors matched your search query.'}
+                      </p>
+                    );
+                  }
+
+                  return (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--color-border)', textAlign: 'left' }}>
+                            <th style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{isBn ? 'দাতা' : 'Donor'}</th>
+                            <th style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{isBn ? 'যোগাযোগ' : 'Contact'}</th>
+                            <th style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{isBn ? 'স্ট্যাটাস' : 'Status'}</th>
+                            <th style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{isBn ? 'নিবন্ধন' : 'Joined'}</th>
+                            <th style={{ padding: '0.75rem', textAlign: 'right', color: 'var(--text-muted)' }}>{isBn ? 'অ্যাকশন' : 'Action'}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredDonors.map((donor) => (
+                            <tr key={donor.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                              <td style={{ padding: '0.75rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                  <div
+                                    style={{
+                                      width: '36px',
+                                      height: '36px',
+                                      borderRadius: '50%',
+                                      backgroundColor: 'rgba(236, 72, 153, 0.12)',
+                                      color: '#db2777',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontWeight: 700,
+                                      fontSize: '0.95rem',
+                                    }}
+                                  >
+                                    {donor.fullName ? donor.fullName[0].toUpperCase() : 'D'}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
+                                      {donor.fullName || (isBn ? 'অজ্ঞাত দাতা' : 'Anonymous')}
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                      ID: <code>{donor.id.slice(0, 8)}</code>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td style={{ padding: '0.75rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.85rem' }}>
+                                  {donor.email && (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                                      <Mail size={13} color="#64748b" />
+                                      <span>{donor.email}</span>
+                                    </span>
+                                  )}
+                                  {donor.phone && (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: 'var(--text-muted)' }}>
+                                      <Phone size={13} color="#64748b" />
+                                      <span>{donor.phone}</span>
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td style={{ padding: '0.75rem' }}>
+                                <span
+                                  style={{
+                                    padding: '0.2rem 0.6rem',
+                                    borderRadius: '9999px',
+                                    backgroundColor: donor.status === 'active' ? '#ecfdf5' : '#fef2f2',
+                                    color: donor.status === 'active' ? '#047857' : '#b91c1c',
+                                    border: `1px solid ${donor.status === 'active' ? '#a7f3d0' : '#fecaca'}`,
+                                    fontSize: '0.78rem',
+                                    fontWeight: 700,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem',
+                                  }}
+                                >
+                                  {donor.status === 'active' ? '✓ ' + (isBn ? 'সক্রিয়' : 'Active') : '✕ ' + (isBn ? 'স্থগিত' : 'Suspended')}
+                                </span>
+                              </td>
+
+                              <td style={{ padding: '0.75rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                                {donor.createdAt
+                                  ? new Date(donor.createdAt).toLocaleDateString(isBn ? 'bn-BD' : 'en-US')
+                                  : '—'}
+                              </td>
+
+                              <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-outline"
+                                  style={{
+                                    padding: '0.4rem 0.85rem',
+                                    fontSize: '0.82rem',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem',
+                                    backgroundColor: 'rgba(236, 72, 153, 0.08)',
+                                    borderColor: 'rgba(236, 72, 153, 0.3)',
+                                    color: '#db2777',
+                                  }}
+                                  onClick={() => setSelectedDonorDetailsId(donor.id)}
+                                  title={isBn ? 'বিস্তারিত প্রোফাইল ও অনুদান হিস্টোরি দেখুন' : 'View Profile & Donation History'}
+                                >
+                                  <Eye size={15} />
+                                  <span>{isBn ? 'প্রোফাইল ও হিস্টোরি' : 'Profile & History'}</span>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 6: Financial Donations Verification & Clearance History */}
+        {activeNav === 'pending_donations' && (
+          <div>
+            <div className={styles.contentHeader}>
+              <div>
+                <h1 className={styles.pageTitle}>
+                  <DollarSign size={26} color="#10b981" />
+                  {isBn ? 'অনুদান পেমেন্ট যাচাই ও ছাড়পত্র' : 'Donation Payment Verifications'}
+                </h1>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                  {isBn
+                    ? 'দাতাদের প্রেরিত লেনদেন আইডি যাচাই, পাবলিক লেজারে পোস্টিং ও অনুমোদনের অতীত ইতিহাস।'
+                    : 'Verify transaction references, post to the public ledger, and review clearance history.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Sub-tabs: Pending vs History */}
+            <div className={styles.verificationTabs}>
+              <button
+                type="button"
+                className={`${styles.verificationTabBtn} ${pendingDonationsTab === 'pending' ? styles.verificationTabBtnActive : ''}`}
+                onClick={() => setPendingDonationsTab('pending')}
+              >
+                <Clock size={16} />
+                <span>{isBn ? 'পেন্ডিং পেমেন্ট অনুমোদন' : 'Pending Approvals'}</span>
+                <span className={styles.tabBadge}>{pendingDonations.length}</span>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.verificationTabBtn} ${pendingDonationsTab === 'history' ? styles.verificationTabBtnActive : ''}`}
+                onClick={() => setPendingDonationsTab('history')}
+              >
+                <HistoryIcon size={16} />
+                <span>{isBn ? 'অনুমোদন ও বাতিলের ইতিহাস' : 'Clearance History'}</span>
+                <span className={styles.tabBadge}>{donationsHistory.length}</span>
+              </button>
+            </div>
+
+            {/* TAB 1: Pending Donations */}
+            {pendingDonationsTab === 'pending' && (
+              <div
+                className="card"
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'var(--surface, #ffffff)',
+                  borderRadius: '12px',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                {loadingData ? (
+                  <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                    {isBn ? 'ডাটা লোড হচ্ছে...' : 'Loading data...'}
+                  </p>
+                ) : pendingDonations.length === 0 ? (
+                  <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                    {isBn ? 'কোনো অনুদান ভেরিফিকেশন অপেক্ষমান নেই।' : 'No pending donations waiting for verification.'}
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {pendingDonations.map((don) => (
+                      <div
+                        key={don.id}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '1.25rem',
+                          backgroundColor: 'var(--background-alt, #f8fafc)',
+                          borderRadius: '10px',
+                          border: '1px solid var(--color-border)',
+                          flexWrap: 'wrap',
+                          gap: '1rem',
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                            <span style={{ fontWeight: '700', fontSize: '1.05rem', color: 'var(--text-main, #0f172a)' }}>
+                              {don.donorName}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '0.75rem',
+                                padding: '0.15rem 0.5rem',
+                                borderRadius: '4px',
+                                fontWeight: 600,
+                                backgroundColor: don.type === 'random' ? 'rgba(13, 148, 136, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                                color: don.type === 'random' ? '#0d9488' : '#2563eb',
+                              }}
+                            >
+                              {don.type === 'random' ? (isBn ? 'সাধারণ শিক্ষা তহবিল' : 'General Fund') : `সরাসরি: ${don.studentName}`}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                            মাধ্যম: <strong>{don.method}</strong> | ট্রানজেকশন আইডি: <code>{don.trxId}</code> {don.time && `| সময়: ${don.time}`}
+                          </p>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                          <span style={{ fontWeight: '800', color: 'var(--color-primary)', fontSize: '1.25rem' }}>
+                            ৳{Number(don.amount || 0).toLocaleString()}
+                          </span>
+
+                          <button
+                            className="btn btn-primary"
+                            style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+                            onClick={() => handleOpenDonationReview(don)}
+                          >
+                            <Eye size={16} /> {isBn ? 'ড্রয়ারে যাচাই ও ছাড়' : 'Review & Verify'}
                           </button>
                         </div>
                       </div>
@@ -2131,167 +3763,568 @@ export default function AdminDashboardPage() {
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {/* VIEW 5: Donor List */}
-        {activeNav === 'donors' && (
-          <div>
-            <div className={styles.contentHeader}>
+            {/* TAB 2: Clearance History */}
+            {pendingDonationsTab === 'history' && (
               <div>
-                <h1 className={styles.pageTitle}>
-                  <Heart size={26} color="#ec4899" />
-                  {t('donorList')} ({donorsList.length})
-                </h1>
-                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
-                  প্ল্যাটফর্মের নিবন্ধিত সম্মানিত দাতা ও তাদের সামগ্রিক অবদানের তালিকা।
-                </p>
-              </div>
-            </div>
-
-            <div
-              className="card"
-              style={{
-                padding: '1.5rem',
-                backgroundColor: 'var(--surface, #ffffff)',
-                borderRadius: '12px',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              {loadingData ? (
-                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>ডাটা লোড হচ্ছে...</p>
-              ) : donorsList.length === 0 ? (
-                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
-                  কোনো নিবন্ধিত দাতা পাওয়া যায়নি।
-                </p>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--color-border)', textAlign: 'left' }}>
-                        <th style={{ padding: '0.75rem' }}>নাম</th>
-                        <th style={{ padding: '0.75rem' }}>ইমেইল</th>
-                        <th style={{ padding: '0.75rem' }}>ফোন</th>
-                        <th style={{ padding: '0.75rem' }}>স্ট্যাটাস</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {donorsList.map((donor) => (
-                        <tr key={donor.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                          <td style={{ padding: '0.75rem', fontWeight: 600 }}>{donor.fullName}</td>
-                          <td style={{ padding: '0.75rem' }}>{donor.email}</td>
-                          <td style={{ padding: '0.75rem' }}>{donor.phone || '—'}</td>
-                          <td style={{ padding: '0.75rem' }}>
-                            <span style={{ padding: '0.15rem 0.5rem', borderRadius: '4px', backgroundColor: '#dcfce7', color: '#166534', fontSize: '0.8rem', fontWeight: 700 }}>
-                              {donor.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 6: Pending Donations */}
-        {activeNav === 'pending_donations' && (
-          <div>
-            <div className={styles.contentHeader}>
-              <div>
-                <h1 className={styles.pageTitle}>
-                  <DollarSign size={26} color="#10b981" />
-                  {t('accountsManagement')} ({pendingDonations.length})
-                </h1>
-                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
-                  অনুদান পেমেন্ট ট্রানজেকশন যাচাই ও চূড়ান্ত পাবলিক লেজারে পোস্টিং।
-                </p>
-              </div>
-            </div>
-
-            <div
-              className="card"
-              style={{
-                padding: '1.5rem',
-                backgroundColor: 'var(--surface, #ffffff)',
-                borderRadius: '12px',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              {loadingData ? (
-                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>ডাটা লোড হচ্ছে...</p>
-              ) : pendingDonations.length === 0 ? (
-                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
-                  কোনো অনুদান ভেরিফিকেশন অপেক্ষমান নেই।
-                </p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {pendingDonations.map((don) => (
-                    <div
-                      key={don.id}
+                {/* Search & Filter Toolbar */}
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '0.75rem',
+                    alignItems: 'center',
+                    marginBottom: '1rem',
+                    backgroundColor: 'var(--surface, #ffffff)',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '12px',
+                    border: '1px solid var(--color-border)',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: '220px' }}>
+                    <Search size={18} color="var(--color-text-muted)" />
+                    <input
+                      type="text"
+                      placeholder={isBn ? 'দাতা, TrxID বা ক্যাম্পেইন নাম দিয়ে খুঁজুন...' : 'Search by donor, TrxID, or campaign...'}
+                      value={donationHistorySearch}
+                      onChange={(e) => setDonationHistorySearch(e.target.value)}
                       style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '1.25rem',
-                        backgroundColor: 'var(--background-alt, #f8fafc)',
-                        borderRadius: '10px',
+                        width: '100%',
+                        border: 'none',
+                        outline: 'none',
+                        fontSize: '0.9rem',
+                        backgroundColor: 'transparent',
+                        color: 'var(--text-main, #0f172a)',
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <select
+                      value={donationHistoryStatusFilter}
+                      onChange={(e) => setDonationHistoryStatusFilter(e.target.value as any)}
+                      style={{
+                        padding: '0.4rem 0.75rem',
+                        borderRadius: '8px',
                         border: '1px solid var(--color-border)',
-                        flexWrap: 'wrap',
-                        gap: '1rem',
+                        fontSize: '0.85rem',
+                        backgroundColor: 'var(--surface, #ffffff)',
+                        color: 'var(--text-main, #0f172a)',
+                        cursor: 'pointer',
                       }}
                     >
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                          <span style={{ fontWeight: '700', fontSize: '1.05rem', color: 'var(--text-main, #0f172a)' }}>
-                            {don.donorName}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: '0.75rem',
-                              padding: '0.15rem 0.5rem',
-                              borderRadius: '4px',
-                              fontWeight: 600,
-                              backgroundColor: don.type === 'random' ? 'rgba(13, 148, 136, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                              color: don.type === 'random' ? '#0d9488' : '#2563eb',
-                            }}
-                          >
-                            {don.type === 'random' ? 'সাধারণ তহবিল' : `সরাসরি: ${don.studentName}`}
-                          </span>
-                        </div>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                          মাধ্যম: <strong>{don.method}</strong> | ট্রানজেকশন আইডি: <code>{don.trxId}</code> {don.time && `| সময়: ${don.time}`}
-                        </p>
-                      </div>
+                      <option value="all">{isBn ? 'সকল হিস্টোরি (All)' : 'All Records'}</option>
+                      <option value="accepted">{isBn ? 'অনুমোদিত (Verified)' : 'Verified Only'}</option>
+                      <option value="rejected">{isBn ? 'প্রত্যাখ্যাত (Rejected)' : 'Rejected Only'}</option>
+                    </select>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                        <span style={{ fontWeight: '800', color: 'var(--color-primary)', fontSize: '1.25rem' }}>
-                          ৳{Number(don.amount || 0).toLocaleString()}
-                        </span>
-
-                        <button
-                          className="btn btn-primary"
-                          style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
-                          onClick={() =>
-                            setActionDrawer({
-                              isOpen: true,
-                              type: 'donation_review',
-                              itemData: don,
-                              reason: '',
-                            })
-                          }
-                        >
-                          <Eye size={16} /> ড্রয়ারে যাচাই ও ছাড়
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    {(donationHistorySearch || donationHistoryStatusFilter !== 'all') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDonationHistorySearch('');
+                          setDonationHistoryStatusFilter('all');
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '0.8rem',
+                          color: 'var(--text-muted, #64748b)',
+                        }}
+                      >
+                        {isBn ? 'রিসেট' : 'Clear'}
+                      </button>
+                    )}
+                  </div>
                 </div>
-              )}
+
+                <div
+                  className="card"
+                  style={{
+                    padding: '1.5rem',
+                    backgroundColor: 'var(--surface, #ffffff)',
+                    borderRadius: '12px',
+                    border: '1px solid var(--color-border)',
+                  }}
+                >
+                  {donationsHistory.length === 0 ? (
+                    <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                      {isBn ? 'কোনো অনুদানের পূর্ববর্তী হিস্টোরি পাওয়া যায়নি।' : 'No historical donation clearance records found.'}
+                    </p>
+                  ) : (
+                    (() => {
+                      const filteredHistory = donationsHistory.filter((don) => {
+                        if (donationHistoryStatusFilter !== 'all' && don.status !== donationHistoryStatusFilter) {
+                          return false;
+                        }
+                        if (donationHistorySearch) {
+                          const q = donationHistorySearch.toLowerCase();
+                          return (
+                            (don.donorName && don.donorName.toLowerCase().includes(q)) ||
+                            (don.trxId && don.trxId.toLowerCase().includes(q)) ||
+                            (don.studentName && don.studentName.toLowerCase().includes(q)) ||
+                            (don.method && don.method.toLowerCase().includes(q))
+                          );
+                        }
+                        return true;
+                      });
+
+                      if (filteredHistory.length === 0) {
+                        return (
+                          <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                            {isBn ? 'ফিল্টারের সাথে কোনো হিস্টোরি রেকর্ড মেলেনি।' : 'No history matches the selected filters.'}
+                          </p>
+                        );
+                      }
+
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                          {filteredHistory.map((don) => (
+                            <div
+                              key={don.id}
+                              style={{
+                                padding: '1.25rem',
+                                backgroundColor: 'var(--background-alt, #f8fafc)',
+                                borderRadius: '10px',
+                                border: '1px solid var(--color-border)',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'flex-start',
+                                  flexWrap: 'wrap',
+                                  gap: '0.75rem',
+                                }}
+                              >
+                                <div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                                    <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-main, #0f172a)' }}>
+                                      {don.donorName}
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontSize: '0.75rem',
+                                        padding: '0.15rem 0.5rem',
+                                        borderRadius: '4px',
+                                        fontWeight: 600,
+                                        backgroundColor: don.type === 'random' ? 'rgba(13, 148, 136, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                                        color: don.type === 'random' ? '#0d9488' : '#2563eb',
+                                      }}
+                                    >
+                                      {don.type === 'random' ? (isBn ? 'সাধারণ শিক্ষা তহবিল' : 'General Fund') : `সরাসরি: ${don.studentName}`}
+                                    </span>
+                                  </div>
+                                  <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                                    মাধ্যম: <strong>{don.method}</strong> | ট্রানজেকশন আইডি: <code>{don.trxId}</code> {don.time && `| সময়: ${don.time}`}
+                                  </p>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                  <span style={{ fontWeight: 800, color: 'var(--color-primary)', fontSize: '1.25rem' }}>
+                                    ৳{Number(don.amount || 0).toLocaleString()}
+                                  </span>
+
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline"
+                                    style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+                                    onClick={() => handleOpenDonationReview(don, true)}
+                                    title={isBn ? 'বিস্তারিত পর্যালোচনা (রিড-অনলি)' : 'Review Details (View Only)'}
+                                  >
+                                    <Eye size={15} /> {isBn ? 'বিস্তারিত দেখুন' : 'View Details'}
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <span
+                                  style={{
+                                    padding: '0.2rem 0.6rem',
+                                    borderRadius: '9999px',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 700,
+                                    backgroundColor: don.status === 'accepted' ? '#ecfdf5' : '#fef2f2',
+                                    color: don.status === 'accepted' ? '#047857' : '#b91c1c',
+                                    border: `1px solid ${don.status === 'accepted' ? '#a7f3d0' : '#fecaca'}`,
+                                  }}
+                                >
+                                  {don.status === 'accepted' ? '✓ ' + (isBn ? 'অনুমোদিত ও ভেরিফাইড' : 'Verified') : '✕ ' + (isBn ? 'প্রত্যাখ্যাত' : 'Rejected')}
+                                </span>
+
+                                {don.donorEmail && (
+                                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                    ইমেইল: {don.donorEmail}
+                                  </span>
+                                )}
+                                {don.donorPhone && (
+                                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                    | ফোন: {don.donorPhone}
+                                  </span>
+                                )}
+                              </div>
+
+                              {don.rejectionReason && (
+                                <div className={styles.historyRejectionBox}>
+                                  <strong>✕ {isBn ? 'প্রত্যাখ্যানের কারণ:' : 'Rejection Reason:'}</strong> {don.rejectionReason}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* VIEW 7: Item Donations Verification & Clearance History */}
+        {activeNav === 'item_donations' && (
+          <div>
+            <div className={styles.contentHeader}>
+              <div>
+                <h1 className={styles.pageTitle}>
+                  <Package size={26} color="#2563eb" />
+                  {isBn ? 'পণ্য অনুদান যাচাই ও ছাড়পত্র' : 'Item Donations Verification'}
+                </h1>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                  {isBn
+                    ? 'শিক্ষার্থীদের জন্য বই, ল্যাপটপ, সাইকেল ও শিক্ষা উপকরণ অনুদানের যাচাই, কুরিয়ার নির্দেশনা ও হিস্টোরি।'
+                    : 'Books, laptops, cycles, and educational goods verification, shipment guidance, and clearance history.'}
+                </p>
+              </div>
             </div>
+
+            {/* Sub-tabs: Pending vs History */}
+            <div className={styles.verificationTabs}>
+              <button
+                type="button"
+                className={`${styles.verificationTabBtn} ${itemDonationsTab === 'pending' ? styles.verificationTabBtnActive : ''}`}
+                onClick={() => setItemDonationsTab('pending')}
+              >
+                <Clock size={16} />
+                <span>{isBn ? 'পেন্ডিং পণ্য যাচাই' : 'Pending Items'}</span>
+                <span className={styles.tabBadge}>
+                  {itemDonationsList.filter((i) => i.status === 'pending').length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.verificationTabBtn} ${itemDonationsTab === 'history' ? styles.verificationTabBtnActive : ''}`}
+                onClick={() => setItemDonationsTab('history')}
+              >
+                <HistoryIcon size={16} />
+                <span>{isBn ? 'অনুমোদন ও বাতিলের ইতিহাস' : 'Clearance History'}</span>
+                <span className={styles.tabBadge}>
+                  {itemDonationsList.filter((i) => i.status !== 'pending').length}
+                </span>
+              </button>
+            </div>
+
+            {/* TAB 1: Pending Item Donations */}
+            {itemDonationsTab === 'pending' && (
+              <div
+                className="card"
+                style={{
+                  padding: '1.5rem',
+                  backgroundColor: 'var(--surface, #ffffff)',
+                  borderRadius: '12px',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                {loadingData ? (
+                  <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                    {isBn ? 'ডাটা লোড হচ্ছে...' : 'Loading data...'}
+                  </p>
+                ) : itemDonationsList.filter((i) => i.status === 'pending').length === 0 ? (
+                  <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                    {isBn ? 'কোনো পণ্য অনুদান আবেদন অপেক্ষমাণ নেই।' : 'No pending item donations waiting for verification.'}
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {itemDonationsList
+                      .filter((i) => i.status === 'pending')
+                      .map((item) => (
+                        <div
+                          key={item.id}
+                          style={{
+                            padding: '1.25rem',
+                            backgroundColor: 'var(--background-alt, #f8fafc)',
+                            borderRadius: '10px',
+                            border: '1px solid var(--color-border)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'flex-start',
+                            flexWrap: 'wrap',
+                            gap: '1rem',
+                          }}
+                        >
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                              <span style={{ fontWeight: 700, fontSize: '1.1rem', color: '#2563eb' }}>
+                                {item.itemName}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: '0.8rem',
+                                  padding: '0.15rem 0.5rem',
+                                  borderRadius: '6px',
+                                  fontWeight: 700,
+                                  backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                                  color: '#2563eb',
+                                }}
+                              >
+                                {isBn ? 'পরিমাণ: ' : 'Qty: '}{item.quantity}
+                              </span>
+                            </div>
+
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-main, #334155)', margin: '0.35rem 0' }}>
+                              {item.description}
+                            </p>
+
+                            <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', display: 'flex', gap: '0.85rem', flexWrap: 'wrap' }}>
+                              <span>দাতা: <strong>{item.donorName || (isBn ? 'অজ্ঞাত' : 'Anonymous')}</strong> ({item.donorPhone})</span>
+                              {item.pickupAddress && <span>পিকআপ ঠিকানা: {item.pickupAddress}</span>}
+                              {item.postTitle && <span>ক্যাম্পেইন: <strong>{item.postTitle}</strong></span>}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            style={{ padding: '0.45rem 1rem', fontSize: '0.85rem', alignSelf: 'center' }}
+                            onClick={() => handleOpenItemDonationReview(item)}
+                          >
+                            <Eye size={16} /> {isBn ? 'ড্রয়ারে যাচাই ও নির্দেশনা দিন' : 'Review & Instruct'}
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: Item Clearance History */}
+            {itemDonationsTab === 'history' && (
+              <div>
+                {/* Search & Filter Toolbar */}
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '0.75rem',
+                    alignItems: 'center',
+                    marginBottom: '1rem',
+                    backgroundColor: 'var(--surface, #ffffff)',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '12px',
+                    border: '1px solid var(--color-border)',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: '220px' }}>
+                    <Search size={18} color="var(--color-text-muted)" />
+                    <input
+                      type="text"
+                      placeholder={isBn ? 'পণ্য, দাতা নাম বা ফোন দিয়ে খুঁজুন...' : 'Search items by name, donor, or phone...'}
+                      value={itemHistorySearch}
+                      onChange={(e) => setItemHistorySearch(e.target.value)}
+                      style={{
+                        width: '100%',
+                        border: 'none',
+                        outline: 'none',
+                        fontSize: '0.9rem',
+                        backgroundColor: 'transparent',
+                        color: 'var(--text-main, #0f172a)',
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <select
+                      value={itemHistoryStatusFilter}
+                      onChange={(e) => setItemHistoryStatusFilter(e.target.value as any)}
+                      style={{
+                        padding: '0.4rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--color-border)',
+                        fontSize: '0.85rem',
+                        backgroundColor: 'var(--surface, #ffffff)',
+                        color: 'var(--text-main, #0f172a)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <option value="all">{isBn ? 'সকল হিস্টোরি (All)' : 'All Records'}</option>
+                      <option value="accepted">{isBn ? 'অনুমোদিত / গৃহীত (Accepted)' : 'Accepted Only'}</option>
+                      <option value="rejected">{isBn ? 'প্রত্যাখ্যাত (Rejected)' : 'Rejected Only'}</option>
+                    </select>
+
+                    {(itemHistorySearch || itemHistoryStatusFilter !== 'all') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setItemHistorySearch('');
+                          setItemHistoryStatusFilter('all');
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '0.8rem',
+                          color: 'var(--text-muted, #64748b)',
+                        }}
+                      >
+                        {isBn ? 'রিসেট' : 'Clear'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  className="card"
+                  style={{
+                    padding: '1.5rem',
+                    backgroundColor: 'var(--surface, #ffffff)',
+                    borderRadius: '12px',
+                    border: '1px solid var(--color-border)',
+                  }}
+                >
+                  {itemDonationsList.filter((i) => i.status !== 'pending').length === 0 ? (
+                    <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                      {isBn ? 'কোনো পণ্য অনুদানের হিস্টোরি পাওয়া যায়নি।' : 'No historical item donation records found.'}
+                    </p>
+                  ) : (
+                    (() => {
+                      const filteredHistory = itemDonationsList
+                        .filter((i) => i.status !== 'pending')
+                        .filter((item) => {
+                          if (itemHistoryStatusFilter !== 'all' && item.status !== itemHistoryStatusFilter) {
+                            return false;
+                          }
+                          if (itemHistorySearch) {
+                            const q = itemHistorySearch.toLowerCase();
+                            return (
+                              (item.itemName && item.itemName.toLowerCase().includes(q)) ||
+                              (item.donorName && item.donorName.toLowerCase().includes(q)) ||
+                              (item.donorPhone && item.donorPhone.toLowerCase().includes(q)) ||
+                              (item.description && item.description.toLowerCase().includes(q))
+                            );
+                          }
+                          return true;
+                        });
+
+                      if (filteredHistory.length === 0) {
+                        return (
+                          <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem' }}>
+                            {isBn ? 'ফিল্টারের সাথে কোনো হিস্টোরি মেলেনি।' : 'No item donation history matches the filter.'}
+                          </p>
+                        );
+                      }
+
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                          {filteredHistory.map((item) => (
+                            <div
+                              key={item.id}
+                              style={{
+                                padding: '1.25rem',
+                                backgroundColor: 'var(--background-alt, #f8fafc)',
+                                borderRadius: '10px',
+                                border: '1px solid var(--color-border)',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'flex-start',
+                                  flexWrap: 'wrap',
+                                  gap: '0.75rem',
+                                }}
+                              >
+                                <div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                                    <span style={{ fontWeight: 700, fontSize: '1.05rem', color: '#2563eb' }}>
+                                      {item.itemName}
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontSize: '0.78rem',
+                                        padding: '0.15rem 0.5rem',
+                                        borderRadius: '6px',
+                                        fontWeight: 700,
+                                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                                        color: '#2563eb',
+                                      }}
+                                    >
+                                      {isBn ? 'পরিমাণ: ' : 'Qty: '}{item.quantity}
+                                    </span>
+                                  </div>
+                                  <p style={{ fontSize: '0.85rem', color: 'var(--text-main, #334155)', margin: '0.25rem 0' }}>
+                                    {item.description}
+                                  </p>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  className="btn btn-outline"
+                                  style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+                                  onClick={() => handleOpenItemDonationReview(item, true)}
+                                  title={isBn ? 'বিস্তারিত পর্যালোচনা (রিড-অনলি)' : 'Review Details (View Only)'}
+                                >
+                                  <Eye size={15} /> {isBn ? 'বিস্তারিত দেখুন' : 'View Details'}
+                                </button>
+                              </div>
+
+                              <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap', fontSize: '0.82rem' }}>
+                                <span
+                                  style={{
+                                    padding: '0.2rem 0.6rem',
+                                    borderRadius: '9999px',
+                                    fontWeight: 700,
+                                    backgroundColor: item.status === 'accepted' ? '#ecfdf5' : '#fef2f2',
+                                    color: item.status === 'accepted' ? '#047857' : '#b91c1c',
+                                    border: `1px solid ${item.status === 'accepted' ? '#a7f3d0' : '#fecaca'}`,
+                                  }}
+                                >
+                                  {item.status === 'accepted' ? '✓ ' + (isBn ? 'অনুমোদিত' : 'Accepted') : '✕ ' + (isBn ? 'প্রত্যাখ্যাত' : 'Rejected')}
+                                </span>
+
+                                <span style={{ color: 'var(--text-muted)' }}>
+                                  দাতা: <strong>{item.donorName || (isBn ? 'অজ্ঞাত' : 'Anonymous')}</strong> ({item.donorPhone})
+                                </span>
+                                <span style={{ color: 'var(--text-muted)' }}>
+                                  | ডেলিভারি: <strong>{item.deliveryStatus}</strong>
+                                </span>
+                              </div>
+
+                              {item.adminInstruction && (
+                                <div className={styles.historyWarningBox}>
+                                  <strong>📋 {isBn ? 'অ্যাডমিন নির্দেশনা:' : 'Admin Instruction:'}</strong> {item.adminInstruction}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* VIEW 9: My Donations (Personal Activity) */}
+        {(activeNav === 'my_donations' || activeNav === 'my-donations') && (
+          <div style={{ marginTop: '0.5rem' }}>
+            <MyDonationsSection />
           </div>
         )}
       </main>
@@ -2310,9 +4343,10 @@ export default function AdminDashboardPage() {
         <div className={styles.actionDrawerHeader}>
           <h3 className={styles.actionDrawerTitle}>
             <SlidersHorizontal size={18} color="var(--color-primary)" />
-            {actionDrawer.type === 'org_review' && 'প্রতিষ্ঠান ছাড়পত্র আবেদন পর্যালোচনা'}
-            {actionDrawer.type === 'post_review' && 'শিক্ষার্থী আবেদনপত্র ও খরচ যাচাই'}
-            {actionDrawer.type === 'donation_review' && 'অনুদান ট্রানজেকশন অনুমোদন'}
+            {actionDrawer.type === 'org_review' && (isBn ? 'প্রতিষ্ঠান ছাড়পত্র আবেদন পর্যালোচনা' : 'Institution Clearance Review')}
+            {actionDrawer.type === 'post_review' && (isBn ? 'শিক্ষার্থী আবেদনপত্র ও খরচ যাচাই' : 'Student Application & Expense Review')}
+            {actionDrawer.type === 'donation_review' && (isBn ? 'অনুদান ট্রানজেকশন অনুমোদন' : 'Donation Payment Verification')}
+            {actionDrawer.type === 'item_donation_review' && (isBn ? 'পণ্য অনুদান পর্যালোচনা ও ছাড়পত্র' : 'Item Donation Review & Clearance')}
             {actionDrawer.type === 'add_super_admin' &&
               (newAdminRole === 'super_admin'
                 ? (isBn ? 'নতুন সুপার এডমিন তৈরি' : 'Create Super Admin')
@@ -2320,8 +4354,8 @@ export default function AdminDashboardPage() {
             {actionDrawer.type === 'edit_permissions' && (isBn ? 'পারমিশন এডিট করুন' : 'Edit Permissions')}
             {actionDrawer.type === 'affiliation_review' &&
               (actionDrawer.itemData?.role === 'teacher'
-                ? 'শিক্ষক প্রোফাইল চূড়ান্ত অনুমোদন'
-                : 'শিক্ষার্থী প্রোফাইল চূড়ান্ত অনুমোদন')}
+                ? (isBn ? 'শিক্ষক প্রোফাইল চূড়ান্ত অনুমোদন' : 'Teacher Clearance Review')
+                : (isBn ? 'শিক্ষার্থী প্রোফাইল চূড়ান্ত অনুমোদন' : 'Student Clearance Review'))}
           </h3>
           <button
             className={styles.actionDrawerCloseBtn}
@@ -2349,197 +4383,325 @@ export default function AdminDashboardPage() {
                     marginBottom: '1rem',
                   }}
                 >
-                  ℹ️ সাধারণ সদস্য কর্তৃক প্রস্তাবিত — সরেজমিনে যাচাই করে অ্যাকাউন্ট তৈরির ব্যবস্থা গ্রহণ করুন।
+                  {isBn ? 'ℹ️ সাধারণ সদস্য কর্তৃক প্রস্তাবিত প্রতিষ্ঠান' : 'ℹ️ Member-proposed institution'}
                 </div>
               )}
 
-              <div className={styles.detailGroup}>
-                <div className={styles.detailLabel}>প্রতিষ্ঠানের নাম</div>
-                <input
-                  type="text"
-                  value={orgEditName}
-                  onChange={(e) => setOrgEditName(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--color-border)',
-                    fontFamily: 'inherit',
-                    fontSize: '0.9rem',
-                    backgroundColor: 'var(--surface, #fff)',
-                    color: 'var(--text-main, #0f172a)',
-                  }}
-                />
-              </div>
-
-              <div className={styles.detailGroup}>
-                <div className={styles.detailLabel}>প্রতিষ্ঠানের ধরন</div>
-                <select
-                  value={orgEditType}
-                  onChange={(e) => setOrgEditType(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--color-border)',
-                    fontFamily: 'inherit',
-                    fontSize: '0.9rem',
-                    backgroundColor: 'var(--surface, #fff)',
-                    color: 'var(--text-main, #0f172a)',
-                  }}
-                >
-                  <option value="school">স্কুল (School)</option>
-                  <option value="college">কলেজ (College)</option>
-                  <option value="madrasah">মাদ্রাসা (Madrasah)</option>
-                  <option value="university">বিশ্ববিদ্যালয় (University)</option>
-                  <option value="others">অন্যান্য (Others)</option>
-                </select>
-              </div>
-
-              <div className={styles.detailGroup}>
-                <div className={styles.detailLabel}>সরকারি / বোর্ড নিবন্ধন কোড</div>
-                <input
-                  type="text"
-                  value={orgEditRegNo}
-                  onChange={(e) => setOrgEditRegNo(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--color-border)',
-                    fontFamily: 'inherit',
-                    fontSize: '0.9rem',
-                    backgroundColor: 'var(--surface, #fff)',
-                    color: 'var(--text-main, #0f172a)',
-                  }}
-                />
-              </div>
-
-              <div className={styles.detailGroup}>
-                <div className={styles.detailLabel}>প্রতিনিধি / যোগাযোগ ব্যক্তি</div>
-                <input
-                  type="text"
-                  value={orgEditContact}
-                  onChange={(e) => setOrgEditContact(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--color-border)',
-                    fontFamily: 'inherit',
-                    fontSize: '0.9rem',
-                    backgroundColor: 'var(--surface, #fff)',
-                    color: 'var(--text-main, #0f172a)',
-                  }}
-                />
-              </div>
-
-              <div className={styles.detailGroup}>
-                <div className={styles.detailLabel}>যোগাযোগের ফোন নম্বর</div>
-                <input
-                  type="tel"
-                  value={orgEditPhone}
-                  onChange={(e) => setOrgEditPhone(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--color-border)',
-                    fontFamily: 'inherit',
-                    fontSize: '0.9rem',
-                    backgroundColor: 'var(--surface, #fff)',
-                    color: 'var(--text-main, #0f172a)',
-                  }}
-                />
-              </div>
-
-              <div className={styles.detailGroup}>
-                <div className={styles.detailLabel}>প্রতিষ্ঠানের অফিশিয়াল ইমেইল</div>
-                <input
-                  type="email"
-                  value={orgEditEmail}
-                  onChange={(e) => setOrgEditEmail(e.target.value)}
-                  placeholder="info@institution.edu.bd"
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--color-border)',
-                    fontFamily: 'inherit',
-                    fontSize: '0.9rem',
-                    backgroundColor: 'var(--surface, #fff)',
-                    color: 'var(--text-main, #0f172a)',
-                  }}
-                />
-              </div>
-
-              <div className={styles.detailGroup}>
-                <div className={styles.detailLabel}>প্রতিষ্ঠানের স্থায়ী ঠিকানা</div>
-                <input
-                  type="text"
-                  value={orgEditAddress}
-                  onChange={(e) => setOrgEditAddress(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--color-border)',
-                    fontFamily: 'inherit',
-                    fontSize: '0.9rem',
-                    backgroundColor: 'var(--surface, #fff)',
-                    color: 'var(--text-main, #0f172a)',
-                  }}
-                />
-              </div>
-
-              <div className={styles.detailGroup}>
-                <div className={styles.detailLabel}>বিবরণ (ঐচ্ছিক)</div>
-                <textarea
-                  rows={2}
-                  value={orgEditDesc}
-                  onChange={(e) => setOrgEditDesc(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--color-border)',
-                    fontFamily: 'inherit',
-                    fontSize: '0.9rem',
-                    backgroundColor: 'var(--surface, #fff)',
-                    color: 'var(--text-main, #0f172a)',
-                  }}
-                />
-              </div>
-
-              <div className={styles.sealCard}>
-                <Building2 size={24} color="#166534" />
+              {actionDrawer.isReadOnly ? (
                 <div>
-                  <div className={styles.sealTitle}>প্রতিষ্ঠান ছাড়পত্র আবেদন পর্যালোচনায় রয়েছে</div>
-                  <div className={styles.sealDesc}>
-                    অনুমোদন করলে প্রতিষ্ঠানটি সক্রিয় হবে এবং শিক্ষার্থীদের আবেদন প্রত্যয়ন করতে পারবে।
+                  {/* Status Banner */}
+                  <div
+                    style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '10px',
+                      backgroundColor: actionDrawer.itemData.status === 'active' ? '#ecfdf5' : '#fef2f2',
+                      border: `1px solid ${actionDrawer.itemData.status === 'active' ? '#a7f3d0' : '#fecaca'}`,
+                      marginBottom: '1.25rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    <div>
+                      <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'block' }}>
+                        {isBn ? 'ছাড়পত্র স্ট্যাটাস' : 'Clearance Status'}
+                      </span>
+                      <strong
+                        style={{
+                          color: actionDrawer.itemData.status === 'active' ? '#047857' : '#b91c1c',
+                          fontSize: '0.95rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                        }}
+                      >
+                        {actionDrawer.itemData.status === 'active' ? (
+                          <>
+                            <CheckCircle2 size={16} /> {isBn ? 'অনুমোদিত ও সক্রিয়' : 'Approved & Active'}
+                          </>
+                        ) : (
+                          <>
+                            <XCircle size={16} /> {isBn ? 'আবেদন বাতিলকৃত' : 'Rejected'}
+                          </>
+                        )}
+                      </strong>
+                    </div>
+                    {(actionDrawer.itemData.verifiedAt || actionDrawer.itemData.updatedAt) && (
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                        {isBn ? 'নিষ্পত্তির তারিখ:' : 'Verified on:'}{' '}
+                        {new Date(actionDrawer.itemData.verifiedAt || actionDrawer.itemData.updatedAt).toLocaleDateString(isBn ? 'bn-BD' : 'en-US')}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className={styles.detailGroup}>
+                    <div className={styles.detailLabel}>{isBn ? 'প্রতিষ্ঠানের নাম' : 'Institution Name'}</div>
+                    <div className={styles.detailValue} style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-main, #0f172a)' }}>
+                      {actionDrawer.itemData.name}
+                    </div>
+                  </div>
+
+                  <div className={styles.detailGroup}>
+                    <div className={styles.detailLabel}>{isBn ? 'প্রতিষ্ঠানের ধরন' : 'Institution Type'}</div>
+                    <div className={styles.detailValue}>
+                      <span style={{ padding: '0.2rem 0.6rem', backgroundColor: '#f1f5f9', color: '#334155', borderRadius: '6px', fontWeight: 600, fontSize: '0.88rem' }}>
+                        {getOrganizationTypeLabel(actionDrawer.itemData.type, isBn)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className={styles.detailGroup}>
+                    <div className={styles.detailLabel}>{isBn ? 'সরকারি / বোর্ড নিবন্ধন কোড' : 'Registration Code'}</div>
+                    <div className={styles.detailValue}>
+                      <code>{actionDrawer.itemData.regNo || actionDrawer.itemData.registrationNumber || (isBn ? 'নিবন্ধন কোড নেই' : 'No Reg Code')}</code>
+                    </div>
+                  </div>
+
+                  <div className={styles.detailGroup}>
+                    <div className={styles.detailLabel}>{isBn ? 'প্রতিনিধি / যোগাযোগ ব্যক্তি' : 'Contact Person'}</div>
+                    <div className={styles.detailValue}>
+                      {actionDrawer.itemData.contact || actionDrawer.itemData.contactPerson || '—'}
+                    </div>
+                  </div>
+
+                  <div className={styles.detailGroup}>
+                    <div className={styles.detailLabel}>{isBn ? 'যোগাযোগের ফোন নম্বর' : 'Phone Number'}</div>
+                    <div className={styles.detailValue}>
+                      {actionDrawer.itemData.phone || actionDrawer.itemData.contactPhone || '—'}
+                    </div>
+                  </div>
+
+                  {actionDrawer.itemData.email && (
+                    <div className={styles.detailGroup}>
+                      <div className={styles.detailLabel}>{isBn ? 'অফিশিয়াল ইমেইল' : 'Email'}</div>
+                      <div className={styles.detailValue}>{actionDrawer.itemData.email}</div>
+                    </div>
+                  )}
+
+                  <div className={styles.detailGroup}>
+                    <div className={styles.detailLabel}>{isBn ? 'স্থায়ী ঠিকানা' : 'Address'}</div>
+                    <div className={styles.detailValue}>{actionDrawer.itemData.address || '—'}</div>
+                  </div>
+
+                  {actionDrawer.itemData.description && (
+                    <div className={styles.detailGroup}>
+                      <div className={styles.detailLabel}>{isBn ? 'বিবরণ' : 'Description'}</div>
+                      <div className={styles.detailValue} style={{ whiteSpace: 'pre-wrap' }}>
+                        {actionDrawer.itemData.description}
+                      </div>
+                    </div>
+                  )}
+
+                  {actionDrawer.itemData.rejectionReason && (
+                    <div
+                      style={{
+                        marginTop: '1.25rem',
+                        padding: '0.85rem 1rem',
+                        backgroundColor: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        borderRadius: '8px',
+                        fontSize: '0.85rem',
+                        color: '#991b1b',
+                      }}
+                    >
+                      <strong>❌ {isBn ? 'প্রত্যাখ্যানের কারণ:' : 'Rejection Reason:'}</strong> {actionDrawer.itemData.rejectionReason}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <div className={styles.detailGroup}>
+                    <div className={styles.detailLabel}>প্রতিষ্ঠানের নাম</div>
+                    <input
+                      type="text"
+                      value={orgEditName}
+                      onChange={(e) => setOrgEditName(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--color-border)',
+                        fontFamily: 'inherit',
+                        fontSize: '0.9rem',
+                        backgroundColor: 'var(--surface, #fff)',
+                        color: 'var(--text-main, #0f172a)',
+                      }}
+                    />
+                  </div>
+
+                  <div className={styles.detailGroup}>
+                    <div className={styles.detailLabel}>প্রতিষ্ঠানের ধরন</div>
+                    <select
+                      value={orgEditType}
+                      onChange={(e) => setOrgEditType(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--color-border)',
+                        fontFamily: 'inherit',
+                        fontSize: '0.9rem',
+                        backgroundColor: 'var(--surface, #fff)',
+                        color: 'var(--text-main, #0f172a)',
+                      }}
+                    >
+                      <option value="qawmi_madrasa">{isBn ? 'কওমি মাদ্রাসা' : 'Qawmi Madrasa'}</option>
+                      <option value="hafezia_madrasa">{isBn ? 'হাফেজীয়া মাদ্রাসা' : 'Hafezia Madrasa'}</option>
+                      <option value="ebtedayee_madrasa">{isBn ? 'এবতেদায়ী মাদ্রাসা' : 'Ebtedayee Madrasa'}</option>
+                      <option value="alia_madrasa">{isBn ? 'আলিয়া মাদ্রাসা' : 'Alia Madrasa'}</option>
+                      <option value="orphanage">{isBn ? 'এতিম খানা' : 'Orphanage'}</option>
+                      <option value="other">{isBn ? 'অন্যান্য' : 'Other'}</option>
+                    </select>
+                  </div>
+
+                  <div className={styles.detailGroup}>
+                    <div className={styles.detailLabel}>সরকারি / বোর্ড নিবন্ধন কোড</div>
+                    <input
+                      type="text"
+                      value={orgEditRegNo}
+                      onChange={(e) => setOrgEditRegNo(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--color-border)',
+                        fontFamily: 'inherit',
+                        fontSize: '0.9rem',
+                        backgroundColor: 'var(--surface, #fff)',
+                        color: 'var(--text-main, #0f172a)',
+                      }}
+                    />
+                  </div>
+
+                  <div className={styles.detailGroup}>
+                    <div className={styles.detailLabel}>প্রতিনিধি / যোগাযোগ ব্যক্তি</div>
+                    <input
+                      type="text"
+                      value={orgEditContact}
+                      onChange={(e) => setOrgEditContact(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--color-border)',
+                        fontFamily: 'inherit',
+                        fontSize: '0.9rem',
+                        backgroundColor: 'var(--surface, #fff)',
+                        color: 'var(--text-main, #0f172a)',
+                      }}
+                    />
+                  </div>
+
+                  <div className={styles.detailGroup}>
+                    <div className={styles.detailLabel}>যোগাযোগের ফোন নম্বর</div>
+                    <input
+                      type="tel"
+                      value={orgEditPhone}
+                      onChange={(e) => setOrgEditPhone(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--color-border)',
+                        fontFamily: 'inherit',
+                        fontSize: '0.9rem',
+                        backgroundColor: 'var(--surface, #fff)',
+                        color: 'var(--text-main, #0f172a)',
+                      }}
+                    />
+                  </div>
+
+                  <div className={styles.detailGroup}>
+                    <div className={styles.detailLabel}>প্রতিষ্ঠানের অফিশিয়াল ইমেইল</div>
+                    <input
+                      type="email"
+                      value={orgEditEmail}
+                      onChange={(e) => setOrgEditEmail(e.target.value)}
+                      placeholder="info@institution.edu.bd"
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--color-border)',
+                        fontFamily: 'inherit',
+                        fontSize: '0.9rem',
+                        backgroundColor: 'var(--surface, #fff)',
+                        color: 'var(--text-main, #0f172a)',
+                      }}
+                    />
+                  </div>
+
+                  <div className={styles.detailGroup}>
+                    <div className={styles.detailLabel}>প্রতিষ্ঠানের স্থায়ী ঠিকানা</div>
+                    <input
+                      type="text"
+                      value={orgEditAddress}
+                      onChange={(e) => setOrgEditAddress(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--color-border)',
+                        fontFamily: 'inherit',
+                        fontSize: '0.9rem',
+                        backgroundColor: 'var(--surface, #fff)',
+                        color: 'var(--text-main, #0f172a)',
+                      }}
+                    />
+                  </div>
+
+                  <div className={styles.detailGroup}>
+                    <div className={styles.detailLabel}>বিবরণ (ঐচ্ছিক)</div>
+                    <textarea
+                      rows={2}
+                      value={orgEditDesc}
+                      onChange={(e) => setOrgEditDesc(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--color-border)',
+                        fontFamily: 'inherit',
+                        fontSize: '0.9rem',
+                        backgroundColor: 'var(--surface, #fff)',
+                        color: 'var(--text-main, #0f172a)',
+                      }}
+                    />
+                  </div>
+
+                  <div className={styles.sealCard}>
+                    <Building2 size={24} color="#166534" />
+                    <div>
+                      <div className={styles.sealTitle}>প্রতিষ্ঠান ছাড়পত্র আবেদন পর্যালোচনায় রয়েছে</div>
+                      <div className={styles.sealDesc}>
+                        অনুমোদন করলে প্রতিষ্ঠানটি সক্রিয় হবে এবং শিক্ষার্থীদের আবেদন প্রত্যয়ন করতে পারবে।
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '1.5rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                      প্রত্যাখ্যানের কারণ (যদি বাতিল করতে চান):
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={actionDrawer.reason}
+                      onChange={(e) => setActionDrawer((prev) => ({ ...prev, reason: e.target.value }))}
+                      placeholder="যেমন: নিবন্ধন কোড অস্পষ্ট বা প্রাতিষ্ঠানিক সনদ সংযুক্ত নেই..."
+                      style={{
+                        width: '100%',
+                        padding: '0.6rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--color-border)',
+                        fontFamily: 'inherit',
+                        fontSize: '0.9rem',
+                      }}
+                    />
                   </div>
                 </div>
-              </div>
-
-              <div style={{ marginTop: '1.5rem' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                  প্রত্যাখ্যানের কারণ (যদি বাতিল করতে চান):
-                </label>
-                <textarea
-                  rows={3}
-                  value={actionDrawer.reason}
-                  onChange={(e) => setActionDrawer((prev) => ({ ...prev, reason: e.target.value }))}
-                  placeholder="যেমন: নিবন্ধন কোড অস্পষ্ট বা প্রাতিষ্ঠানিক সনদ সংযুক্ত নেই..."
-                  style={{
-                    width: '100%',
-                    padding: '0.6rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--color-border)',
-                    fontFamily: 'inherit',
-                    fontSize: '0.9rem',
-                  }}
-                />
-              </div>
+              )}
             </div>
           )}
 
@@ -2564,9 +4726,11 @@ export default function AdminDashboardPage() {
               <div className={styles.sealCard}>
                 <CheckCircle2 size={24} color="#166534" />
                 <div>
-                  <div className={styles.sealTitle}>প্রতিষ্ঠান কর্তৃক স্টেজ-১ অনুমোদন সম্পন্ন</div>
+                  <div className={styles.sealTitle}>
+                    {isBn ? 'প্রতিষ্ঠান কর্তৃক ছাড়পত্র প্রত্যয়ন সম্পন্ন' : 'Institutional Clearance Verified'}
+                  </div>
                   <div className={styles.sealDesc}>
-                    শিক্ষা প্রতিষ্ঠান কর্তৃপক্ষ এই আবেদন যাচাই করে ছাড়পত্র প্রদান করেছে। এখন এডমিন হিসেবে আপনার চূড়ান্ত ছাড়পত্র প্রয়োজন।
+                    {isBn ? 'শিক্ষা প্রতিষ্ঠান কর্তৃপক্ষ আবেদনটি যাচাইপূর্বক প্রত্যয়ন প্রদান করেছে।' : 'The educational institution has reviewed and certified this applicant.'}
                   </div>
                 </div>
               </div>
@@ -2688,6 +4852,7 @@ export default function AdminDashboardPage() {
               <div className={styles.detailGroup}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
                   <div className={styles.detailLabel} style={{ marginBottom: 0 }}>খরচের সুনির্দিষ্ট বিভাজন</div>
+                  {!actionDrawer.isReadOnly && (
                   <button
                     type="button"
                     onClick={() => setIsEditingExpenses((prev) => !prev)}
@@ -2709,6 +4874,7 @@ export default function AdminDashboardPage() {
                     <Edit size={14} />
                     <span>{isEditingExpenses ? 'সম্পাদনা বন্ধ করুন' : 'খরচ পরিবর্তন / এডিট'}</span>
                   </button>
+                  )}
                 </div>
 
                 {!isEditingExpenses ? (
@@ -2875,6 +5041,21 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* Expense Modification Reason Input (Mandatory if expenses differ from original) */}
+              {actionDrawer.isReadOnly ? (
+                <>
+                  {actionDrawer.itemData.adminModificationReason && (
+                    <div className={styles.historyWarningBox} style={{ marginTop: '1rem' }}>
+                      <strong>⚠️ {isBn ? 'এডমিন খরচের সমন্বয় নোট:' : 'Admin Modification Note:'}</strong> {actionDrawer.itemData.adminModificationReason}
+                    </div>
+                  )}
+                  {actionDrawer.itemData.rejectionReason && (
+                    <div className={styles.historyRejectionBox} style={{ marginTop: '1rem' }}>
+                      <strong>✕ {isBn ? 'প্রত্যাখ্যানের কারণ:' : 'Rejection Reason:'}</strong> {actionDrawer.itemData.rejectionReason}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
               {(editedExpenses.length !== (actionDrawer.itemData.expenses?.length || 0) ||
                 editedExpenses.some((e, i) => {
                   const orig = actionDrawer.itemData.expenses?.[i];
@@ -2900,16 +5081,16 @@ export default function AdminDashboardPage() {
                       marginBottom: '0.35rem',
                     }}
                   >
-                    খরচ সমন্বয়ের সুনির্দিষ্ট কারণ (শিক্ষার্থী ও প্রতিষ্ঠানের কাছে নোটিফিকেশন যাবে) *
+                    {isBn ? 'খরচ সমন্বয়ের সুনির্দিষ্ট কারণ *' : 'Reason for Expense Adjustment *'}
                   </label>
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-                    খরচ বৃদ্ধি বা হ্রাসের কারণ ব্যাখ্যা করুন। সাদাকাহ বিডি শতভাগ স্বচ্ছতা বজায় রাখতে শিক্ষার্থী ও প্রতিষ্ঠানকে এই নোটিফিকেশন পাঠাবে। (পাবলিক পোস্টে এই কারণ প্রকাশিত হবে না)
+                    {isBn ? 'খরচ পরিবর্তনের সুনির্দিষ্ট কারণ উল্লেখ করুন, যা সংশ্লিষ্ট শিক্ষার্থী ও প্রতিষ্ঠানকে অবহিত করা হবে।' : 'Specify the reason for expense adjustment to notify the student and institution.'}
                   </p>
                   <textarea
                     rows={2}
                     value={expenseModificationReason}
                     onChange={(e) => setExpenseModificationReason(e.target.value)}
-                    placeholder="যেমন: প্রতিষ্ঠানের টিউশন ফি যাচাই করে সমন্বয় করা হয়েছে..."
+                    placeholder={isBn ? 'যেমন: প্রাতিষ্ঠানিক টিউশন ফি যাচাই সাপেক্ষে সমন্বয় করা হয়েছে...' : 'e.g., Adjusted based on institutional tuition fee verification...'}
                     style={{
                       width: '100%',
                       padding: '0.6rem',
@@ -2941,6 +5122,8 @@ export default function AdminDashboardPage() {
                   }}
                 />
               </div>
+                </>
+              )}
             </div>
           )}
 
@@ -2985,6 +5168,146 @@ export default function AdminDashboardPage() {
                   ৳{Number(actionDrawer.itemData.amount || 0).toLocaleString()}
                 </span>
               </div>
+            </div>
+          )}
+
+          {/* Item Donation Review Drawer Body */}
+          {actionDrawer.type === 'item_donation_review' && actionDrawer.itemData && (
+            <div>
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>{isBn ? 'পণ্যের নাম ও বিবরণ' : 'Item Name & Details'}</div>
+                <div className={styles.detailValue} style={{ fontWeight: 800, fontSize: '1.05rem', color: '#2563eb' }}>
+                  {actionDrawer.itemData.itemName}
+                </div>
+                {actionDrawer.itemData.description && (
+                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.88rem', color: 'var(--text-main, #334155)' }}>
+                    {actionDrawer.itemData.description}
+                  </p>
+                )}
+              </div>
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>{isBn ? 'পরিমাণ (Quantity)' : 'Quantity'}</div>
+                <div className={styles.detailValue}>
+                  <strong>{actionDrawer.itemData.quantity}</strong>
+                </div>
+              </div>
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>{isBn ? 'দাতার তথ্য' : 'Donor Information'}</div>
+                <div className={styles.detailValue}>
+                  {actionDrawer.itemData.donorName || (isBn ? 'অজ্ঞাত দাতা' : 'Anonymous')} | {actionDrawer.itemData.donorPhone}
+                </div>
+              </div>
+
+              {actionDrawer.itemData.pickupAddress && (
+                <div className={styles.detailGroup}>
+                  <div className={styles.detailLabel}>{isBn ? 'পিকআপের ঠিকানা' : 'Pickup Address'}</div>
+                  <div className={styles.detailValue}>{actionDrawer.itemData.pickupAddress}</div>
+                </div>
+              )}
+
+              {actionDrawer.itemData.postTitle && (
+                <div className={styles.detailGroup}>
+                  <div className={styles.detailLabel}>{isBn ? 'নির্দিষ্ট শিক্ষার্থী ক্যাম্পেইন' : 'Student Campaign'}</div>
+                  <div className={styles.detailValue}>{actionDrawer.itemData.postTitle}</div>
+                </div>
+              )}
+
+              <div className={styles.detailGroup}>
+                <div className={styles.detailLabel}>{isBn ? 'বর্তমান স্ট্যাটাস' : 'Status'}</div>
+                <div className={styles.detailValue}>
+                  <span
+                    style={{
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: '9999px',
+                      fontWeight: 700,
+                      fontSize: '0.8rem',
+                      backgroundColor:
+                        actionDrawer.itemData.status === 'accepted'
+                          ? '#ecfdf5'
+                          : actionDrawer.itemData.status === 'rejected'
+                          ? '#fef2f2'
+                          : '#fef3c7',
+                      color:
+                        actionDrawer.itemData.status === 'accepted'
+                          ? '#047857'
+                          : actionDrawer.itemData.status === 'rejected'
+                          ? '#b91c1c'
+                          : '#92400e',
+                    }}
+                  >
+                    {actionDrawer.itemData.status === 'accepted'
+                      ? (isBn ? 'গৃহীত / অনুমোদিত' : 'Accepted')
+                      : actionDrawer.itemData.status === 'rejected'
+                      ? (isBn ? 'বাতিল' : 'Rejected')
+                      : (isBn ? 'অপেক্ষমাণ' : 'Pending')}
+                  </span>
+                </div>
+              </div>
+
+              {actionDrawer.isReadOnly ? (
+                <>
+                  {actionDrawer.itemData.adminInstruction && (
+                    <div className={styles.detailGroup}>
+                      <div className={styles.detailLabel}>{isBn ? 'অ্যাডমিন প্রদত্ত নির্দেশনা' : 'Admin Instruction'}</div>
+                      <div className={styles.detailValue}>{actionDrawer.itemData.adminInstruction}</div>
+                    </div>
+                  )}
+                  {actionDrawer.itemData.donorShipmentNote && (
+                    <div className={styles.detailGroup}>
+                      <div className={styles.detailLabel}>{isBn ? 'দাতার শিপমেন্ট নোট' : 'Donor Shipment Note'}</div>
+                      <div className={styles.detailValue}>{actionDrawer.itemData.donorShipmentNote}</div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className={styles.detailGroup}>
+                    <label className={styles.detailLabel} style={{ fontWeight: 700 }}>
+                      {isBn ? 'দাতাকে প্রেরণের নির্দেশনা / কুরিয়ার ঠিকানা (বাধ্যতামূলক)' : 'Admin Dispatch Instructions / Courier Address (Required)'}
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={itemAdminInstruction}
+                      onChange={(e) => setItemAdminInstruction(e.target.value)}
+                      placeholder={isBn ? 'যেমন: অনুগ্রহ করে পণ্যটি সুন্দরবন কুরিয়ারে ঢাকা প্রধান শাখায় পাঠিয়ে স্লিপ নম্বর যুক্ত করুন...' : 'e.g. Please courier the item to our central hub...'}
+                      style={{
+                        width: '100%',
+                        padding: '0.6rem',
+                        borderRadius: '8px',
+                        border: '1.5px solid var(--color-border)',
+                        fontFamily: 'inherit',
+                        fontSize: '0.9rem',
+                        backgroundColor: 'var(--surface, #ffffff)',
+                        color: 'var(--text-main, #0f172a)',
+                      }}
+                    />
+                  </div>
+
+                  <div className={styles.detailGroup}>
+                    <label className={styles.detailLabel} style={{ fontWeight: 700 }}>
+                      {isBn ? 'প্রত্যাখ্যানের কারণ (যদি বাতিল করা হয়)' : 'Rejection Reason (if rejected)'}
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={actionDrawer.reason}
+                      onChange={(e) => setActionDrawer((prev) => ({ ...prev, reason: e.target.value }))}
+                      placeholder={isBn ? 'বাতিলের কারণ লিখুন...' : 'Write reason if rejecting...'}
+                      style={{
+                        width: '100%',
+                        padding: '0.6rem',
+                        borderRadius: '8px',
+                        border: '1.5px solid var(--color-border)',
+                        fontFamily: 'inherit',
+                        fontSize: '0.9rem',
+                        backgroundColor: 'var(--surface, #ffffff)',
+                        color: 'var(--text-main, #0f172a)',
+                      }}
+                    />
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -3376,17 +5699,19 @@ export default function AdminDashboardPage() {
           )}
         </div>
 
-        {actionDrawer.type !== 'add_super_admin' && actionDrawer.type !== 'edit_permissions' && (
+        {actionDrawer.type !== 'add_super_admin' && actionDrawer.type !== 'edit_permissions' && !actionDrawer.isReadOnly && (
           <div className={styles.actionDrawerFooter}>
             <button
+              type="button"
               className="btn btn-outline"
               style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
               onClick={() => setActionDrawer((prev) => ({ ...prev, isOpen: false }))}
             >
-              বন্ধ করুন
+              {isBn ? 'বন্ধ করুন' : 'Close'}
             </button>
 
             <button
+              type="button"
               className="btn btn-outline"
               style={{
                 padding: '0.5rem 1rem',
@@ -3397,17 +5722,20 @@ export default function AdminDashboardPage() {
               disabled={actionLoading}
               onClick={() => handleExecuteAction('reject')}
             >
-              <XCircle size={16} /> প্রত্যাখ্যান
+              <XCircle size={16} /> {isBn ? 'প্রত্যাখ্যান' : 'Reject'}
             </button>
 
             <button
+              type="button"
               className="btn btn-primary"
               style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}
               disabled={actionLoading}
               onClick={() => handleExecuteAction('approve')}
             >
               <CheckCircle2 size={16} />
-              {actionLoading ? 'প্রসেসিং হচ্ছে...' : 'অনুমোদন নিশ্চিত করুন'}
+              {actionLoading
+                ? (isBn ? 'প্রসেসিং হচ্ছে...' : 'Processing...')
+                : (isBn ? 'অনুমোদন নিশ্চিত করুন' : 'Confirm Approval')}
             </button>
           </div>
         )}
@@ -3444,11 +5772,13 @@ export default function AdminDashboardPage() {
             (adminPendingAffiliations?.teachers?.length || 0) +
             (adminPendingAffiliations?.students?.length || 0)) > 0 && (
             <span className={styles.bottomNavBadge}>
-              {orgVerificationRequests.length +
+              {(
+                orgVerificationRequests.length +
                 studentPostRequests.length +
                 pendingDonations.length +
                 (adminPendingAffiliations?.teachers?.length || 0) +
-                (adminPendingAffiliations?.students?.length || 0)}
+                (adminPendingAffiliations?.students?.length || 0)
+              ).toLocaleString(isBn ? 'bn-BD' : 'en-US')}
             </span>
           )}
         </button>
@@ -3481,6 +5811,26 @@ export default function AdminDashboardPage() {
         onClose={() => setSelectedStudentDetailsId(null)}
         isBn={isBn}
       />
+
+      {/* Org Members Modal */}
+      <OrgMembersModal
+        isOpen={!!selectedOrgMembersId}
+        orgId={selectedOrgMembersId}
+        orgName={selectedOrgMembersName}
+        onClose={() => {
+          setSelectedOrgMembersId(null);
+          setSelectedOrgMembersName('');
+        }}
+        isBn={isBn}
+      />
+
+      {/* Donor Details Modal */}
+      <DonorDetailsModal
+        isOpen={!!selectedDonorDetailsId}
+        donorId={selectedDonorDetailsId}
+        onClose={() => setSelectedDonorDetailsId(null)}
+        isBn={isBn}
+      />
     </div>
   );
 }
@@ -3495,37 +5845,39 @@ function renderNavSections(
   userRole?: string,
   isCollapsed?: boolean,
   affiliationCount: number = 0,
-  allUsersCount: number = 0
+  allUsersCount: number = 0,
+  itemDonationCount: number = 0,
+  isBn: boolean = true
 ) {
   return (
     <>
       {/* 1. Overview */}
       <div className={styles.navSection}>
-        {!isCollapsed && <div className={styles.navSectionTitle}>মূল কন্ট্রোল</div>}
+        {!isCollapsed && <div className={styles.navSectionTitle}>{isBn ? 'মূল কন্ট্রোল' : 'Main Controls'}</div>}
         <button
           className={`${styles.navItem} ${activeNav === 'overview' ? styles.navItemActive : ''}`}
           onClick={() => onSelect('overview')}
-          title="ড্যাশবোর্ড ওভারভিউ"
+          title={isBn ? 'ড্যাশবোর্ড ওভারভিউ' : 'Dashboard Overview'}
         >
           <div className={styles.navItemContent}>
             <ShieldCheck size={18} />
-            {!isCollapsed && <span className={styles.navItemText}>ড্যাশবোর্ড ওভারভিউ</span>}
+            {!isCollapsed && <span className={styles.navItemText}>{isBn ? 'ড্যাশবোর্ড ওভারভিউ' : 'Dashboard Overview'}</span>}
           </div>
         </button>
       </div>
 
       {/* 2. User Management (Unified Staff & All Users) */}
       <div className={styles.navSection}>
-        {!isCollapsed && <div className={styles.navSectionTitle}>ইউজার ব্যবস্থাপনা</div>}
+        {!isCollapsed && <div className={styles.navSectionTitle}>{isBn ? 'ইউজার ব্যবস্থাপনা' : 'User Management'}</div>}
         <button
           className={`${styles.navItem} ${activeNav === 'super_admins' ? styles.navItemActive : ''}`}
           onClick={() => onSelect('super_admins')}
-          title="সুপার এডমিন ও স্টাফ তালিকা"
+          title={isBn ? 'সুপার এডমিন ও স্টাফ তালিকা' : 'Super Admins & Staff'}
         >
           <div className={styles.navItemContent}>
             <Users size={18} />
             {!isCollapsed && (
-              <span className={styles.navItemText}>সুপার এডমিন ও স্টাফ তালিকা</span>
+              <span className={styles.navItemText}>{isBn ? 'সুপার এডমিন ও স্টাফ তালিকা' : 'Super Admins & Staff'}</span>
             )}
           </div>
         </button>
@@ -3533,80 +5885,121 @@ function renderNavSections(
         <button
           className={`${styles.navItem} ${activeNav === 'all_users' ? styles.navItemActive : ''}`}
           onClick={() => onSelect('all_users')}
-          title="সকল ব্যবহারকারী অডিট"
+          title={isBn ? 'সকল ব্যবহারকারী অডিট' : 'All Users Audit'}
         >
           <div className={styles.navItemContent}>
             <SlidersHorizontal size={18} />
-            {!isCollapsed && <span className={styles.navItemText}>সকল ইউজার অডিট</span>}
+            {!isCollapsed && <span className={styles.navItemText}>{isBn ? 'সকল ইউজার অডিট' : 'All Users Audit'}</span>}
           </div>
-          {!isCollapsed && allUsersCount > 0 && <span className={styles.navBadge}>{allUsersCount}</span>}
+          {!isCollapsed && allUsersCount > 0 && (
+            <span className={styles.navBadge}>{allUsersCount.toLocaleString(isBn ? 'bn-BD' : 'en-US')}</span>
+          )}
         </button>
       </div>
 
       {/* 3. Verifications & Approvals */}
       <div className={styles.navSection}>
-        {!isCollapsed && <div className={styles.navSectionTitle}>যাচাই ও অনুমোদন কেন্দ্র</div>}
+        {!isCollapsed && <div className={styles.navSectionTitle}>{isBn ? 'যাচাই ও অনুমোদন কেন্দ্র' : 'Verification & Clearances'}</div>}
         <button
           className={`${styles.navItem} ${activeNav === 'org_requests' ? styles.navItemActive : ''}`}
           onClick={() => onSelect('org_requests')}
-          title="প্রতিষ্ঠান ভেরিফিকেশন"
+          title={isBn ? 'প্রতিষ্ঠান ভেরিফিকেশন' : 'Institute Verification'}
         >
           <div className={styles.navItemContent}>
             <Building2 size={18} />
-            {!isCollapsed && <span className={styles.navItemText}>প্রতিষ্ঠান ছাড়পত্র</span>}
+            {!isCollapsed && <span className={styles.navItemText}>{isBn ? 'প্রতিষ্ঠান ছাড়পত্র' : 'Institute Clearance'}</span>}
           </div>
-          {!isCollapsed && orgCount > 0 && <span className={styles.navBadge}>{orgCount}</span>}
+          {!isCollapsed && orgCount > 0 && (
+            <span className={styles.navBadge}>{orgCount.toLocaleString(isBn ? 'bn-BD' : 'en-US')}</span>
+          )}
         </button>
 
         <button
           className={`${styles.navItem} ${activeNav === 'affiliation_requests' ? styles.navItemActive : ''}`}
           onClick={() => onSelect('affiliation_requests')}
-          title="শিক্ষক ও শিক্ষার্থী অনুমোদন"
+          title={isBn ? 'শিক্ষক ও শিক্ষার্থী অনুমোদন' : 'Teacher & Student Clearances'}
         >
           <div className={styles.navItemContent}>
             <UserCheck size={18} />
-            {!isCollapsed && <span className={styles.navItemText}>শিক্ষক ও শিক্ষার্থী ছাড়পত্র</span>}
+            {!isCollapsed && <span className={styles.navItemText}>{isBn ? 'শিক্ষক ও শিক্ষার্থী ছাড়পত্র' : 'Teacher & Student Clearances'}</span>}
           </div>
-          {!isCollapsed && affiliationCount > 0 && <span className={styles.navBadge}>{affiliationCount}</span>}
+          {!isCollapsed && affiliationCount > 0 && (
+            <span className={styles.navBadge}>{affiliationCount.toLocaleString(isBn ? 'bn-BD' : 'en-US')}</span>
+          )}
         </button>
 
         <button
           className={`${styles.navItem} ${activeNav === 'student_posts' ? styles.navItemActive : ''}`}
           onClick={() => onSelect('student_posts')}
-          title="শিক্ষার্থী পোস্ট যাচাই"
+          title={isBn ? 'শিক্ষার্থী পোস্ট যাচাই' : 'Student Campaign Verification'}
         >
           <div className={styles.navItemContent}>
             <GraduationCap size={18} />
-            {!isCollapsed && <span className={styles.navItemText}>শিক্ষার্থী পোস্ট যাচাই</span>}
+            {!isCollapsed && <span className={styles.navItemText}>{isBn ? 'শিক্ষার্থী পোস্ট যাচাই' : 'Student Campaign Verification'}</span>}
           </div>
-          {!isCollapsed && postCount > 0 && <span className={styles.navBadge}>{postCount}</span>}
+          {!isCollapsed && postCount > 0 && (
+            <span className={styles.navBadge}>{postCount.toLocaleString(isBn ? 'bn-BD' : 'en-US')}</span>
+          )}
         </button>
       </div>
 
       {/* 4. Donors & Community */}
       <div className={styles.navSection}>
-        {!isCollapsed && <div className={styles.navSectionTitle}>দাতা ও অনুদান</div>}
+        {!isCollapsed && <div className={styles.navSectionTitle}>{isBn ? 'দাতা ও অনুদান' : 'Donors & Donations'}</div>}
         <button
           className={`${styles.navItem} ${activeNav === 'donors' ? styles.navItemActive : ''}`}
           onClick={() => onSelect('donors')}
-          title="ডোনার তালিকা"
+          title={isBn ? 'ডোনার তালিকা' : 'Donor Directory'}
         >
           <div className={styles.navItemContent}>
             <Heart size={18} />
-            {!isCollapsed && <span className={styles.navItemText}>ডোনার তালিকা</span>}
+            {!isCollapsed && <span className={styles.navItemText}>{isBn ? 'ডোনার তালিকা' : 'Donor Directory'}</span>}
           </div>
         </button>
 
         <button
           className={`${styles.navItem} ${activeNav === 'pending_donations' ? styles.navItemActive : ''}`}
           onClick={() => onSelect('pending_donations')}
-          title="অনুদান পেমেন্ট যাচাই"
+          title={isBn ? 'অনুদান পেমেন্ট যাচাই' : 'Donation Payment Verification'}
         >
           <div className={styles.navItemContent}>
             <DollarSign size={18} />
-            {!isCollapsed && <span className={styles.navItemText}>অনুদান পেমেন্ট যাচাই</span>}
+            {!isCollapsed && <span className={styles.navItemText}>{isBn ? 'অনুদান পেমেন্ট যাচাই' : 'Donation Verification'}</span>}
           </div>
-          {!isCollapsed && donationCount > 0 && <span className={styles.navBadge}>{donationCount}</span>}
+          {!isCollapsed && donationCount > 0 && (
+            <span className={styles.navBadge}>{donationCount.toLocaleString(isBn ? 'bn-BD' : 'en-US')}</span>
+          )}
+        </button>
+
+        <button
+          className={`${styles.navItem} ${activeNav === 'item_donations' ? styles.navItemActive : ''}`}
+          onClick={() => onSelect('item_donations')}
+          title={isBn ? 'পণ্য অনুদান যাচাই' : 'Item Donations Verification'}
+        >
+          <div className={styles.navItemContent}>
+            <Package size={18} />
+            {!isCollapsed && <span className={styles.navItemText}>{isBn ? 'পণ্য অনুদান যাচাই' : 'Item Donations'}</span>}
+          </div>
+          {!isCollapsed && itemDonationCount > 0 && (
+            <span className={styles.navBadge}>
+              {itemDonationCount.toLocaleString(isBn ? 'bn-BD' : 'en-US')}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* 5. Personal Activity (ব্যক্তিগত কার্যক্রম) */}
+      <div className={styles.navSection}>
+        {!isCollapsed && <div className={styles.navSectionTitle}>{isBn ? 'ব্যক্তিগত কার্যক্রম' : 'Personal Activity'}</div>}
+        <button
+          className={`${styles.navItem} ${(activeNav === 'my_donations' || activeNav === 'my-donations') ? styles.navItemActive : ''}`}
+          onClick={() => onSelect('my_donations')}
+          title={isBn ? 'আমার দান সমূহ' : 'My Donations'}
+        >
+          <div className={styles.navItemContent}>
+            <Heart size={18} color="#10b981" />
+            {!isCollapsed && <span className={styles.navItemText}>{isBn ? 'আমার দান সমূহ' : 'My Donations'}</span>}
+          </div>
         </button>
       </div>
     </>

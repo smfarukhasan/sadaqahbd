@@ -1,5 +1,5 @@
 import { Injectable, Inject, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { db, DrizzleDB } from '../../database';
+import { DrizzleDB } from '../../database';
 import { DRIZZLE_DB } from '../../database/database.module';
 import { organizations, users, studentProfiles, teacherProfiles } from '../../database/schema';
 import { eq, and, isNull, desc, sql, or } from 'drizzle-orm';
@@ -57,7 +57,7 @@ export class OrganizationsService {
           contactPhone: dto.phone.trim(),
           contactPerson: currentUser.fullName || 'অর্গানাইজেশন এডমিন',
           email: dto.email?.trim() || null,
-          type: dto.type?.trim() || 'school',
+          type: dto.type?.trim() || 'qawmi_madrasa',
           description: dto.description?.trim() || null,
           status: 'pending',
           updatedAt: new Date(),
@@ -72,7 +72,7 @@ export class OrganizationsService {
         contactPhone: dto.phone.trim(),
         contactPerson: currentUser.fullName || 'অর্গানাইজেশন এডমিন',
         email: dto.email?.trim() || null,
-        type: dto.type?.trim() || 'school',
+        type: dto.type?.trim() || 'qawmi_madrasa',
         description: dto.description?.trim() || null,
         status: 'pending',
         isRequestedByMember: false,
@@ -176,7 +176,7 @@ export class OrganizationsService {
       contactPhone: dto.phone.trim(),
       email: dto.email?.trim() || null,
       contactPerson: 'Member Suggested',
-      type: dto.type?.trim() || 'school',
+      type: dto.type?.trim() || 'qawmi_madrasa',
       description: dto.notes?.trim() || 'শিক্ষার্থী/শিক্ষক কর্তৃক প্রস্তাবিত প্রতিষ্ঠান',
       status: 'pending',
       isRequestedByMember: true,
@@ -446,6 +446,126 @@ export class OrganizationsService {
     return {
       success: true,
       message: 'শিক্ষার্থীর তথ্য সফলভাবে সংশোধন করা হয়েছে।',
+    };
+  }
+
+  async getOrganizationMembers(currentUser: any, identifier: string) {
+    let org: any = null;
+
+    // 1. Try to find by organization id directly
+    const [foundById] = await this.database
+      .select()
+      .from(organizations)
+      .where(and(eq(organizations.id, identifier), isNull(organizations.deletedAt)))
+      .limit(1);
+
+    if (foundById) {
+      org = foundById;
+    } else {
+      // 2. Try to find by user id (if organization account user id was passed)
+      const [targetUser] = await this.database
+        .select()
+        .from(users)
+        .where(and(eq(users.id, identifier), isNull(users.deletedAt)))
+        .limit(1);
+
+      if (targetUser?.organizationId) {
+        const [foundByOrgId] = await this.database
+          .select()
+          .from(organizations)
+          .where(and(eq(organizations.id, targetUser.organizationId), isNull(organizations.deletedAt)))
+          .limit(1);
+        org = foundByOrgId;
+      } else if (targetUser) {
+        const [foundByRequester] = await this.database
+          .select()
+          .from(organizations)
+          .where(and(eq(organizations.requestedByUserId, targetUser.id), isNull(organizations.deletedAt)))
+          .limit(1);
+        org = foundByRequester;
+      }
+    }
+
+    if (!org) {
+      throw new NotFoundException('উক্ত প্রতিষ্ঠানের কোনো তথ্য পাওয়া যায়নি।');
+    }
+
+    // Authorization check: Admins or the organization itself
+    const isAdmin =
+      currentUser.role === 'master_admin' ||
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'admin';
+    const isOwner = currentUser.organizationId === org.id || org.requestedByUserId === currentUser.id;
+
+    if (!isAdmin && !isOwner) {
+      throw new ForbiddenException('প্রতিষ্ঠানের সদস্য তালিকা দেখার অনুমতি আপনার নেই।');
+    }
+
+    // Fetch affiliated teachers
+    const teacherRows = await this.database
+      .select({
+        profile: teacherProfiles,
+        user: users,
+      })
+      .from(teacherProfiles)
+      .innerJoin(users, eq(teacherProfiles.userId, users.id))
+      .where(and(eq(teacherProfiles.organizationId, org.id), isNull(users.deletedAt)))
+      .orderBy(desc(teacherProfiles.createdAt));
+
+    // Fetch affiliated students
+    const studentRows = await this.database
+      .select({
+        profile: studentProfiles,
+        user: users,
+      })
+      .from(studentProfiles)
+      .innerJoin(users, eq(studentProfiles.userId, users.id))
+      .where(and(eq(studentProfiles.organizationId, org.id), isNull(users.deletedAt)))
+      .orderBy(desc(studentProfiles.createdAt));
+
+    return {
+      organization: {
+        id: org.id,
+        name: org.name,
+        contactPhone: org.contactPhone,
+        contactPerson: org.contactPerson,
+        email: org.email,
+        address: org.address,
+        type: org.type,
+        status: org.status,
+        registrationNumber: org.registrationNumber,
+      },
+      teachers: teacherRows.map((r) => ({
+        id: r.user.id,
+        profileId: r.profile.id,
+        fullName: r.user.fullName,
+        email: r.user.email,
+        phone: r.user.phone || '',
+        status: r.user.status,
+        department: r.profile.department || 'সাধারণ',
+        designation: r.profile.designation || 'শিক্ষক',
+        employeeId: r.profile.employeeId || '',
+        verificationStatus: r.profile.verificationStatus,
+        createdAt: r.profile.createdAt,
+      })),
+      students: studentRows.map((r) => ({
+        id: r.user.id,
+        profileId: r.profile.id,
+        fullName: r.user.fullName,
+        email: r.user.email,
+        phone: r.user.phone || '',
+        status: r.user.status,
+        className: r.profile.className || '',
+        department: r.profile.department || '',
+        rollNumber: r.profile.rollNumber || r.profile.studentClassRoll || '',
+        fatherName: r.profile.fatherName || '',
+        guardianName: r.profile.guardianName || '',
+        guardianPhone: r.profile.guardianPhone || '',
+        bloodGroup: r.profile.bloodGroup || '',
+        presentAddress: r.profile.presentAddress || r.profile.address || '',
+        verificationStatus: r.profile.verificationStatus,
+        createdAt: r.profile.createdAt,
+      })),
     };
   }
 }

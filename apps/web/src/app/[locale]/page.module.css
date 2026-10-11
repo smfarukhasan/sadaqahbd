@@ -417,20 +417,23 @@
 .amountGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 0.6rem;
-  margin-bottom: 1rem;
+  gap: 0.5rem;
 }
 
 .amountChip {
-  padding: 0.65rem 0.4rem;
-  text-align: center;
+  padding: 0.5rem 0.3rem;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--radius-md);
   border: 1.5px solid var(--surface-border);
   background-color: var(--surface);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 700;
   color: var(--text-main);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
 }
 
 .amountChip:hover {
@@ -448,26 +451,27 @@
 
 .customInputWrapper {
   position: relative;
-  margin-bottom: 1.25rem;
+  width: 100%;
 }
 
 .currencySymbol {
   position: absolute;
-  left: 1rem;
+  left: 0.85rem;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 800;
   color: var(--primary);
 }
 
 .customInput {
   width: 100%;
-  padding: 0.85rem 1rem 0.85rem 2.4rem;
+  height: 42px;
+  padding: 0.5rem 0.85rem 0.5rem 2.2rem;
   border-radius: var(--radius-md);
   border: 1.5px solid var(--surface-border);
   background: var(--surface);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: var(--text-main);
   outline: none;
@@ -561,29 +565,11 @@
    2. INSTANT GIVING & PUBLIC TRANSPARENCY LEDGER
 ---------------------------------------------------- */
 .actionLedgerSection {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 2rem;
-  align-items: stretch;
+  display: block;
   margin-top: 1.75rem;
   position: relative;
   z-index: 10;
   margin-bottom: 4rem;
-}
-
-@media (min-width: 992px) {
-  .actionLedgerSection {
-    grid-template-columns: 430px 1fr;
-    gap: 2rem;
-    margin-top: 2.5rem;
-  }
-}
-
-@media (min-width: 1200px) {
-  .actionLedgerSection {
-    grid-template-columns: 460px 1fr;
-    gap: 2.5rem;
-  }
 }
 
 .ledgerCard {
@@ -805,6 +791,75 @@
   height: 8px;
   border-radius: 50%;
   background: var(--accent);
+}
+
+/* Merged General Fund Giving Bar in Transparency Ledger */
+.ledgerGivingBar {
+  margin-top: 0.75rem;
+  padding-top: 1.5rem;
+  padding-bottom: 2rem;
+  margin-bottom: 2rem;
+  border-top: 1px dashed var(--surface-border);
+  border-bottom: 1px dashed var(--surface-border);
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.givingHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.givingLabel {
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.givingControlsGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  align-items: center;
+}
+
+@media (min-width: 992px) {
+  .givingControlsGrid {
+    grid-template-columns: 1.4fr 1fr auto;
+    gap: 1.25rem;
+  }
+}
+
+.compactSubmitBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.35rem;
+  height: 42px;
+  border-radius: var(--radius-full);
+  background: #059669;
+  color: #ffffff;
+  font-size: 0.92rem;
+  font-weight: 800;
+  box-shadow: 0 4px 14px -2px rgba(5, 150, 105, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.compactSubmitBtn:hover {
+  transform: translateY(-1.5px);
+  box-shadow: 0 8px 20px -3px rgba(5, 150, 105, 0.5);
+  background: #047857;
 }
 
 .splitBar {

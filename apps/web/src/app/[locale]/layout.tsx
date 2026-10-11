@@ -9,6 +9,7 @@ import MandatorySetupGuard from '../../components/auth/MandatorySetupGuard';
 import Navbar from '../../components/layout/Navbar';
 import AppHeader from '../../components/layout/AppHeader';
 import BottomNav from '../../components/layout/BottomNav';
+import PublicMobileDrawer from '../../components/layout/PublicMobileDrawer';
 import Footer from '../../components/layout/Footer';
 import MainContent from '../../components/layout/MainContent';
 import '../globals.css';
@@ -33,30 +34,16 @@ export default async function LocaleLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale} suppressHydrationWarning>
-      <head>
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
-        />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('sadaqahbd_theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})()`,
-          }}
-        />
-      </head>
-      <body>
-        <NextIntlClientProvider messages={messages}>
-          <AuthInitializer />
-          <SuspendedAccountGuard />
-          <MandatorySetupGuard />
-          <AppHeader />
-          <Navbar />
-          <MainContent>{children}</MainContent>
-          <Footer />
-          <BottomNav />
-        </NextIntlClientProvider>
-      </body>
-    </html>
+    <NextIntlClientProvider messages={messages}>
+      <AuthInitializer />
+      <SuspendedAccountGuard />
+      <MandatorySetupGuard />
+      <AppHeader />
+      <Navbar />
+      <MainContent>{children}</MainContent>
+      <Footer />
+      <BottomNav />
+      <PublicMobileDrawer />
+    </NextIntlClientProvider>
   );
 }

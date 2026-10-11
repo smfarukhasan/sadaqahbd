@@ -4,11 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { Link, usePathname, useRouter } from '../../i18n/routing';
 import styles from './AppHeader.module.css';
-import { HeartHandshake, User } from 'lucide-react';
-
-import { LogOut } from 'lucide-react';
+import { HeartHandshake, User, LogOut, Sun, Moon } from 'lucide-react';
 import { useAuthStore, getRoleDashboardPath } from '../../lib/auth-store';
 import { isPanelRoute } from '../../lib/is-panel-route';
+import { useThemeStore } from '../../lib/theme-store';
 
 export default function AppHeader() {
   const t = useTranslations('Common');
@@ -17,6 +16,17 @@ export default function AppHeader() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+
+  const theme = useThemeStore((s) => s.theme);
+  const toggleTheme = useThemeStore((s) => s.toggleTheme);
+  const initTheme = useThemeStore((s) => s.initTheme);
+
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    initTheme();
+    setMounted(true);
+  }, [initTheme]);
 
   const isMandatorySetup = pathname.includes('/set-password') || (user && !user.isPasswordSet);
 
@@ -64,6 +74,28 @@ export default function AppHeader() {
           <span className={`${styles.langTag} ${locale === 'bn' ? styles.langActive : styles.langInactive}`}>BN</span>
           <span className={styles.langDivider}>/</span>
           <span className={`${styles.langTag} ${locale === 'en' ? styles.langActive : styles.langInactive}`}>EN</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className={styles.iconBtn}
+          title={
+            locale === 'bn'
+              ? theme === 'dark'
+                ? 'লাইট মোড'
+                : 'ডার্ক মোড'
+              : theme === 'dark'
+                ? 'Light Mode'
+                : 'Dark Mode'
+          }
+          aria-label="Toggle theme"
+        >
+          {mounted && theme === 'dark' ? (
+            <Sun size={18} style={{ color: '#fbbf24' }} />
+          ) : (
+            <Moon size={18} style={{ color: '#38bdf8' }} />
+          )}
         </button>
 
         {isMandatorySetup ? (

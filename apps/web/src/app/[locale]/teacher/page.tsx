@@ -8,24 +8,38 @@ import {
   CheckCircle2,
   Heart,
   Eye,
+  FileText,
 } from 'lucide-react';
 import { useAuthStore, getRoleDashboardPath } from '../../../lib/auth-store';
 import PortalLayout, { PortalNavItem } from '../../../components/layout/PortalLayout';
 import { getApiUrl } from '../../../lib/api-config';
+import { getAuthToken } from '../../../lib/auth-token';
 import EReceiptModal, { ReceiptData } from '../../../components/portal/EReceiptModal';
 import AffiliationApplyModal from '../../../components/portal/AffiliationApplyModal';
 import DonationLedgerTable from '../../../components/portal/DonationLedgerTable';
 import VerificationStatusView from '../../../components/portal/VerificationStatusView';
 import StudentDetailsModal from '../../../components/portal/StudentDetailsModal';
 
+import MyDonationsSection from '../../../components/portal/MyDonationsSection';
+
 export default function TeacherDashboardPage() {
   const locale = useLocale();
+  const isBn = locale === 'bn';
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const firebaseUser = useAuthStore((s) => s.firebaseUser);
   const loadingAuth = useAuthStore((s) => s.loading);
 
-  const [activeTab, setActiveTab] = useState<'verification' | 'donations'>('verification');
+  const [activeTab, setActiveTab] = useState<'verification' | 'my-donations' | 'donations'>('verification');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const tabParam = new URLSearchParams(window.location.search).get('tab');
+      if (tabParam === 'my-donations' || tabParam === 'verification' || tabParam === 'donations') {
+        setActiveTab(tabParam as any);
+      }
+    }
+  }, []);
   const [teacherPendingPosts, setTeacherPendingPosts] = useState<any[]>([]);
   const [affiliationData, setAffiliationData] = useState<{
     hasAffiliated: boolean;
@@ -51,9 +65,10 @@ export default function TeacherDashboardPage() {
   }, [user, loadingAuth, router]);
 
   const loadData = async () => {
-    if (!firebaseUser || !user) return;
+    if (!user) return;
     try {
-      const token = await firebaseUser.getIdToken();
+      const token = await getAuthToken();
+      if (!token) return;
       const apiUrl = getApiUrl();
       const headers = { Authorization: `Bearer ${token}` };
 
@@ -96,12 +111,13 @@ export default function TeacherDashboardPage() {
         return () => clearInterval(timer);
       }
     }
-  }, [firebaseUser, user, affiliationData?.status]);
+  }, [user, affiliationData?.status]);
 
   const handleTeacherVerify = async (postId: string) => {
     if (!confirm('আপনি কি এই শিক্ষার্থীর আবেদনটির সত্যতা সত্যায়ন করতে চান?')) return;
     try {
-      const token = await firebaseUser?.getIdToken();
+      const token = await getAuthToken();
+      if (!token) return;
       const apiUrl = getApiUrl();
       const res = await fetch(`${apiUrl}/posts/${postId}/teacher-verify`, {
         method: 'POST',
@@ -126,7 +142,6 @@ export default function TeacherDashboardPage() {
     );
   }
 
-  // Navigation tabs unlock ONLY when teacher is verified
   const navItems: PortalNavItem[] = isVerified
     ? [
         {
@@ -137,13 +152,26 @@ export default function TeacherDashboardPage() {
           badge: teacherPendingPosts.length,
         },
         {
-          id: 'donations',
-          labelBn: 'অনুদান রেকর্ড',
-          labelEn: 'Donations Record',
+          id: 'my-donations',
+          labelBn: 'আমার দান সমূহ',
+          labelEn: 'My Donations',
           icon: Heart,
         },
+        {
+          id: 'donations',
+          labelBn: 'গ্লোবাল রেকর্ড',
+          labelEn: 'Global Ledger',
+          icon: FileText,
+        },
       ]
-    : [];
+    : [
+        {
+          id: 'my-donations',
+          labelBn: 'আমার দান সমূহ',
+          labelEn: 'My Donations',
+          icon: Heart,
+        },
+      ];
 
   return (
     <PortalLayout
@@ -175,12 +203,18 @@ export default function TeacherDashboardPage() {
           <div>
             <div style={{ marginBottom: '1.5rem' }}>
               <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-                {activeTab === 'verification' ? 'শিক্ষার্থী আবেদন সত্যায়ন' : 'ব্যক্তিগত অনুদান রেকর্ড'}
+                {activeTab === 'verification'
+                  ? (isBn ? 'শিক্ষার্থী আবেদন সত্যায়ন' : 'Student Campaign Verification')
+                  : (isBn ? 'ব্যক্তিগত অনুদান রেকর্ড' : 'Personal Donation Records')}
               </h1>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
                 {activeTab === 'verification'
-                  ? 'আপনার প্রতিষ্ঠানের শিক্ষার্থীদের আর্থিক সহায়তা আবেদনের নিরীক্ষা ও ডিজিটাল সত্যায়ন সম্পন্ন করুন'
-                  : 'প্ল্যাটফর্মে আপনার ব্যক্তিগত অনুদান রেকর্ড ও অডিট রসিদসমূহ'}
+                  ? (isBn
+                      ? 'আপনার প্রতিষ্ঠানের শিক্ষার্থীদের আর্থিক সহায়তা আবেদনের নিরীক্ষা ও ডিজিটাল সত্যায়ন সম্পন্ন করুন'
+                      : 'Audit and digitally certify financial aid requests from your institution students')
+                  : (isBn
+                      ? 'প্ল্যাটফর্মে আপনার ব্যক্তিগত অনুদান রেকর্ড ও অডিট রসিদসমূহ'
+                      : 'Your personal platform donation history and verified e-receipts')}
               </p>
             </div>
 
@@ -216,16 +250,20 @@ export default function TeacherDashboardPage() {
             >
               <div style={{ marginBottom: '1.5rem' }}>
                 <h2 style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--text-main)', margin: 0 }}>
-                  শিক্ষার্থী সত্যায়নের জন্য অপেক্ষমান তালিকা
+                  {isBn ? 'শিক্ষার্থী সত্যায়নের জন্য অপেক্ষমান তালিকা' : 'Pending Student Verification Queue'}
                 </h2>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginTop: '0.35rem' }}>
-                  আপনার শিক্ষা প্রতিষ্ঠান ({affiliationData?.organization?.name || 'অনুমোদিত প্রতিষ্ঠান'}) এর শিক্ষার্থীদের আর্থিক আবেদন পরীক্ষা ও সত্যায়ন করুন।
+                  {isBn
+                    ? `আপনার শিক্ষা প্রতিষ্ঠান (${affiliationData?.organization?.name || 'অনুমোদিত প্রতিষ্ঠান'}) এর শিক্ষার্থীদের আর্থিক আবেদন পরীক্ষা ও সত্যায়ন করুন।`
+                    : `Review and authenticate financial aid requests from students at ${affiliationData?.organization?.name || 'your institution'}.`}
                 </p>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {loadingData ? (
-                  <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>লোড হচ্ছে...</div>
+                  <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    {isBn ? 'লোড হচ্ছে...' : 'Loading...'}
+                  </div>
                 ) : teacherPendingPosts.length === 0 ? (
                   <div
                     style={{
@@ -238,10 +276,12 @@ export default function TeacherDashboardPage() {
                   >
                     <CheckCircle2 size={36} color="var(--primary)" style={{ margin: '0 auto 0.5rem' }} />
                     <h4 style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-main)', margin: 0 }}>
-                      বর্তমানে কোনো আবেদন অপেক্ষমান নেই
+                      {isBn ? 'বর্তমানে কোনো আবেদন অপেক্ষমান নেই' : 'No Pending Verifications'}
                     </h4>
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.35rem 0 0' }}>
-                      আপনার প্রতিষ্ঠানের কোনো শিক্ষার্থী নতুন আবেদন দাখিল করলে এখানে তাৎক্ষণিক প্রদর্শিত হবে।
+                      {isBn
+                        ? 'আপনার প্রতিষ্ঠানের কোনো শিক্ষার্থী নতুন আবেদন দাখিল করলে এখানে তাৎক্ষণিক প্রদর্শিত হবে।'
+                        : 'New student applications from your institution will appear here as soon as submitted.'}
                     </p>
                   </div>
                 ) : (
@@ -265,10 +305,11 @@ export default function TeacherDashboardPage() {
                           {item.studentName} • {item.title}
                         </h4>
                         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.3rem 0 0' }}>
-                          প্রয়োজনীয় অর্থ: <strong style={{ color: 'var(--primary)' }}>৳{Number(item.amount).toLocaleString()}</strong> • ইমেইল: {item.studentEmail}
+                          {isBn ? 'প্রয়োজনীয় অর্থ: ' : 'Required Amount: '}
+                          <strong style={{ color: 'var(--primary)' }}>৳{Number(item.amount).toLocaleString()}</strong> • {isBn ? 'ইমেইল: ' : 'Email: '}{item.studentEmail}
                         </p>
                         <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
-                          বিবরণ: {item.problemDesc}
+                          {isBn ? 'বিবরণ: ' : 'Details: '}{item.problemDesc}
                         </p>
                       </div>
 
@@ -315,17 +356,19 @@ export default function TeacherDashboardPage() {
                 )}
               </div>
             </div>
+          ) : activeTab === 'my-donations' ? (
+            <MyDonationsSection />
           ) : (
-            /* TAB 2: Personal Donations via Centralized Component */
+            /* TAB 3: Global Ledger Table */
             <DonationLedgerTable
               firebaseUser={firebaseUser}
               locale={locale}
               onOpenReceipt={(r) => setSelectedReceipt(r)}
               donorDisplayName={user.fullName || 'শিক্ষক প্রতিনিধি'}
-              titleBn="আমার অনুদান খতিয়ান"
-              titleEn="Personal Donation Ledger"
-              subtitleBn="সাদাকাহ প্ল্যাটফর্মে আপনার দেওয়া অনুদানের তালিকা ও রসিদসমূহ।"
-              subtitleEn="Verified records of contributions you made."
+              titleBn="পাবলিক অনুদান খতিয়ান"
+              titleEn="Public Donation Ledger"
+              subtitleBn="সাদাকাহ প্ল্যাটফর্মে জমাকৃত সর্বমোট অনুদানের তালিকা ও রসিদসমূহ।"
+              subtitleEn="Verified public records of all platform contributions."
             />
           )}
         </div>

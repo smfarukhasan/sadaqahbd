@@ -4,34 +4,89 @@ import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import styles from './page.module.css';
+import { useRouter } from '@/i18n/routing';
+import { useAuthStore } from '@/lib/auth-store';
+import { getApiUrl } from '@/lib/api-config';
+import { getAuthToken } from '@/lib/auth-token';
 import {
   Heart,
   Shuffle,
   ShieldCheck,
   CheckCircle,
   AlertCircle,
+  Package,
 } from 'lucide-react';
+import ItemDonationModal from '@/components/portal/ItemDonationModal';
 
 export default function DonatePage() {
   const t = useTranslations('Donation');
   const commonT = useTranslations('Common');
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialPostId = searchParams.get('postId') || '';
+  const initialAmount = searchParams.get('amount') || '500';
+  const initialType = searchParams.get('type') || '';
 
-  const [isRandom, setIsRandom] = useState(!initialPostId);
-  const [amount, setAmount] = useState('500');
-  const [paymentMethod, setPaymentMethod] = useState('bKash');
+  const user = useAuthStore((s) => s.user);
+  const firebaseUser = useAuthStore((s) => s.firebaseUser);
+  const loadingAuth = useAuthStore((s) => s.loading);
+
+  const [isRandom, setIsRandom] = useState(initialType === 'general' || !initialPostId);
+  const [selectedPostId, setSelectedPostId] = useState(initialPostId);
+  const [publicPosts, setPublicPosts] = useState<any[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [amount, setAmount] = useState(initialAmount);
+  const [paymentMethod, setPaymentMethod] = useState('Mobile Banking');
   const [trxId, setTrxId] = useState('');
   const [note, setNote] = useState('');
 
+  // Fetch active student posts if user wants direct donation
+  React.useEffect(() => {
+    if (!isRandom) {
+      setLoadingPosts(true);
+      const apiUrl = getApiUrl();
+      fetch(`${apiUrl}/posts/public`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data)) {
+            setPublicPosts(data);
+            if (!selectedPostId && data.length > 0) {
+              setSelectedPostId(data[0].id);
+            }
+          }
+        })
+        .catch(() => {})
+        .finally(() => setLoadingPosts(false));
+    }
+  }, [isRandom, selectedPostId]);
+
   // Confirmation Modal state
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Enforce auth requirement for donations
+  React.useEffect(() => {
+    if (!loadingAuth && !user) {
+      const currentQuery = typeof window !== 'undefined' ? window.location.search : '';
+      const redirectPath = `/donate${currentQuery}`;
+      router.push(`/login?redirect=${encodeURIComponent(redirectPath)}` as any);
+    }
+  }, [user, loadingAuth, router]);
+
   const handleOpenConfirm = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+      const currentQuery = typeof window !== 'undefined' ? window.location.search : '';
+      router.push(`/login?redirect=${encodeURIComponent('/donate' + currentQuery)}` as any);
+      return;
+    }
+    if (!isRandom && !selectedPostId) {
+      setError('অনুগ্রহ করে সহায়তার জন্য একজন শিক্ষার্থী নির্বাচন করুন।');
+      return;
+    }
     if (!amount || Number(amount) <= 0) {
       setError('সঠিক অনুদানের পরিমাণ প্রদান করুন।');
       return;
@@ -45,14 +100,46 @@ export default function DonatePage() {
   };
 
   const handleFinalSubmit = async () => {
+    if (!user) {
+      setError('অনুদানের জন্য আপনাকে অবশ্যই লগইন করতে হবে।');
+      router.push('/login' as any);
+      return;
+    }
     setLoading(true);
     try {
-      // Calls API /donations
-      setTimeout(() => {
-        setLoading(false);
-        setShowConfirmModal(false);
-        setIsSubmitted(true);
-      }, 700);
+      const token = await getAuthToken();
+      if (!token) {
+        setError('লগইন সেশন পাওয়া যায়নি। অনুগ্রহ করে পুনরায় লগইন করুন।');
+        router.push('/login' as any);
+        return;
+      }
+      const apiUrl = getApiUrl();
+      const payload: any = {
+        amount: Number(amount),
+        paymentMethod: paymentMethod.toLowerCase(),
+        transactionReference: trxId,
+        donorNote: note || undefined,
+        isRandom: isRandom,
+        postId: !isRandom ? (selectedPostId || initialPostId) : undefined,
+      };
+
+      const res = await fetch(`${apiUrl}/donations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || 'অনুদানের তথ্য সাবমিট করতে সমস্যা হয়েছে।');
+      }
+
+      setLoading(false);
+      setShowConfirmModal(false);
+      setIsSubmitted(true);
     } catch (err: any) {
       setError(err.message || 'অনুদানের আবেদন জমা দিতে সমস্যা হয়েছে');
       setLoading(false);
@@ -67,8 +154,7 @@ export default function DonatePage() {
           <CheckCircle size={64} className={styles.successIcon} />
           <h2>{t('thankYouMsg')}</h2>
           <p>
-            আপনার অনুদানের তথ্যটি আমাদের রেকর্ডে যুক্ত হয়েছে। এডমিন প্যানেল থেকে
-            যাচাইয়ের পর তা চূড়ান্তভাবে অনুমোদিত হবে।
+            আপনার অনুদানের আবেদনটি সফলভাবে জমা হয়েছে! এটি মাস্টার এডমিন ও সুপার এডমিনের ভেরিফিকেশনের জন্য অপেক্ষমান থাকবে।
           </p>
           <div className={styles.detailsBadge}>
             <span>পরিমাণ: <strong>৳{amount}</strong></span>
@@ -96,7 +182,7 @@ export default function DonatePage() {
         <div className={styles.header}>
           <h1>{t('title')}</h1>
           <p>
-            আপনার সদাকাহ সরাসরি অসহায় শিক্ষার্থীর শিক্ষার ব্যয় নির্বাহে ব্যবহৃত হবে।
+            আপনার অনুদান সবচেয়ে জরুরি ও পিছিয়ে থাকা শিক্ষার্থীদের জন্য কর্তৃপক্ষের সিদ্ধান্ত অনুসারে যুক্ত করা হবে।
           </p>
         </div>
 
@@ -119,6 +205,33 @@ export default function DonatePage() {
             <span>{commonT('randomDonate')} (সাধারণ ফান্ড)</span>
           </button>
         </div>
+
+        {/* Target Student Campaign Picker if !isRandom */}
+        {!isRandom && (
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 700, marginBottom: '0.4rem', color: 'var(--text-main)' }}>
+              সহায়তাপ্রাপ্ত শিক্ষার্থী নির্বাচন করুন *
+            </label>
+            {loadingPosts ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>শিক্ষার্থী তালিকা লোড হচ্ছে...</p>
+            ) : publicPosts.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--danger, #ef4444)' }}>কোনো সক্রিয় শিক্ষার্থী আবেদন পাওয়া যায়নি।</p>
+            ) : (
+              <select
+                value={selectedPostId}
+                onChange={(e) => setSelectedPostId(e.target.value)}
+                className={styles.select}
+                style={{ width: '100%', padding: '0.75rem', borderRadius: '10px' }}
+              >
+                {publicPosts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title} — {p.studentName || p.studentFullName || 'শিক্ষার্থী'} (প্রয়োজন বাকি: ৳{Number(p.remainingAmount || 0).toLocaleString()})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
 
         {error && (
           <div className={styles.errorBox}>
@@ -162,10 +275,10 @@ export default function DonatePage() {
               onChange={(e) => setPaymentMethod(e.target.value)}
               className={styles.select}
             >
-              <option value="bKash">বিকাশ (bKash Personal / Merchant)</option>
-              <option value="Nagad">নগদ (Nagad)</option>
-              <option value="Rocket">রকেট (Rocket)</option>
-              <option value="Bank">ব্যাংক ট্রান্সফার (Bank Transfer)</option>
+              <option value="Mobile Banking">মোবাইল ব্যাংকিং (Mobile Banking)</option>
+              <option value="Online Banking">অনলাইন ব্যাংকিং (Online Banking)</option>
+              <option value="Handcash">হ্যান্ডক্যাশ (Handcash)</option>
+              <option value="Others">অন্যান্য (Others)</option>
             </select>
           </div>
 
@@ -248,6 +361,13 @@ export default function DonatePage() {
           </div>
         </div>
       )}
+
+      {/* Item Donation Modal */}
+      <ItemDonationModal
+        isOpen={isItemModalOpen}
+        onClose={() => setIsItemModalOpen(false)}
+        defaultPostId={!isRandom ? initialPostId : undefined}
+      />
     </div>
   );
 }

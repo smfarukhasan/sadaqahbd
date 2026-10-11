@@ -1,63 +1,49 @@
 'use client';
 
-import React from 'react';
-import { useTranslations } from 'next-intl';
+import React, { useState, useEffect } from 'react';
+import { useTranslations, useLocale } from 'next-intl';
 import styles from './page.module.css';
 import {
   BarChart3,
   TrendingUp,
   ShieldCheck,
   CheckCircle2,
-  DollarSign,
   PieChart,
 } from 'lucide-react';
+import { getApiUrl } from '@/lib/api-config';
 
 export default function LedgerPage() {
   const t = useTranslations('Ledger');
-  const commonT = useTranslations('Common');
+  const locale = useLocale();
 
-  // Simulated live metrics matching transparency ledger engine
-  const ledgerData = {
-    totalDonated: '১,৪৫,০০০',
-    totalRandomPool: '৪৫,০০০',
-    totalDirect: '১,০০,০০০',
-    allocatedFromRandom: '২৫,০০০',
-    remainingGeneralPool: '২০,০০০',
-    totalDisbursedToStudents: '১,২৫,০০০',
+  const [ledgerStats, setLedgerStats] = useState({
+    totalDonated: 0,
+    totalRandom: 0,
+    totalDirect: 0,
+    totalAllocated: 0,
+    randomFundPoolBalance: 0,
+    totalDirectlyToStudents: 0,
+  });
+
+  const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const apiUrl = getApiUrl();
+    fetch(`${apiUrl}/donations/ledger-stats`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && typeof data.totalDonated === 'number') {
+          setLedgerStats(data);
+        }
+      })
+      .catch((err) => console.error('Failed to load ledger stats:', err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const formatAmount = (num: number) => {
+    return locale === 'bn' ? num.toLocaleString('bn-BD') : num.toLocaleString('en-US');
   };
-
-  const recentTransactions = [
-    {
-      id: 'trx-1',
-      date: '১২ সেপ্টেম্বর, ২০২৬',
-      type: 'সরাসরি অনুদান',
-      studentName: 'রাকিবুল হাসান',
-      institution: 'ঢাকা বিশ্ববিদ্যালয়',
-      amount: '৳ ২,০০০',
-      method: 'bKash',
-      status: 'অনুমোদিত',
-    },
-    {
-      id: 'trx-2',
-      date: '১১ সেপ্টেম্বর, ২০২৬',
-      type: 'র্যান্ডম ফান্ড অনুদান',
-      studentName: 'সাধারণ ফান্ড পুল',
-      institution: 'কেন্দ্রীয় ফান্ড',
-      amount: '৳ ৫,০০০',
-      method: 'Nagad',
-      status: 'অনুমোদিত',
-    },
-    {
-      id: 'trx-3',
-      date: '১০ সেপ্টেম্বর, ২০২৬',
-      type: 'ফান্ড বণ্টন (সুপার এডমিন)',
-      studentName: 'সাদিয়া তাসনিম',
-      institution: 'রাজশাহী কলেজ',
-      amount: '৳ ৩,২০০',
-      method: 'সুপার এডমিন বণ্টন',
-      status: 'বিতরিত',
-    },
-  ];
 
   return (
     <div className="container" style={{ padding: '2.5rem 1rem' }}>
@@ -80,7 +66,7 @@ export default function LedgerPage() {
             <TrendingUp size={20} className={styles.iconGreen} />
           </div>
           <div className={`${styles.statNumber} ${styles.iconGreen}`}>
-            ৳ {ledgerData.totalDonated}
+            ৳ {formatAmount(ledgerStats.totalDonated)}
           </div>
           <span className={styles.statSub}>সর্বমোট সংগৃহীত সাদাকাহ</span>
         </div>
@@ -91,7 +77,7 @@ export default function LedgerPage() {
             <CheckCircle2 size={20} className={styles.iconBlue} />
           </div>
           <div className={styles.statNumber}>
-            ৳ {ledgerData.totalDirect}
+            ৳ {formatAmount(ledgerStats.totalDirect)}
           </div>
           <span className={styles.statSub}>শিক্ষার্থীদের নির্দিষ্ট অনুদান</span>
         </div>
@@ -102,7 +88,7 @@ export default function LedgerPage() {
             <PieChart size={20} className={styles.iconAmber} />
           </div>
           <div className={styles.statNumber}>
-            ৳ {ledgerData.totalRandomPool}
+            ৳ {formatAmount(ledgerStats.totalRandom)}
           </div>
           <span className={styles.statSub}>সাধারণ ফান্ড পুল অনুদান</span>
         </div>
@@ -113,7 +99,7 @@ export default function LedgerPage() {
             <ShieldCheck size={20} className={styles.iconGreen} />
           </div>
           <div className={`${styles.statNumber} ${styles.iconGreen}`}>
-            ৳ {ledgerData.totalDisbursedToStudents}
+            ৳ {formatAmount(ledgerStats.totalDirectlyToStudents)}
           </div>
           <span className={styles.statSub}>সরাসরি + সাধারণ ফান্ড থেকে প্রাপ্ত</span>
         </div>
@@ -135,25 +121,33 @@ export default function LedgerPage() {
               </tr>
             </thead>
             <tbody>
-              {recentTransactions.map((trx) => (
-                <tr key={trx.id}>
-                  <td>{trx.date}</td>
-                  <td>
-                    <strong>{trx.type}</strong>
-                  </td>
-                  <td>
-                    <div>{trx.studentName}</div>
-                    <small>{trx.institution}</small>
-                  </td>
-                  <td>
-                    <strong className={styles.amountText}>{trx.amount}</strong>
-                  </td>
-                  <td>{trx.method}</td>
-                  <td>
-                    <span className={styles.badgeSuccess}>{trx.status}</span>
+              {recentTransactions.length > 0 ? (
+                recentTransactions.map((trx) => (
+                  <tr key={trx.id}>
+                    <td>{trx.date}</td>
+                    <td>
+                      <strong>{trx.type}</strong>
+                    </td>
+                    <td>
+                      <div>{trx.studentName}</div>
+                      <small>{trx.institution}</small>
+                    </td>
+                    <td>
+                      <strong className={styles.amountText}>৳ {formatAmount(trx.amount)}</strong>
+                    </td>
+                    <td>{trx.method}</td>
+                    <td>
+                      <span className={styles.badgeSuccess}>{trx.status}</span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
+                    এখনো কোনো অনুদানের রেকর্ড নেই। আপনার প্রথম অনুদান দিন!
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

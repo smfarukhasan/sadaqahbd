@@ -17,14 +17,18 @@ import {
 } from 'lucide-react';
 
 import { getApiUrl } from '../../../lib/api-config';
+import FinancialDonationModal from '../../../components/portal/FinancialDonationModal';
+import { useAuthStore } from '../../../lib/auth-store';
 
 export default function PostsPage() {
   const locale = useLocale();
   const t = useTranslations('StudentPost');
   const tCommon = useTranslations('Common');
+  const user = useAuthStore((s) => s.user);
   const [searchQuery, setSearchQuery] = useState('');
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isFinancialModalOpen, setIsFinancialModalOpen] = useState(false);
 
   React.useEffect(() => {
     const apiUrl = getApiUrl();
@@ -259,16 +263,13 @@ export default function PostsPage() {
                       <span>বিস্তারিত</span>
                     </Link>
 
-                    <Link
-                      href={{
-                        pathname: '/donate',
-                        query: { postId: post.id, amount: post.remainingAmount },
-                      }}
+                    <button
+                      onClick={() => setIsFinancialModalOpen(true)}
                       className={styles.donateBtn}
                     >
                       <Heart size={14} />
                       <span>সহায়তা</span>
-                    </Link>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -277,6 +278,11 @@ export default function PostsPage() {
           })}
         </div>
       )}
+
+      <FinancialDonationModal
+        isOpen={isFinancialModalOpen}
+        onClose={() => setIsFinancialModalOpen(false)}
+      />
     </div>
   );
 }

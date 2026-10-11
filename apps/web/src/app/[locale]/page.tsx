@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import { useTranslations, useLocale } from 'next-intl';
-import { Link } from '../../i18n/routing';
+import { Link, useRouter } from '../../i18n/routing';
 import styles from './page.module.css';
 import {
   Heart,
@@ -23,6 +23,9 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { getApiUrl } from '../../lib/api-config';
+import FinancialDonationModal from '../../components/portal/FinancialDonationModal';
+import ItemDonationModal from '../../components/portal/ItemDonationModal';
+import { useAuthStore } from '../../lib/auth-store';
 
 interface SahihHadithItem {
   id: string;
@@ -163,12 +166,23 @@ export default function HomePage() {
   const tHadith = useTranslations('HadithVirtues');
   const locale = useLocale();
   const isBn = locale === 'bn';
+  const router = useRouter();
+  const user = useAuthStore((s) => s.user);
 
-  // Quick donation widget state
-  const [quickAmount, setQuickAmount] = useState<number>(500);
-  const [customAmount, setCustomAmount] = useState<string>('');
-  const [donationCategory, setDonationCategory] = useState<'direct' | 'general'>('general');
+  // Quick donation modal states
+  const [isFinancialModalOpen, setIsFinancialModalOpen] = useState(false);
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+  const [quickAmount, setQuickAmount] = useState<string>('500');
   const [hadithCategory, setHadithCategory] = useState<string>('all');
+
+  const handleDonateClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!user) {
+      router.push('/login?redirect=/' as any);
+      return;
+    }
+    setIsFinancialModalOpen(true);
+  };
 
   const formatNumber = (num: number) => {
     return locale === 'bn' ? num.toLocaleString('bn-BD') : num.toLocaleString('en-US');
@@ -253,21 +267,9 @@ export default function HomePage() {
   const filteredPosts = posts;
 
   const getEffectiveAmount = () => {
-    if (customAmount && Number(customAmount) > 0) {
-      return Number(customAmount);
-    }
-    return quickAmount;
+    const val = Number(quickAmount);
+    return val > 0 ? val : 500;
   };
-
-  const getImpactDescription = (amt: number) => {
-    if (amt <= 300) return tHero('impact200');
-    if (amt <= 800) return tHero('impact500');
-    if (amt <= 1500) return tHero('impact1000');
-    if (amt <= 3500) return tHero('impact2500');
-    return tHero('impact5000');
-  };
-
-  const currentImpact = getImpactDescription(getEffectiveAmount());
 
   return (
     <div className={styles.homeContainer}>
@@ -316,10 +318,10 @@ export default function HomePage() {
                 <span>{t('explorePosts')}</span>
                 <ArrowRight size={18} />
               </Link>
-              <Link href="/donate" className={styles.secondaryCta}>
+              <button onClick={handleDonateClick} className={styles.secondaryCta}>
                 <Heart size={18} />
                 <span>{t('generalDonate')}</span>
-              </Link>
+              </button>
             </div>
 
             {/* Quick Micro-Metrics & Trust Guarantee */}
@@ -361,114 +363,10 @@ export default function HomePage() {
       {/* ----------------------------------------------------
           2. INSTANT GIVING & PUBLIC TRANSPARENCY LEDGER
       ---------------------------------------------------- */}
+      {/* ----------------------------------------------------
+          2. PUBLIC TRANSPARENCY LEDGER & MERGED GENERAL FUND GIVING
+      ---------------------------------------------------- */}
       <section className={`container ${styles.actionLedgerSection}`}>
-        {/* Left Column: Instant Giving (General Fund) Widget */}
-        <div className={styles.givingWidgetWrapper}>
-          <div className={styles.givingWidget}>
-            <div className={styles.widgetHeader}>
-              <div className={styles.liveIndicator}>
-                <span className={styles.pulseDot} />
-                <span>রিয়েলটাইম ফান্ড</span>
-              </div>
-              <div className={styles.balancePill}>
-                ব্যালেন্স: ৳ {stats.generalFundBalance}
-              </div>
-            </div>
-
-            <h3 className={styles.widgetTitle}>{tHero('widgetTitle')}</h3>
-            <p className={styles.widgetDesc}>{tHero('widgetDesc')}</p>
-
-            {/* Category Selector */}
-            <div className={styles.categorySelector}>
-              <button
-                type="button"
-                onClick={() => setDonationCategory('general')}
-                className={`${styles.categoryTab} ${
-                  donationCategory === 'general' ? styles.categoryTabActive : ''
-                }`}
-              >
-                {tHero('tabGeneral')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setDonationCategory('direct')}
-                className={`${styles.categoryTab} ${
-                  donationCategory === 'direct' ? styles.categoryTabActive : ''
-                }`}
-              >
-                {tHero('tabDirect')}
-              </button>
-            </div>
-
-            {/* Quick Amount Chips */}
-            <div className={styles.amountGrid}>
-              {[200, 500, 1000, 2500].map((amt) => (
-                <button
-                  key={amt}
-                  type="button"
-                  onClick={() => {
-                    setQuickAmount(amt);
-                    setCustomAmount('');
-                  }}
-                  className={`${styles.amountChip} ${
-                    !customAmount && quickAmount === amt
-                      ? styles.amountChipActive
-                      : ''
-                  }`}
-                >
-                  ৳{amt}
-                </button>
-              ))}
-            </div>
-
-            {/* Custom Amount Input */}
-            <div className={styles.customInputWrapper}>
-              <span className={styles.currencySymbol}>৳</span>
-              <input
-                type="number"
-                placeholder={tHero('otherAmountPlaceholder')}
-                value={customAmount}
-                onChange={(e) => setCustomAmount(e.target.value)}
-                className={styles.customInput}
-              />
-            </div>
-
-            {/* Dynamic Impact Projection */}
-            <div className={styles.impactBox}>
-              <Sparkles size={18} className={styles.impactIcon} />
-              <div className={styles.impactContent}>
-                <span className={styles.impactTitle}>{tHero('impactLabel')}</span>
-                <span className={styles.impactText}>{currentImpact}</span>
-              </div>
-            </div>
-
-            {/* Action Button */}
-            <Link
-              href={{
-                pathname: '/donate',
-                query: {
-                  amount: getEffectiveAmount(),
-                  type: donationCategory,
-                },
-              }}
-              className={styles.widgetSubmitBtn}
-            >
-              <Heart size={20} />
-              <span>
-                {tHero('donateAction', {
-                  amount: getEffectiveAmount().toLocaleString(),
-                })}
-              </span>
-            </Link>
-
-            <div className={styles.widgetTrustNote}>
-              <ShieldCheck size={14} />
-              <span>{tHero('securePaymentNotice')}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Public Transparency Ledger Card */}
         <div className={styles.ledgerCard}>
           <div className={styles.ledgerHeader}>
             <div className={styles.ledgerHeaderLeft}>
@@ -477,12 +375,65 @@ export default function HomePage() {
                 <span>উন্মুক্ত হিসাব ও ১০০% স্বচ্ছতা</span>
               </div>
               <h2 className={styles.ledgerTitle}>{tLedger('title')}</h2>
-              <p className={styles.ledgerSubtitle}>{tLedger('subtitle')}</p>
+              <p className={styles.ledgerSubtitle}>{tHero('widgetDesc')}</p>
             </div>
             <Link href="/ledger" className={styles.ledgerLink}>
               <span>{t('fullLedger')}</span>
               <ArrowRight size={16} />
             </Link>
+          </div>
+
+          {/* Integrated General Fund Quick Giving Area (Placed at the top) */}
+          <div className={styles.ledgerGivingBar}>
+            <div className={styles.givingHeaderRow}>
+              <span className={styles.givingLabel}>
+                {isBn ? 'তাৎক্ষণিক সাধারণ দান করুন:' : 'Instant General Donation:'}
+              </span>
+              <div className={styles.balancePill}>
+                ব্যালেন্স: ৳ {stats.generalFundBalance}
+              </div>
+            </div>
+
+            <div className={styles.givingControlsGrid}>
+              {/* Quick Amount Chips: 100, 200, 500, 1000 */}
+              <div className={styles.amountGrid}>
+                {[100, 200, 500, 1000].map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setQuickAmount(String(amt))}
+                    className={`${styles.amountChip} ${
+                      Number(quickAmount) === amt ? styles.amountChipActive : ''
+                    }`}
+                  >
+                    ৳{amt}
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom Amount Input */}
+              <div className={styles.customInputWrapper}>
+                <span className={styles.currencySymbol}>৳</span>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder={tHero('otherAmountPlaceholder')}
+                  value={quickAmount}
+                  onChange={(e) => setQuickAmount(e.target.value)}
+                  className={styles.customInput}
+                />
+              </div>
+
+              {/* Compact Submit Button */}
+              <button
+                type="button"
+                onClick={handleDonateClick}
+                className={styles.compactSubmitBtn}
+              >
+                <Heart size={18} />
+                <span>{tHero('donateActionNoAmount')}</span>
+              </button>
+            </div>
           </div>
 
           <div className={styles.statsGrid2x2}>
@@ -754,16 +705,13 @@ export default function HomePage() {
                       <span>বিস্তারিত</span>
                     </Link>
 
-                    <Link
-                      href={{
-                        pathname: '/donate',
-                        query: { postId: post.id, amount: post.remainingAmount },
-                      }}
+                    <button
+                      onClick={handleDonateClick}
                       className={styles.cardDonateBtn}
                     >
                       <Heart size={14} />
                       <span>সহায়তা</span>
-                    </Link>
+                    </button>
                   </div>
                 </div>
               </article>
@@ -785,10 +733,10 @@ export default function HomePage() {
           <p className={styles.ctaBannerText}>
             টাকার অভাবে যাতে কোনো মেধাবী শিক্ষার্থীর পড়াশোনা বন্ধ না হয়ে যায়। আজই যেকোনো পরিমাণ সাদাকাহ প্রদান করে শিক্ষার আলো ছড়াতে অংশীদার হোন।
           </p>
-          <Link href="/donate" className={styles.ctaBannerBtn}>
+          <button onClick={handleDonateClick} className={styles.ctaBannerBtn}>
             <Heart size={20} />
             <span>এখনই সাধারণ তহবিলে দান করুন</span>
-          </Link>
+          </button>
         </div>
       </section>
 
@@ -921,12 +869,23 @@ export default function HomePage() {
             <Heart size={22} color="#059669" />
             <span>{tHadith('ctaText')}</span>
           </div>
-          <Link href="/donate" className={styles.hadithCtaBtn}>
+          <button onClick={handleDonateClick} className={styles.hadithCtaBtn}>
             <span>{tHadith('donateNow')}</span>
             <ArrowRight size={16} />
-          </Link>
+          </button>
         </div>
       </section>
+
+      {/* Popup Donation Modals */}
+      <FinancialDonationModal
+        isOpen={isFinancialModalOpen}
+        onClose={() => setIsFinancialModalOpen(false)}
+        defaultAmount={getEffectiveAmount()}
+      />
+      <ItemDonationModal
+        isOpen={isItemModalOpen}
+        onClose={() => setIsItemModalOpen(false)}
+      />
     </div>
   );
 }

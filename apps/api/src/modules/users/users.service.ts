@@ -14,11 +14,14 @@ import {
   studentProfiles,
   teacherProfiles,
   studentPosts,
+  donations,
+  itemDonations,
 } from '../../database';
 import { FirebaseAdminService } from '../auth/firebase-admin.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { eq, and, or, isNull, desc, sql, ne } from 'drizzle-orm';
+import { eq, and, or, isNull, desc, sql, ne, inArray } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
+import { hashPassword } from '../auth/password.util';
 import {
   CreateAdminUserInput,
   CreateGeneralUserInput,
@@ -86,26 +89,33 @@ export class UsersService {
       throw new BadRequestException('এই ফোন নম্বর দিয়ে ইতোমধ্যে একটি অ্যাকাউন্ট রয়েছে।');
     }
 
-    // 1. Create or get user in Firebase Auth with default password 'pass1233'
-    const fbUser = await this.firebaseAdmin.createOrUpdateUser({
-      email: cleanEmail,
-      password: 'pass1233',
-      displayName: input.fullName.trim(),
-      phoneNumber: cleanPhone || undefined,
-    });
+    // 1. Optionally create or get user in Firebase Auth with default password 'pass1233'
+    let fbUid: string | null = null;
+    try {
+      const fbUser = await this.firebaseAdmin.createOrUpdateUser({
+        email: cleanEmail,
+        password: 'pass1233',
+        displayName: input.fullName.trim(),
+        phoneNumber: cleanPhone || undefined,
+      });
+      fbUid = fbUser?.uid || null;
+    } catch {
+      // Firebase is auxiliary; MySQL is primary
+    }
 
-    const newUserId = crypto.randomUUID();
+    const newUserId = randomUUID();
 
     try {
-      // 2. Insert into MySQL users table (phone is guaranteed null if empty, preventing unique index collision)
+      // 2. Insert into MySQL users table with hashed default password
       await this.db.insert(users).values({
         id: newUserId,
-        firebaseUid: fbUser.uid,
+        firebaseUid: fbUid,
         email: cleanEmail,
         phone: cleanPhone,
         fullName: input.fullName.trim(),
         role: input.role,
         status: 'active',
+        passwordHash: hashPassword('pass1233'),
         isPasswordSet: true,
         mustChangePassword: true,
       });
@@ -349,6 +359,34 @@ export class UsersService {
       .from(organizations)
       .where(and(eq(organizations.status, 'pending'), isNull(organizations.deletedAt)))
       .orderBy(desc(organizations.createdAt));
+
+    return orgs;
+  }
+
+  async listOrgRequestsHistory() {
+    const orgs = await this.db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        regNo: organizations.registrationNumber,
+        contact: organizations.contactPerson,
+        phone: organizations.contactPhone,
+        address: organizations.address,
+        email: organizations.email,
+        type: organizations.type,
+        description: organizations.description,
+        isRequestedByMember: organizations.isRequestedByMember,
+        status: organizations.status,
+        verifiedBy: organizations.verifiedBy,
+        verifiedAt: organizations.verifiedAt,
+        verifierName: users.fullName,
+        createdAt: organizations.createdAt,
+        updatedAt: organizations.updatedAt,
+      })
+      .from(organizations)
+      .leftJoin(users, eq(organizations.verifiedBy, users.id))
+      .where(and(inArray(organizations.status, ['active', 'rejected']), isNull(organizations.deletedAt)))
+      .orderBy(desc(organizations.verifiedAt), desc(organizations.createdAt));
 
     return orgs;
   }
@@ -820,6 +858,79 @@ export class UsersService {
     };
   }
 
+  async listAdminAffiliationsHistory() {
+    const teachers = await this.db
+      .select({
+        profileId: teacherProfiles.id,
+        userId: users.id,
+        fullName: users.fullName,
+        email: users.email,
+        phone: users.phone,
+        department: teacherProfiles.department,
+        designation: teacherProfiles.designation,
+        employeeId: teacherProfiles.employeeId,
+        verificationStatus: teacherProfiles.verificationStatus,
+        adminApprovedAt: teacherProfiles.adminApprovedAt,
+        adminApprovedBy: teacherProfiles.adminApprovedBy,
+        rejectionReason: teacherProfiles.rejectionReason,
+        orgId: organizations.id,
+        orgName: organizations.name,
+        createdAt: teacherProfiles.createdAt,
+        updatedAt: teacherProfiles.updatedAt,
+      })
+      .from(teacherProfiles)
+      .innerJoin(users, eq(teacherProfiles.userId, users.id))
+      .innerJoin(organizations, eq(teacherProfiles.organizationId, organizations.id))
+      .where(
+        and(
+          inArray(teacherProfiles.verificationStatus, ['verified', 'rejected']),
+          isNull(users.deletedAt)
+        )
+      )
+      .orderBy(desc(teacherProfiles.adminApprovedAt), desc(teacherProfiles.updatedAt));
+
+    const students = await this.db
+      .select({
+        profileId: studentProfiles.id,
+        userId: users.id,
+        fullName: users.fullName,
+        email: users.email,
+        phone: users.phone,
+        studentClassRoll: studentProfiles.studentClassRoll,
+        address: studentProfiles.address,
+        institutionName: studentProfiles.institutionName,
+        fatherName: studentProfiles.fatherName,
+        className: studentProfiles.className,
+        department: studentProfiles.department,
+        rollNumber: studentProfiles.rollNumber,
+        guardianName: studentProfiles.guardianName,
+        guardianPhone: studentProfiles.guardianPhone,
+        verificationStatus: studentProfiles.verificationStatus,
+        adminApprovedAt: studentProfiles.adminApprovedAt,
+        adminApprovedBy: studentProfiles.adminApprovedBy,
+        rejectionReason: studentProfiles.rejectionReason,
+        orgId: organizations.id,
+        orgName: organizations.name,
+        createdAt: studentProfiles.createdAt,
+        updatedAt: studentProfiles.updatedAt,
+      })
+      .from(studentProfiles)
+      .innerJoin(users, eq(studentProfiles.userId, users.id))
+      .innerJoin(organizations, eq(studentProfiles.organizationId, organizations.id))
+      .where(
+        and(
+          inArray(studentProfiles.verificationStatus, ['verified', 'rejected']),
+          isNull(users.deletedAt)
+        )
+      )
+      .orderBy(desc(studentProfiles.adminApprovedAt), desc(studentProfiles.updatedAt));
+
+    return {
+      teachers,
+      students,
+    };
+  }
+
   async reviewAdminAffiliation(
     currentUser: any,
     role: 'teacher' | 'student',
@@ -1100,18 +1211,18 @@ export class UsersService {
       if (combined) profileUpdates.studentClassRoll = combined;
     }
 
-    const [existingProfile] = await this.db
+    const [existingFullProfile] = await this.db
       .select()
       .from(studentProfiles)
       .where(eq(studentProfiles.userId, userId))
       .limit(1);
 
-    if (existingProfile) {
+    if (existingFullProfile) {
       if (Object.keys(profileUpdates).length > 0) {
         await this.db
           .update(studentProfiles)
           .set(profileUpdates)
-          .where(eq(studentProfiles.id, existingProfile.id));
+          .where(eq(studentProfiles.id, existingFullProfile.id));
       }
     } else {
       await this.db.insert(studentProfiles).values({
@@ -1261,6 +1372,90 @@ export class UsersService {
         address: orgData.address,
       } : null,
       posts,
+    };
+  }
+
+  async getDonorDetails(requester: any, donorId: string) {
+    const donorUser = await this.db.query.users.findFirst({
+      where: and(eq(users.id, donorId), isNull(users.deletedAt)),
+    });
+
+    if (!donorUser) {
+      throw new NotFoundException('Donor not found');
+    }
+
+    // Get all monetary donations by this donor
+    const userDonations = await this.db
+      .select({
+        id: donations.id,
+        amount: donations.amount,
+        isRandom: donations.isRandom,
+        postId: donations.postId,
+        postTitle: studentPosts.title,
+        paymentMethod: donations.paymentMethod,
+        trxId: donations.transactionReference,
+        status: donations.status,
+        rejectionReason: donations.rejectionReason,
+        createdAt: donations.createdAt,
+      })
+      .from(donations)
+      .leftJoin(studentPosts, eq(donations.postId, studentPosts.id))
+      .where(eq(donations.donorId, donorId))
+      .orderBy(desc(donations.createdAt));
+
+    // Get all item donations by this donor
+    const userItemDonations = await this.db
+      .select({
+        id: itemDonations.id,
+        itemName: itemDonations.itemName,
+        description: itemDonations.description,
+        quantity: itemDonations.quantity,
+        isRandom: itemDonations.isRandom,
+        postId: itemDonations.postId,
+        postTitle: studentPosts.title,
+        status: itemDonations.status,
+        deliveryStatus: itemDonations.deliveryStatus,
+        createdAt: itemDonations.createdAt,
+      })
+      .from(itemDonations)
+      .leftJoin(studentPosts, eq(itemDonations.postId, studentPosts.id))
+      .where(eq(itemDonations.donorId, donorId))
+      .orderBy(desc(itemDonations.createdAt));
+
+    const totalDonated = userDonations
+      .filter((d) => d.status === 'accepted')
+      .reduce((sum, d) => sum + Number(d.amount || 0), 0);
+
+    const totalCount = userDonations.length;
+    const verifiedCount = userDonations.filter((d) => d.status === 'accepted').length;
+
+    return {
+      donor: {
+        id: donorUser.id,
+        email: donorUser.email,
+        fullName: donorUser.fullName,
+        phone: donorUser.phone,
+        address: donorUser.address,
+        avatarUrl: donorUser.avatarUrl,
+        status: donorUser.status,
+        createdAt: donorUser.createdAt,
+      },
+      stats: {
+        totalDonated,
+        totalCount,
+        verifiedCount,
+        itemDonationsCount: userItemDonations.length,
+      },
+      donations: userDonations.map((d) => ({
+        ...d,
+        amount: Number(d.amount),
+        studentName: d.postTitle || (d.isRandom ? 'সাধারণ শিক্ষা তহবিল' : 'সরাসরি শিক্ষার্থী'),
+        time: d.createdAt ? new Date(d.createdAt).toLocaleString('bn-BD') : '',
+      })),
+      itemDonations: userItemDonations.map((item) => ({
+        ...item,
+        time: item.createdAt ? new Date(item.createdAt).toLocaleString('bn-BD') : '',
+      })),
     };
   }
 }

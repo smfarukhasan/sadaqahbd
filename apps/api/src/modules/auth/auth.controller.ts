@@ -17,7 +17,13 @@ import {
   SetPasswordInput,
   ChangePasswordSchema,
   ChangePasswordInput,
+  LocalLoginSchema,
+  LocalLoginInput,
+  LocalRegisterSchema,
+  LocalRegisterInput,
 } from '@sadaqahbd/schema';
+
+import { signAuthToken } from './master-token.util';
 
 @Controller('auth')
 export class AuthController {
@@ -25,6 +31,18 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly firebaseAdmin: FirebaseAdminService
   ) {}
+
+  @Post('local-login')
+  async localLogin(@Body() body: LocalLoginInput) {
+    const validated = LocalLoginSchema.parse(body);
+    return this.authService.localLogin(validated.identifier, validated.password);
+  }
+
+  @Post('local-register')
+  async localRegister(@Body() body: LocalRegisterInput) {
+    const validated = LocalRegisterSchema.parse(body);
+    return this.authService.localRegister(validated);
+  }
 
   @Post('check-availability')
   async checkAvailability(@Body() body: { email?: string; phone?: string }) {
@@ -35,6 +53,7 @@ export class AuthController {
   async masterLogin(@Body() body: { email?: string; password?: string }) {
     return this.authService.masterLogin(body?.email, body?.password);
   }
+
 
   @Post('sync-profile')
   async syncProfile(
@@ -52,7 +71,18 @@ export class AuthController {
     }
     const token = authHeader.split('Bearer ')[1].trim();
     const decoded = await this.firebaseAdmin.verifyIdToken(token);
-    return this.authService.syncProfile(decoded, body?.role, body);
+    const user = await this.authService.syncProfile(decoded, body?.role, body);
+    const sessionToken = signAuthToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      fullName: user.fullName,
+      isMasterSession: user.role === 'master_admin',
+    });
+    return {
+      ...user,
+      token: sessionToken,
+    };
   }
 
   @Get('me')

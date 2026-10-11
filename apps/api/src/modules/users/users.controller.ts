@@ -56,6 +56,12 @@ export class UsersController {
     return this.usersService.listPendingOrgRequests();
   }
 
+  @Get('org-requests/history')
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async listOrgRequestsHistory() {
+    return this.usersService.listOrgRequestsHistory();
+  }
+
   @Post('org/:id/verify')
   @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
   async verifyOrganization(
@@ -147,6 +153,12 @@ export class UsersController {
     return this.usersService.listPendingAdminAffiliations();
   }
 
+  @Get('affiliations-history')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.MASTER_ADMIN, UserRole.ADMIN)
+  async listAdminAffiliationsHistory() {
+    return this.usersService.listAdminAffiliationsHistory();
+  }
+
   @Patch('affiliations/:role/:id/review')
   @Roles(UserRole.SUPER_ADMIN, UserRole.MASTER_ADMIN, UserRole.ADMIN)
   async reviewAdminAffiliation(
@@ -190,6 +202,15 @@ export class UsersController {
     @Param('id') id: string
   ) {
     return this.usersService.getStudentDetails(user, id);
+  }
+
+  @Get('donors/:id/details')
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async getDonorDetails(
+    @CurrentUser() user: any,
+    @Param('id') id: string
+  ) {
+    return this.usersService.getDonorDetails(user, id);
   }
 }
 

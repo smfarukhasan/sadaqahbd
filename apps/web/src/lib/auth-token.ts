@@ -8,14 +8,17 @@ import { getApiUrl } from './api-config';
  * 3. Auto-renews master admin token if Master Admin credentials exist in localStorage
  */
 export async function getAuthToken(): Promise<string | null> {
+  if (typeof window !== 'undefined') {
+    const storedToken = localStorage.getItem('sadaqahbd_auth_token');
+    if (storedToken) return storedToken;
+  }
+
   try {
     const fbToken = await auth.currentUser?.getIdToken();
     if (fbToken) return fbToken;
   } catch {}
 
   if (typeof window !== 'undefined') {
-    const storedToken = localStorage.getItem('sadaqahbd_auth_token');
-    if (storedToken) return storedToken;
 
     // Auto-authenticate master admin if session is present in localStorage
     const storedMaster = localStorage.getItem('sadaqahbd_master_admin');

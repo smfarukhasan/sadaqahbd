@@ -20,6 +20,7 @@ import { useThemeStore } from '../../lib/theme-store';
 interface UserMenuDropdownProps {
   customDisplayName?: string;
   customRole?: string;
+  onSelectNav?: (navKey: string) => void;
 }
 
 const ROLE_LABELS: Record<string, { bn: string; en: string }> = {
@@ -31,7 +32,11 @@ const ROLE_LABELS: Record<string, { bn: string; en: string }> = {
   donor: { bn: 'দাতা', en: 'Donor' },
 };
 
-export default function UserMenuDropdown({ customDisplayName, customRole }: UserMenuDropdownProps) {
+export default function UserMenuDropdown({
+  customDisplayName,
+  customRole,
+  onSelectNav,
+}: UserMenuDropdownProps) {
   const locale = useLocale();
   const isBn = locale === 'bn';
   const pathname = usePathname();

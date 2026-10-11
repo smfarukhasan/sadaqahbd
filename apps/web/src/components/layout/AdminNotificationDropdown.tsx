@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { auth } from '../../lib/firebase';
 import { getApiUrl } from '../../lib/api-config';
+import { getAuthToken } from '../../lib/auth-token';
 import styles from './AdminNotificationDropdown.module.css';
 
 export interface NotificationCategory {
@@ -60,7 +61,7 @@ export default function AdminNotificationDropdown({
 
   const fetchLiveNotifications = async () => {
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = await getAuthToken();
       if (!token) return;
       const apiUrl = getApiUrl();
       const res = await fetch(`${apiUrl}/notifications`, {
@@ -118,7 +119,7 @@ export default function AdminNotificationDropdown({
     setIsOpen(false);
     // Mark as read in backend
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = await getAuthToken();
       if (token && !notif.isRead) {
         const apiUrl = getApiUrl();
         await fetch(`${apiUrl}/notifications/${notif.id}/read`, {

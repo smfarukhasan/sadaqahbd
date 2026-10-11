@@ -6,8 +6,6 @@ import { useRouter } from '../../../../i18n/routing';
 import styles from './page.module.css';
 import {
   loginWithGoogle,
-  loginWithEmail,
-  registerWithEmail,
   logoutUser,
 } from '../../../../lib/firebase';
 import { getFriendlyAuthErrorMessage } from '../../../../lib/auth-errors';
@@ -24,6 +22,8 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { useAuthStore, getRoleDashboardPath } from '../../../../lib/auth-store';
+
+import { useSearchParams } from 'next/navigation';
 
 type PublicRoleKey = 'donor' | 'student' | 'teacher' | 'organization';
 
@@ -67,6 +67,8 @@ export default function LoginPage() {
   const locale = useLocale();
   const currentLang: 'bn' | 'en' = locale === 'en' ? 'en' : 'bn';
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get('redirect');
 
   const [isRegister, setIsRegister] = useState(false);
   const [selectedRole, setSelectedRole] = useState<PublicRoleKey>('donor');
@@ -86,16 +88,20 @@ export default function LoginPage() {
   const user = useAuthStore((s) => s.user);
   const loadingAuth = useAuthStore((s) => s.loading);
 
-  // If already authenticated and setup is complete, route to role dashboard
+  // If already authenticated and setup is complete, route to redirect URL or role dashboard
   React.useEffect(() => {
     if (!loadingAuth && user && user.role) {
       if (user.isPasswordSet) {
-        router.replace(getRoleDashboardPath(user.role) as any);
+        if (redirectUrl) {
+          router.replace(redirectUrl as any);
+        } else {
+          router.replace(getRoleDashboardPath(user.role) as any);
+        }
       } else {
         router.replace('/set-password' as any);
       }
     }
-  }, [user, loadingAuth, router]);
+  }, [user, loadingAuth, router, redirectUrl]);
 
   const getRoleLabel = (r: string) => {
     switch (r) {
@@ -169,7 +175,12 @@ export default function LoginPage() {
       return;
     }
 
-    // Direct routing to separate, dedicated role workspace
+    // Route to redirect URL if present, otherwise role workspace
+    if (redirectUrl) {
+      router.push(redirectUrl as any);
+      return;
+    }
+
     const dest = getRoleDashboardPath(userData.role);
     router.push(dest as any);
   };
@@ -193,6 +204,10 @@ export default function LoginPage() {
         : undefined;
 
       const userData = await syncProfileWithBackend(token, roleToSync, profileToSync);
+      if (userData?.token && typeof window !== 'undefined') {
+        localStorage.setItem('sadaqahbd_auth_token', userData.token);
+        localStorage.setItem('sadaqahbd_local_user', JSON.stringify(userData));
+      }
       useAuthStore.getState().setAuthActionInProgress(false);
       handlePostAuthRedirect(userData, roleToSync);
     } catch (err: any) {
@@ -212,46 +227,8 @@ export default function LoginPage() {
     useAuthStore.getState().setAuthActionInProgress(true);
 
     try {
-      if (!isRegister && cleanEmail === 'admin@sadaqahbd.com' && (password === '12331233' || password === 'admin123')) {
-        const apiUrl = getApiUrl();
-        let masterUser = {
-          id: '00000000-0000-0000-0000-000000000001',
-          email: 'admin@sadaqahbd.com',
-          fullName: 'Master Admin Owner',
-          phone: '+8801700000000',
-          role: 'master_admin' as const,
-          status: 'active' as const,
-          isPasswordSet: true,
-          permissions: [],
-        };
+      const apiUrl = getApiUrl();
 
-        try {
-          const res = await fetch(`${apiUrl}/auth/master-login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: cleanEmail, password }),
-          });
-          if (res.ok) {
-            const resData = await res.json();
-            if (resData.token && typeof window !== 'undefined') {
-              localStorage.setItem('sadaqahbd_auth_token', resData.token);
-            }
-            if (resData.user) {
-              masterUser = resData.user;
-            }
-          }
-        } catch (err) {
-          console.error('Master login API error in login page:', err);
-        }
-
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('sadaqahbd_master_admin', JSON.stringify(masterUser));
-        }
-        useAuthStore.getState().setUser(masterUser);
-        useAuthStore.getState().setAuthActionInProgress(false);
-        router.push('/admin' as any);
-        return;
-      }
       if (isRegister) {
         if (password !== confirmPassword) {
           setError('পাসওয়ার্ড ও কনফার্ম পাসওয়ার্ড মিলছে না');
@@ -260,43 +237,62 @@ export default function LoginPage() {
           return;
         }
 
-        const apiUrl = getApiUrl();
+        // Direct local MySQL database registration
+        const res = await fetch(`${apiUrl}/auth/local-register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: cleanEmail,
+            password,
+            fullName: fullName.trim() || cleanEmail.split('@')[0],
+            phone: phone.trim() || undefined,
+            address: address.trim() || undefined,
+            role: selectedRole,
+          }),
+        });
 
-        // Pre-check phone and email uniqueness before calling Firebase
-        try {
-          const checkRes = await fetch(`${apiUrl}/auth/check-availability`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, phone }),
-          });
-          if (checkRes.ok) {
-            const checkData = await checkRes.json();
-            if (!checkData.available) {
-              setError(checkData.message);
-              setLoading(false);
-              useAuthStore.getState().setAuthActionInProgress(false);
-              return;
-            }
-          }
-        } catch {
-          // Fallback to server registration guard if offline
+        const resData = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(resData.message || 'নিবন্ধন সম্পন্ন করতে সমস্যা হয়েছে।');
         }
 
-        const user = await registerWithEmail(email, password);
-        const token = await user.getIdToken();
-        const userData = await syncProfileWithBackend(token, selectedRole, {
-          fullName,
-          phone,
-          address,
-        });
+        if (resData.token && typeof window !== 'undefined') {
+          localStorage.setItem('sadaqahbd_auth_token', resData.token);
+        }
+        if (resData.user && typeof window !== 'undefined') {
+          localStorage.setItem('sadaqahbd_local_user', JSON.stringify(resData.user));
+        }
+
         useAuthStore.getState().setAuthActionInProgress(false);
-        handlePostAuthRedirect(userData);
+        handlePostAuthRedirect(resData.user);
       } else {
-        const user = await loginWithEmail(email, password);
-        const token = await user.getIdToken();
-        const userData = await syncProfileWithBackend(token);
+        // Direct local MySQL database login
+        const res = await fetch(`${apiUrl}/auth/local-login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            identifier: email.trim(),
+            password,
+          }),
+        });
+
+        const resData = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(resData.message || 'লগইন করতে সমস্যা হয়েছে।');
+        }
+
+        if (resData.token && typeof window !== 'undefined') {
+          localStorage.setItem('sadaqahbd_auth_token', resData.token);
+        }
+        if (resData.user && typeof window !== 'undefined') {
+          localStorage.setItem('sadaqahbd_local_user', JSON.stringify(resData.user));
+          if (resData.user.role === 'master_admin') {
+            localStorage.setItem('sadaqahbd_master_admin', JSON.stringify(resData.user));
+          }
+        }
+
         useAuthStore.getState().setAuthActionInProgress(false);
-        handlePostAuthRedirect(userData);
+        handlePostAuthRedirect(resData.user);
       }
     } catch (err: any) {
       useAuthStore.getState().setAuthActionInProgress(false);

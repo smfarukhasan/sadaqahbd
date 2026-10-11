@@ -128,3 +128,29 @@ export const SyncProfileSchema = z.object({
 });
 
 export type SyncProfileInput = z.infer<typeof SyncProfileSchema>;
+
+export const LocalLoginSchema = z.object({
+  identifier: z.string().min(1, 'ইমেইল বা ফোন নম্বর প্রয়োজন'),
+  password: z.string().min(1, 'পাসওয়ার্ড প্রদান করুন'),
+});
+
+export type LocalLoginInput = z.infer<typeof LocalLoginSchema>;
+
+export const LocalRegisterSchema = z.object({
+  email: z.string().email('বৈধ ইমেইল এড্রেস প্রদান করুন'),
+  password: z.string().min(6, 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে'),
+  fullName: z.string().min(2, 'নাম কমপক্ষে ২ অক্ষরের হতে হবে'),
+  phone: z.string().optional().nullable().or(z.literal('')),
+  address: z.string().optional().nullable().or(z.literal('')),
+  role: z
+    .enum([
+      UserRole.ORGANIZATION,
+      UserRole.TEACHER,
+      UserRole.STUDENT,
+      UserRole.DONOR,
+    ])
+    .optional(),
+});
+
+export type LocalRegisterInput = z.infer<typeof LocalRegisterSchema>;
+

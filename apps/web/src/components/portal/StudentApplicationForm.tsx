@@ -17,6 +17,7 @@ import {
 import { useAuthStore } from '../../lib/auth-store';
 import { auth } from '../../lib/firebase';
 import { getApiUrl } from '../../lib/api-config';
+import { getAuthToken } from '../../lib/auth-token';
 import styles from './StudentApplicationForm.module.css';
 
 interface ExpenseItem {
@@ -197,7 +198,7 @@ export default function StudentApplicationForm({
     setLoading(true);
 
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = await getAuthToken();
       if (!token) {
         throw new Error(
           locale === 'bn'

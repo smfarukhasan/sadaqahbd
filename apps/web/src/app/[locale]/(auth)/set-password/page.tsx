@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { getFriendlyAuthErrorMessage } from '../../../../lib/auth-errors';
 import { getApiUrl } from '../../../../lib/api-config';
+import { getAuthToken } from '../../../../lib/auth-token';
 import { useAuthStore, getRoleDashboardPath } from '../../../../lib/auth-store';
 
 type PublicRoleKey = 'donor' | 'student' | 'teacher' | 'organization';
@@ -119,19 +120,19 @@ function SetPasswordContent() {
     setError('');
 
     try {
-      const { auth } = await import('../../../../lib/firebase');
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
+      const token = await getAuthToken();
+      if (!token) {
         throw new Error(isBn ? 'লগইন সেশন পাওয়া যায়নি। অনুগ্রহ করে পুনরায় লগইন করুন।' : 'Session not found. Please log in again.');
       }
-
-      const token = await currentUser.getIdToken();
       const apiUrl = getApiUrl();
 
       // Safely attempt client-side Firebase Auth password update if supported
       try {
-        const { updatePassword } = await import('firebase/auth');
-        await updatePassword(currentUser, password);
+        const { auth } = await import('../../../../lib/firebase');
+        if (auth.currentUser) {
+          const { updatePassword } = await import('firebase/auth');
+          await updatePassword(auth.currentUser, password);
+        }
       } catch (fbPwErr: any) {
         console.warn('Firebase client updatePassword skipped or requires re-auth:', fbPwErr?.message);
       }

@@ -15,8 +15,9 @@ import {
   organizations,
   donations,
   fundAllocations,
+  itemDonations,
 } from '../../database';
-import { eq, and, or, isNull, desc, ne, sql } from 'drizzle-orm';
+import { eq, and, or, isNull, desc, ne, sql, inArray } from 'drizzle-orm';
 import {
   CreateStudentPostInput,
   PostVerificationStatus,
@@ -336,6 +337,29 @@ export class PostsService {
         receivedAmount: Number(p.receivedAmount),
         remainingAmount: Number(p.remainingAmount),
       })),
+      receivedItems: await this.db
+        .select({
+          id: itemDonations.id,
+          itemName: itemDonations.itemName,
+          description: itemDonations.description,
+          quantity: itemDonations.quantity,
+          status: itemDonations.status,
+          deliveryStatus: itemDonations.deliveryStatus,
+          donorName: itemDonations.donorName,
+          adminFollowUpReply: itemDonations.adminFollowUpReply,
+          createdAt: itemDonations.createdAt,
+        })
+        .from(itemDonations)
+        .where(
+          and(
+            or(
+              eq(itemDonations.postId, postId),
+              eq(itemDonations.assignedStudentId, target.studentId)
+            ),
+            eq(itemDonations.status, 'accepted')
+          )
+        )
+        .orderBy(desc(itemDonations.createdAt)),
     };
   }
 
@@ -912,6 +936,67 @@ export class PostsService {
       result.push({
         ...p,
         amount: Number(p.amount),
+        expenses: expenses.map((e) => ({
+          category: e.category,
+          amount: Number(e.amount),
+        })),
+      });
+    }
+
+    return result;
+  }
+
+  async listSuperAdminPostsHistory() {
+    const posts = await this.db
+      .select({
+        id: studentPosts.id,
+        studentId: studentPosts.studentId,
+        studentName: users.fullName,
+        studentEmail: users.email,
+        studentPhone: users.phone,
+        organizationId: studentPosts.organizationId,
+        institution: organizations.name,
+        title: studentPosts.title,
+        problemDesc: studentPosts.problemDescription,
+        amount: studentPosts.totalRequiredAmount,
+        receivedAmount: studentPosts.receivedAmount,
+        teacherVerified: studentPosts.isTeacherVerified,
+        orgVerified: studentPosts.isOrgVerified,
+        status: studentPosts.verificationStatus,
+        superAdminApprovedBy: studentPosts.superAdminApprovedBy,
+        rejectionReason: studentPosts.rejectionReason,
+        adminModificationReason: studentPosts.adminModificationReason,
+        createdAt: studentPosts.createdAt,
+        updatedAt: studentPosts.updatedAt,
+      })
+      .from(studentPosts)
+      .innerJoin(users, eq(studentPosts.studentId, users.id))
+      .innerJoin(organizations, eq(studentPosts.organizationId, organizations.id))
+      .where(
+        and(
+          inArray(studentPosts.verificationStatus, [
+            PostVerificationStatus.APPROVED,
+            PostVerificationStatus.REJECTED,
+          ]),
+          isNull(studentPosts.deletedAt)
+        )
+      )
+      .orderBy(desc(studentPosts.updatedAt), desc(studentPosts.createdAt));
+
+    const result: any[] = [];
+    for (const p of posts) {
+      const expenses = await this.db
+        .select({
+          category: studentPostExpenses.categoryName,
+          amount: studentPostExpenses.amount,
+        })
+        .from(studentPostExpenses)
+        .where(eq(studentPostExpenses.postId, p.id));
+
+      result.push({
+        ...p,
+        amount: Number(p.amount),
+        receivedAmount: Number(p.receivedAmount || 0),
         expenses: expenses.map((e) => ({
           category: e.category,
           amount: Number(e.amount),
