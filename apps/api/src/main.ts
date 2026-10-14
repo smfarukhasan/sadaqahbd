@@ -1,3 +1,6 @@
+// Ensure minimal OS thread & process consumption on shared hosting (CloudLinux LVE)
+process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || '4';
+
 import { NestFactory } from '@nestjs/core';
 import {
   FastifyAdapter,
