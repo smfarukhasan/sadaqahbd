@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Heart, Search, Phone, Mail, Eye } from 'lucide-react';
+import { formatBengaliDate, formatBengaliAmount, formatBengaliNumber } from '@/lib/format-utils';
 import styles from '../../admin.module.css';
 
 interface DonorsTabProps {
@@ -275,30 +276,20 @@ export function DonorsTab({
 
                       <td style={{ padding: '0.75rem' }}>
                         <div style={{ fontWeight: 800, color: '#059669', fontSize: '1rem' }}>
-                          ৳{Number(donor.totalDonatedAmount || 0).toLocaleString()}
+                          {formatBengaliAmount(donor.totalDonatedAmount, isBn)}
                         </div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          {donor.totalDonationsCount} {isBn ? 'টি লেনদেন' : 'contributions'}
+                          {formatBengaliNumber(donor.totalDonationsCount, isBn)} {isBn ? 'টি লেনদেন' : 'contributions'}
                           {donor.pendingDonationsCount > 0 && (
                             <span style={{ color: '#d97706', marginLeft: '0.25rem' }}>
-                              ({donor.pendingDonationsCount} {isBn ? 'অপেক্ষমাণ' : 'pending'})
+                              ({formatBengaliNumber(donor.pendingDonationsCount, isBn)} {isBn ? 'অপেক্ষমাণ' : 'pending'})
                             </span>
                           )}
                         </div>
                       </td>
 
-                      <td style={{ padding: '0.75rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                        {donor.lastDonatedAt ? (
-                          <span style={{ color: 'var(--text-main)' }}>
-                            {new Date(donor.lastDonatedAt).toLocaleDateString(isBn ? 'bn-BD' : 'en-US', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric',
-                            })}
-                          </span>
-                        ) : (
-                          '—'
-                        )}
+                      <td style={{ padding: '0.75rem', fontSize: '0.82rem', color: 'var(--text-main, #0f172a)', fontWeight: 700 }}>
+                        {donor.lastDonatedAt ? formatBengaliDate(donor.lastDonatedAt, isBn) : '—'}
                       </td>
 
                       <td style={{ padding: '0.75rem' }}>

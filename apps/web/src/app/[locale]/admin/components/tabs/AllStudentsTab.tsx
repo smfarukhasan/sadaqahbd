@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { GraduationCap, Search, Eye, UserCheck, UserX } from 'lucide-react';
+import { formatBengaliDate } from '@/lib/format-utils';
 import styles from '../../admin.module.css';
 
 interface AllStudentsTabProps {
@@ -176,8 +177,8 @@ export function AllStudentsTab({
                             {u.status === 'suspended' ? (isBn ? 'স্থগিত' : 'Suspended') : (isBn ? 'সক্রিয়' : 'Active')}
                           </span>
                         </td>
-                        <td style={{ padding: '1rem', color: '#94a3b8', fontSize: '0.82rem' }}>
-                          {u.createdAt ? new Date(u.createdAt).toLocaleDateString(isBn ? 'bn-BD' : 'en-US') : '—'}
+                        <td style={{ padding: '1rem', color: 'var(--text-main, #0f172a)', fontSize: '0.82rem', fontWeight: 700 }}>
+                          {formatBengaliDate(u.createdAt, isBn)}
                         </td>
                         <td style={{ padding: '1rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                           <div style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center' }}>

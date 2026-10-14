@@ -15,6 +15,7 @@ import {
   Info,
 } from 'lucide-react';
 import { UserRole } from '@sadaqahbd/schema';
+import { formatBengaliDate } from '@/lib/format-utils';
 import styles from '../../admin.module.css';
 import UserDeletionGuardModal from '@/components/portal/UserDeletionGuardModal';
 
@@ -286,8 +287,8 @@ export default function AllUsersTab({
                                     {u.status === 'suspended' ? (isBn ? 'স্থগিত' : 'Suspended') : (isBn ? 'সক্রিয়' : 'Active')}
                                   </span>
                                 </td>
-                                <td style={{ padding: '1rem', color: '#94a3b8', fontSize: '0.82rem' }}>
-                                  {u.createdAt ? new Date(u.createdAt).toLocaleDateString(isBn ? 'bn-BD' : 'en-US') : '—'}
+                                <td style={{ padding: '1rem', color: 'var(--text-main, #0f172a)', fontSize: '0.82rem', fontWeight: 700 }}>
+                                  {formatBengaliDate(u.createdAt, isBn)}
                                 </td>
                                 <td style={{ padding: '1rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                   {isRootMaster ? (
@@ -513,7 +514,7 @@ export default function AllUsersTab({
 
                           <div className={styles.mobileCardRow}>
                             <span style={{ color: 'var(--color-text-muted)' }}>{isBn ? 'তারিখ:' : 'Joined:'}</span>
-                            <span>{u.createdAt ? new Date(u.createdAt).toLocaleDateString(isBn ? 'bn-BD' : 'en-US') : '—'}</span>
+                            <span style={{ fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>{formatBengaliDate(u.createdAt, isBn)}</span>
                           </div>
 
                           <div className={styles.mobileCardActions}>

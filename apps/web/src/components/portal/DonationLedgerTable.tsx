@@ -5,6 +5,7 @@ import { Link } from '../../i18n/routing';
 import { Heart, DollarSign, FileText } from 'lucide-react';
 import { getApiUrl } from '../../lib/api-config';
 import { getAuthToken } from '../../lib/auth-token';
+import { formatBengaliDate, formatBengaliAmount } from '../../lib/format-utils';
 import { ReceiptData } from './EReceiptModal';
 
 export interface DonationLedgerTableProps {
@@ -173,8 +174,8 @@ export default function DonationLedgerTable({
             <tbody>
               {donations.map((d) => (
                 <tr key={d.id} style={{ borderBottom: '1px solid var(--surface-border)' }}>
-                  <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
-                    {new Date(d.createdAt).toLocaleDateString(isBn ? 'bn-BD' : 'en-US')}
+                  <td style={{ padding: '1rem', color: 'var(--text-main)', fontWeight: '700' }}>
+                    {formatBengaliDate(d.createdAt, isBn)}
                   </td>
                   <td style={{ padding: '1rem', fontWeight: '700', color: 'var(--text-main)' }}>
                     {d.studentName || (isBn ? 'সাধারণ শিক্ষা তহবিল' : 'General Fund')}
@@ -183,7 +184,7 @@ export default function DonationLedgerTable({
                     {d.paymentMethod}
                   </td>
                   <td style={{ padding: '1rem', fontWeight: '800', color: 'var(--primary)' }}>
-                    ৳{Number(d.amount).toLocaleString(isBn ? 'bn-BD' : 'en-US')}
+                    {formatBengaliAmount(d.amount, isBn)}
                   </td>
                   <td style={{ padding: '1rem', textAlign: 'right' }}>
                     <button

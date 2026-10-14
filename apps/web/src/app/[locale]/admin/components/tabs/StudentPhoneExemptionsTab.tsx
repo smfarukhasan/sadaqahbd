@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api-config';
 import { getAuthToken } from '@/lib/auth-token';
+import { formatBengaliDate } from '@/lib/format-utils';
 import styles from '../../admin.module.css';
 
 interface StudentPhoneExemptionsTabProps {
@@ -178,19 +179,7 @@ export default function StudentPhoneExemptionsTab({
     }
   };
 
-  const formatDate = (dateString?: string | null) => {
-    if (!dateString) return '-';
-    try {
-      const d = new Date(dateString);
-      return d.toLocaleDateString(isBn ? 'bn-BD' : 'en-US', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      });
-    } catch {
-      return dateString;
-    }
-  };
+  const formatDate = (dateString?: string | null) => formatBengaliDate(dateString, isBn);
 
   // Preset date helper (+1 month, +3 months, +6 months, +1 year)
   const setPresetDate = (months: number) => {

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api-config';
 import { getAuthToken } from '@/lib/auth-token';
+import { formatBengaliDate } from '@/lib/format-utils';
 import styles from '../../admin.module.css';
 
 interface AppsPrivilegeTabProps {
@@ -243,19 +244,7 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
     }
   };
 
-  const formatDate = (dateString?: string | null) => {
-    if (!dateString) return '-';
-    try {
-      const d = new Date(dateString);
-      return d.toLocaleDateString(isBn ? 'bn-BD' : 'en-US', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      });
-    } catch {
-      return dateString;
-    }
-  };
+  const formatDate = (dateString?: string | null) => formatBengaliDate(dateString, isBn);
 
   if (loading && !data) {
     return (
@@ -746,7 +735,7 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
               <tbody>
                 {data.payments.map((p: any) => (
                   <tr key={p.id} style={{ borderBottom: '1px solid var(--color-border, #f1f5f9)' }}>
-                    <td style={{ padding: '0.75rem', fontWeight: 600, color: 'var(--text-main, #0f172a)' }}>
+                    <td style={{ padding: '0.75rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
                       {formatDate(p.paidAt || p.createdAt)}
                     </td>
                     <td style={{ padding: '0.75rem' }}>
@@ -821,7 +810,7 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
                         </div>
                       )}
                     </td>
-                    <td style={{ padding: '0.75rem', fontWeight: 600, color: '#059669' }}>
+                    <td style={{ padding: '0.75rem', fontWeight: 700, color: '#059669' }}>
                       {p.extendedValidUntil ? formatDate(p.extendedValidUntil) : '-'}
                     </td>
                   </tr>

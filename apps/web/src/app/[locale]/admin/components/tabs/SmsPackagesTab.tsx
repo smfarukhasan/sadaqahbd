@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api-config';
 import { getAuthToken } from '@/lib/auth-token';
+import { formatBengaliDate } from '@/lib/format-utils';
 import styles from '../../admin.module.css';
 
 interface SmsPackagesTabProps {
@@ -237,19 +238,7 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
     }
   };
 
-  const formatDate = (dateString?: string | null) => {
-    if (!dateString) return '-';
-    try {
-      const d = new Date(dateString);
-      return d.toLocaleDateString(isBn ? 'bn-BD' : 'en-US', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      });
-    } catch {
-      return dateString;
-    }
-  };
+  const formatDate = (dateString?: string | null) => formatBengaliDate(dateString, isBn);
 
   if (loading && packages.length === 0) {
     return (
@@ -677,7 +666,7 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
               <tbody>
                 {purchases.map((pur: any) => (
                   <tr key={pur.id} style={{ borderBottom: '1px solid var(--color-border, #f1f5f9)' }}>
-                    <td style={{ padding: '0.75rem', fontWeight: 600, color: 'var(--text-main, #0f172a)' }}>
+                    <td style={{ padding: '0.75rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
                       {formatDate(pur.purchasedAt || pur.createdAt)}
                     </td>
                     <td style={{ padding: '0.75rem', fontWeight: 700 }}>

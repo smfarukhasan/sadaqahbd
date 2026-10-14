@@ -26,6 +26,7 @@ import {
 import { useAuthStore } from '@/lib/auth-store';
 import { getApiUrl } from '@/lib/api-config';
 import { getAuthToken } from '@/lib/auth-token';
+import { formatBengaliDate, formatBengaliAmount, formatBengaliNumber } from '@/lib/format-utils';
 import EReceiptModal, { ReceiptData } from './EReceiptModal';
 import ItemDonationModal from './ItemDonationModal';
 import FinancialDonationModal from './FinancialDonationModal';
@@ -154,10 +155,7 @@ export default function MyDonationsSection() {
           const mapped = data.map((d: any) => ({
             id: d.id,
             trxId: d.trxId || d.transactionReference || 'N/A',
-            date: new Date(d.createdAt).toLocaleDateString(
-              isBn ? 'bn-BD' : 'en-US',
-              { year: 'numeric', month: 'short', day: 'numeric' }
-            ),
+            date: formatBengaliDate(d.createdAt, isBn),
             time: new Date(d.createdAt).toLocaleTimeString(
               isBn ? 'bn-BD' : 'en-US',
               { hour: '2-digit', minute: '2-digit' }
@@ -167,9 +165,7 @@ export default function MyDonationsSection() {
                 ? 'সাধারণ শিক্ষা তহবিল (General Pool)'
                 : 'General Fund Pool'
               : d.postTitle || (isBn ? 'শিক্ষা সহায়তা অনুদান' : 'Education Grant'),
-            amount: isBn
-              ? `৳${Number(d.amount).toLocaleString('bn-BD')}`
-              : `৳${Number(d.amount).toLocaleString('en-US')}`,
+            amount: formatBengaliAmount(d.amount, isBn),
             rawAmount: Number(d.amount),
             paymentMethod: d.paymentMethod?.toUpperCase() || 'BKASH',
             senderPhone: d.senderPhone || 'N/A',
