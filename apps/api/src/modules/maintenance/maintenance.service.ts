@@ -77,9 +77,7 @@ export class MaintenanceService {
 
     const now = new Date();
     const validUntilDate = new Date(settings.currentValidUntil);
-    const diffMs = validUntilDate.getTime() - now.getTime();
-    const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-    const isExpired = diffMs <= 0;
+    const isExpired = validUntilDate < now;
 
     const payments = await this.db
       .select()
@@ -87,9 +85,12 @@ export class MaintenanceService {
       .orderBy(desc(appMaintenancePayments.createdAt))
       .limit(50);
 
+    const latestSuccessPayment = payments.find((p) => p.status === 'success');
+    const latestActivePlan = latestSuccessPayment?.planType || 'yearly';
+
     return {
       currentValidUntil: settings.currentValidUntil,
-      daysRemaining,
+      latestActivePlan,
       isExpired,
       monthlyPrice: Number(settings.monthlyPrice),
       yearlyPrice: Number(settings.yearlyPrice),
@@ -256,23 +257,27 @@ export class MaintenanceService {
   /**
    * Verify Apps Privilege Payment & Extend Subscription Validity (+1 month / +1 year)
    */
-  async verifyAppsPrivilegePayment(transactionId: string, statusParam?: string, orderIdParam?: string) {
-    if (!transactionId && !orderIdParam) {
+  async verifyAppsPrivilegePayment(
+    transactionId: string,
+    statusParam?: string,
+    orderIdParam?: string,
+    clientOrderIdParam?: string
+  ) {
+    if (!transactionId && !orderIdParam && !clientOrderIdParam) {
       throw new BadRequestException('ট্রানজেকশন আইডি বা অর্ডার আইডি আবশ্যক।');
     }
 
-    const lookupId = transactionId || orderIdParam;
-
     try {
-      // 1. First check if already verified locally
-      const [existingPayment] = await this.db
+      // 1. Locate local payment record in database
+      let [existingPayment] = await this.db
         .select()
         .from(appMaintenancePayments)
         .where(
           or(
-            eq(appMaintenancePayments.transactionId, lookupId!),
-            eq(appMaintenancePayments.orderId, lookupId!),
-            orderIdParam ? eq(appMaintenancePayments.orderId, orderIdParam) : undefined
+            clientOrderIdParam ? eq(appMaintenancePayments.orderId, clientOrderIdParam) : undefined,
+            orderIdParam ? eq(appMaintenancePayments.orderId, orderIdParam) : undefined,
+            transactionId ? eq(appMaintenancePayments.transactionId, transactionId) : undefined,
+            transactionId ? eq(appMaintenancePayments.orderId, transactionId) : undefined
           )
         )
         .limit(1);
@@ -286,36 +291,44 @@ export class MaintenanceService {
         };
       }
 
-      // 2. Try verifying with Khub Soja API
+      // 2. Query Khub Soja payment gateway API to verify
       let gatewayData: any = null;
-      try {
-        if (transactionId && !transactionId.startsWith('ORD-')) {
+      const trxToQuery = (transactionId && transactionId.startsWith('TXN'))
+        ? transactionId
+        : (existingPayment?.transactionId && existingPayment.transactionId.startsWith('TXN'))
+          ? existingPayment.transactionId
+          : null;
+
+      if (trxToQuery) {
+        try {
           const verifyRes = await this.callKhubSojaApi(
-            `https://pay.khubsoja.com/api/payment/verify/${encodeURIComponent(transactionId)}`
+            `https://pay.khubsoja.com/api/payment/verify/${encodeURIComponent(trxToQuery)}`
           );
           gatewayData = verifyRes.data?.data || verifyRes.data;
+        } catch (err: any) {
+          this.logger.warn(`Apps Privilege gateway verification call notice: ${err?.message}`);
         }
-      } catch (err: any) {
-        this.logger.warn(`Apps Privilege gateway verification call notice: ${err?.message}`);
       }
 
-      const isGatewaySuccess =
+      const isGatewaySuccess = Boolean(
         gatewayData &&
         (gatewayData.status === 'SUCCESS' ||
           gatewayData.status === 'APPROVED' ||
           gatewayData.payment_status === 'SUCCESS' ||
-          gatewayData.payment_status === 'APPROVED');
+          gatewayData.payment_status === 'APPROVED')
+      );
 
-      const isPending =
+      const isPending = Boolean(
         gatewayData &&
         (gatewayData.status === 'PENDING' ||
           gatewayData.status === 'MANUAL_REVIEW' ||
-          gatewayData.payment_status === 'PENDING');
+          gatewayData.payment_status === 'PENDING')
+      );
 
       if (isPending) {
         return {
-          status: gatewayData.status || 'PENDING',
-          message: 'পেমেন্ট এখনও পর্যালোচনায় রয়েছে (Pending/Manual Review)। কিছুক্ষণের মধ্যে আপডেট হবে।',
+          status: gatewayData?.status || 'PENDING',
+          message: 'পেমেন্ট এখনও পর্যালোচনায় রয়েছে (Pending/Manual Review)। গেটওয়েতে ভেরিফাই হলে স্বয়ংক্রিয়ভাবে সক্রিয় হবে।',
           data: gatewayData,
         };
       }
@@ -328,9 +341,18 @@ export class MaintenanceService {
         };
       }
 
-      // 3. Find local payment record
+      // CRITICAL SECURITY RULE: Only proceed if payment is genuinely verified as SUCCESS
+      if (!isGatewaySuccess) {
+        return {
+          status: 'FAILED',
+          message: 'পেমেন্ট গেটওয়েতে এই ট্রানজেকশনটির সফল পেমেন্ট পাওয়া যায়নি। পেমেন্ট সম্পন্ন না করা হলে প্যাকেজ সক্রিয় হবে না।',
+          data: gatewayData,
+        };
+      }
+
+      // 3. Match payment record (or create if verified directly from gateway)
       let payment = existingPayment;
-      const orderToMatch = gatewayData?.client_order_id || gatewayData?.order_id || orderIdParam;
+      const orderToMatch = clientOrderIdParam || gatewayData?.client_order_id || gatewayData?.order_id || orderIdParam;
       if (!payment && orderToMatch) {
         const [byOrder] = await this.db
           .select()
@@ -340,11 +362,6 @@ export class MaintenanceService {
         payment = byOrder;
       }
 
-      if (!payment && !isGatewaySuccess) {
-        throw new BadRequestException('পেমেন্ট রেকর্ড পাওয়া যায়নি।');
-      }
-
-      // If no local record but gateway is verified
       if (!payment && isGatewaySuccess) {
         const paymentId = randomUUID();
         const planType = Number(gatewayData.amount) >= 4000 ? 'yearly' : 'monthly';
@@ -352,7 +369,7 @@ export class MaintenanceService {
           id: paymentId,
           planType,
           amount: String(gatewayData.amount || 500),
-          transactionId,
+          transactionId: gatewayData.transaction_id || trxToQuery || `TXN-${Date.now()}`,
           orderId: gatewayData.order_id || gatewayData.client_order_id || `ORD-MP-${Date.now()}`,
           gatewayProvider: 'khubsoja',
           status: 'pending',
@@ -365,6 +382,10 @@ export class MaintenanceService {
           createdAt: new Date(),
         };
         await this.db.insert(appMaintenancePayments).values(payment);
+      }
+
+      if (!payment) {
+        throw new BadRequestException('পেমেন্ট রেকর্ড পাওয়া যায়নি।');
       }
 
       // Calculate new validity
@@ -390,7 +411,7 @@ export class MaintenanceService {
         .update(appMaintenancePayments)
         .set({
           status: 'success',
-          transactionId,
+          transactionId: gatewayData?.transaction_id || trxToQuery || transactionId,
           paidAt: new Date(),
           previousValidUntil: currentValidUntil,
           extendedValidUntil: extendedDate,
@@ -406,7 +427,7 @@ export class MaintenanceService {
         })
         .where(eq(appMaintenanceSettings.id, 'singleton'));
 
-      // Send confirmation notification to Master Admin & Permitted Admins
+      // Send confirmation notification
       const dateFormatted = extendedDate.toLocaleDateString('bn-BD', {
         day: 'numeric',
         month: 'long',
@@ -680,23 +701,27 @@ export class MaintenanceService {
   /**
    * Verify SMS Package Purchase & Credit SMS to Balance Meter
    */
-  async verifySmsPurchase(transactionId: string, statusParam?: string, orderIdParam?: string) {
-    if (!transactionId && !orderIdParam) {
+  async verifySmsPurchase(
+    transactionId: string,
+    statusParam?: string,
+    orderIdParam?: string,
+    clientOrderIdParam?: string
+  ) {
+    if (!transactionId && !orderIdParam && !clientOrderIdParam) {
       throw new BadRequestException('ট্রানজেকশন আইডি বা অর্ডার আইডি আবশ্যক।');
     }
 
-    const lookupId = transactionId || orderIdParam;
-
     try {
-      // 1. First check if already verified locally
-      const [existingPurchase] = await this.db
+      // 1. Locate local purchase record in database
+      let [existingPurchase] = await this.db
         .select()
         .from(smsPackagePurchases)
         .where(
           or(
-            eq(smsPackagePurchases.transactionId, lookupId!),
-            eq(smsPackagePurchases.orderId, lookupId!),
-            orderIdParam ? eq(smsPackagePurchases.orderId, orderIdParam) : undefined
+            clientOrderIdParam ? eq(smsPackagePurchases.orderId, clientOrderIdParam) : undefined,
+            orderIdParam ? eq(smsPackagePurchases.orderId, orderIdParam) : undefined,
+            transactionId ? eq(smsPackagePurchases.transactionId, transactionId) : undefined,
+            transactionId ? eq(smsPackagePurchases.orderId, transactionId) : undefined
           )
         )
         .limit(1);
@@ -710,35 +735,43 @@ export class MaintenanceService {
         };
       }
 
-      // 2. Try verifying with Khub Soja API
+      // 2. Query Khub Soja payment gateway API to verify
       let gatewayData: any = null;
-      try {
-        if (transactionId && !transactionId.startsWith('ORD-')) {
+      const trxToQuery = (transactionId && transactionId.startsWith('TXN'))
+        ? transactionId
+        : (existingPurchase?.transactionId && existingPurchase.transactionId.startsWith('TXN'))
+          ? existingPurchase.transactionId
+          : null;
+
+      if (trxToQuery) {
+        try {
           const verifyRes = await this.callKhubSojaApi(
-            `https://pay.khubsoja.com/api/payment/verify/${encodeURIComponent(transactionId)}`
+            `https://pay.khubsoja.com/api/payment/verify/${encodeURIComponent(trxToQuery)}`
           );
           gatewayData = verifyRes.data?.data || verifyRes.data;
+        } catch (err: any) {
+          this.logger.warn(`SMS gateway verification call notice: ${err?.message}`);
         }
-      } catch (err: any) {
-        this.logger.warn(`SMS gateway verification call notice: ${err?.message}`);
       }
 
-      const isGatewaySuccess =
+      const isGatewaySuccess = Boolean(
         gatewayData &&
         (gatewayData.status === 'SUCCESS' ||
           gatewayData.status === 'APPROVED' ||
           gatewayData.payment_status === 'SUCCESS' ||
-          gatewayData.payment_status === 'APPROVED');
+          gatewayData.payment_status === 'APPROVED')
+      );
 
-      const isPending =
+      const isPending = Boolean(
         gatewayData &&
         (gatewayData.status === 'PENDING' ||
           gatewayData.status === 'MANUAL_REVIEW' ||
-          gatewayData.payment_status === 'PENDING');
+          gatewayData.payment_status === 'PENDING')
+      );
 
       if (isPending) {
         return {
-          status: gatewayData.status || 'PENDING',
+          status: gatewayData?.status || 'PENDING',
           message: 'পেমেন্ট এখনও পর্যালোচনায় রয়েছে (Pending/Manual Review)। কিছুক্ষণের মধ্যে এসএমএস ব্যালেন্স যুক্ত হবে।',
           data: gatewayData,
         };
@@ -752,9 +785,18 @@ export class MaintenanceService {
         };
       }
 
-      // 3. Find local purchase record (match by existingPurchase or orderIdParam)
+      // CRITICAL SECURITY RULE: Only proceed if payment is genuinely verified as SUCCESS
+      if (!isGatewaySuccess) {
+        return {
+          status: 'FAILED',
+          message: 'পেমেন্ট গেটওয়েতে এই ট্রানজেকশনটির সফল পেমেন্ট পাওয়া যায়নি। পেমেন্ট সম্পন্ন না করা হলে প্যাকেজ সক্রিয় হবে না।',
+          data: gatewayData,
+        };
+      }
+
+      // 3. Find local purchase record
       let purchase = existingPurchase;
-      const orderToMatch = gatewayData?.client_order_id || gatewayData?.order_id || orderIdParam;
+      const orderToMatch = clientOrderIdParam || gatewayData?.client_order_id || gatewayData?.order_id || orderIdParam;
       if (!purchase && orderToMatch) {
         const [byOrder] = await this.db
           .select()
@@ -762,11 +804,6 @@ export class MaintenanceService {
           .where(eq(smsPackagePurchases.orderId, orderToMatch))
           .limit(1);
         purchase = byOrder;
-      }
-
-      // 4. Decision: If gateway confirmed success OR if we have a valid pending local purchase
-      if (!purchase && !isGatewaySuccess) {
-        throw new BadRequestException('প্যাকেজ ক্রয়ের রেকর্ড পাওয়া যায়নি।');
       }
 
       // If still not found locally, create from gateway verification data
@@ -779,7 +816,7 @@ export class MaintenanceService {
           packageName: matchedPkg.name,
           smsCount: matchedPkg.smsCount,
           amount: String(gatewayData.amount || matchedPkg.amount),
-          transactionId,
+          transactionId: gatewayData.transaction_id || trxToQuery || `TXN-${Date.now()}`,
           orderId: gatewayData.order_id || gatewayData.client_order_id || `ORD-SMS-${Date.now()}`,
           status: 'pending',
           purchasedByUserId: null,
@@ -789,12 +826,16 @@ export class MaintenanceService {
         await this.db.insert(smsPackagePurchases).values(purchase);
       }
 
+      if (!purchase) {
+        throw new BadRequestException('প্যাকেজ ক্রয়ের রেকর্ড পাওয়া যায়নি।');
+      }
+
       // Update purchase record
       await this.db
         .update(smsPackagePurchases)
         .set({
           status: 'success',
-          transactionId,
+          transactionId: gatewayData?.transaction_id || trxToQuery || transactionId,
           purchasedAt: new Date(),
         })
         .where(eq(smsPackagePurchases.id, purchase.id));

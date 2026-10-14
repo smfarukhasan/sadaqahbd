@@ -84,11 +84,12 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
 
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
-      const trxId = urlParams.get('transaction_id') || urlParams.get('order_id') || urlParams.get('client_order_id');
+      const trxId = urlParams.get('transaction_id') || '';
       const statusParam = urlParams.get('status') || '';
-      const orderIdParam = urlParams.get('order_id') || urlParams.get('client_order_id') || '';
+      const orderIdParam = urlParams.get('order_id') || '';
+      const clientOrderIdParam = urlParams.get('client_order_id') || '';
 
-      if (trxId || statusParam === 'SUCCESS' || orderIdParam) {
+      if (trxId || statusParam === 'SUCCESS' || clientOrderIdParam || orderIdParam) {
         setPaymentMsg({
           type: 'info',
           text: isBn
@@ -99,10 +100,11 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
         (async () => {
           try {
             const token = await getAuthToken();
-            const verifyParam = encodeURIComponent(trxId || orderIdParam);
+            const verifyParam = encodeURIComponent(trxId || clientOrderIdParam || orderIdParam);
             const queryParams = new URLSearchParams();
             if (statusParam) queryParams.set('status', statusParam);
             if (orderIdParam) queryParams.set('orderId', orderIdParam);
+            if (clientOrderIdParam) queryParams.set('clientOrderId', clientOrderIdParam);
             const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
 
             const res = await fetch(
@@ -149,7 +151,7 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
       const token = await getAuthToken();
       const verifyParam = encodeURIComponent(pur.transactionId || pur.orderId);
       const queryParams = new URLSearchParams();
-      queryParams.set('status', 'SUCCESS');
+      if (pur.orderId) queryParams.set('clientOrderId', pur.orderId);
       if (pur.orderId) queryParams.set('orderId', pur.orderId);
 
       const res = await fetch(

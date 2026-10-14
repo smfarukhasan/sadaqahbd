@@ -27,7 +27,7 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
   const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<{
     currentValidUntil: string;
-    daysRemaining: number;
+    latestActivePlan?: string;
     isExpired: boolean;
     monthlyPrice: number;
     yearlyPrice: number;
@@ -78,11 +78,12 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
 
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
-      const trxId = urlParams.get('transaction_id') || urlParams.get('order_id') || urlParams.get('client_order_id');
+      const trxId = urlParams.get('transaction_id') || '';
       const statusParam = urlParams.get('status') || '';
-      const orderIdParam = urlParams.get('order_id') || urlParams.get('client_order_id') || '';
+      const orderIdParam = urlParams.get('order_id') || '';
+      const clientOrderIdParam = urlParams.get('client_order_id') || '';
 
-      if (trxId || statusParam === 'SUCCESS' || orderIdParam) {
+      if (trxId || statusParam === 'SUCCESS' || clientOrderIdParam || orderIdParam) {
         setPaymentMsg({
           type: 'info',
           text: isBn
@@ -94,10 +95,11 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
         (async () => {
           try {
             const token = await getAuthToken();
-            const verifyParam = encodeURIComponent(trxId || orderIdParam);
+            const verifyParam = encodeURIComponent(trxId || clientOrderIdParam || orderIdParam);
             const queryParams = new URLSearchParams();
             if (statusParam) queryParams.set('status', statusParam);
             if (orderIdParam) queryParams.set('orderId', orderIdParam);
+            if (clientOrderIdParam) queryParams.set('clientOrderId', clientOrderIdParam);
             const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
 
             const verifyRes = await fetch(
@@ -125,7 +127,7 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
             } else {
               setPaymentMsg({
                 type: 'error',
-                text: verifyData.message || (isBn ? 'পেমেন্ট যাচাই ব্যর্থ হয়েছে।' : 'Payment verification failed.'),
+                text: verifyData.message || (isBn ? 'পেমেন্ট যাচাই করা সম্ভব হয়নি।' : 'Payment verification failed.'),
               });
             }
           } catch (e: any) {
@@ -150,7 +152,7 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
       const token = await getAuthToken();
       const verifyParam = encodeURIComponent(paymentRecord.transactionId || paymentRecord.orderId);
       const queryParams = new URLSearchParams();
-      queryParams.set('status', 'SUCCESS');
+      if (paymentRecord.orderId) queryParams.set('clientOrderId', paymentRecord.orderId);
       if (paymentRecord.orderId) queryParams.set('orderId', paymentRecord.orderId);
 
       const res = await fetch(
@@ -171,14 +173,14 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
         setPaymentMsg({
           type: 'success',
           text: isBn
-            ? 'আলহামদুলিল্লাহ! আপনার পেমেন্ট সফলভাবে সম্পন্ন হয়েছে এবং সাবস্ক্রিপশন মেয়াদ বৃদ্ধি করা হয়েছে।'
-            : 'Payment successful! Subscription validity has been extended.',
+            ? 'পেমেন্ট সফলভাবে যাচাই হয়েছে এবং সাবস্ক্রিপশন মেয়াদ বৃদ্ধি করা হয়েছে।'
+            : 'Payment verified and subscription validity extended.',
         });
         await loadStatus();
       } else {
         setPaymentMsg({
           type: 'error',
-          text: data.message || (isBn ? 'পেমেন্ট যাচাই করা সম্ভব হয়নি।' : 'Could not verify payment.'),
+          text: data.message || (isBn ? 'এই অর্ডারের কোনো সফল পেমেন্ট পাওয়া যায়নি।' : 'No successful payment found.'),
         });
       }
     } catch (err: any) {
@@ -265,7 +267,10 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
   }
 
   const validUntilStr = data?.currentValidUntil ? formatDate(data.currentValidUntil) : '০১/০৯/২০২৭';
-  const daysLeft = data?.daysRemaining ?? 320;
+  const todayStr = formatDate(new Date().toISOString());
+  const latestPlanLabel = data?.latestActivePlan === 'monthly'
+    ? (isBn ? 'মাসিক' : 'Monthly')
+    : (isBn ? 'বাৎসরিক' : 'Yearly');
   const isExpired = data?.isExpired ?? false;
 
   return (
@@ -366,15 +371,15 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
         </div>
       )}
 
-      {/* Subscription Status Card */}
+      {/* Subscription Status Metrics */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
           gap: '1rem',
         }}
       >
-        {/* Valid Until Card */}
+        {/* Card 1: Latest Active Plan */}
         <div
           style={{
             backgroundColor: 'var(--surface, #ffffff)',
@@ -392,41 +397,27 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
               width: '48px',
               height: '48px',
               borderRadius: '10px',
-              backgroundColor: isExpired ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)',
-              color: isExpired ? '#ef4444' : '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.12)',
+              color: '#10b981',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
             }}
           >
-            <Calendar size={24} />
+            <Sparkles size={24} />
           </div>
           <div>
             <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-text-muted, #64748b)' }}>
-              {isBn ? 'বর্তমান সাবস্ক্রিপশন মেয়াদ (লাস্ট ডেট)' : 'Current Valid Until (Due Date)'}
+              {isBn ? 'সর্বশেষ এক্টিভ প্যাকেজ' : 'Latest Active Plan'}
             </span>
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', marginTop: '0.2rem' }}>
-              {validUntilStr}
+              {latestPlanLabel}
             </div>
-            <span
-              style={{
-                display: 'inline-block',
-                marginTop: '0.3rem',
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                padding: '0.15rem 0.55rem',
-                borderRadius: '12px',
-                backgroundColor: isExpired ? '#fee2e2' : '#d1fae5',
-                color: isExpired ? '#b91c1c' : '#047857',
-              }}
-            >
-              {isExpired ? (isBn ? 'মেয়াদ উত্তীর্ণ (জরুরি রিনিউ প্রয়োজন)' : 'Expired') : (isBn ? 'সক্রিয় ও সুরক্ষিত' : 'Active & Protected')}
-            </span>
           </div>
         </div>
 
-        {/* Days Remaining Card */}
+        {/* Card 2: Today's Date */}
         <div
           style={{
             backgroundColor: 'var(--surface, #ffffff)',
@@ -452,18 +443,53 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
               flexShrink: 0,
             }}
           >
+            <Calendar size={24} />
+          </div>
+          <div>
+            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-text-muted, #64748b)' }}>
+              {isBn ? 'আজকের তারিখ' : "Today's Date"}
+            </span>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', marginTop: '0.2rem' }}>
+              {todayStr}
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Subscription Expiry (Due Date) */}
+        <div
+          style={{
+            backgroundColor: 'var(--surface, #ffffff)',
+            borderRadius: '12px',
+            border: '1px solid var(--color-border, #e2e8f0)',
+            padding: '1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+          }}
+        >
+          <div
+            style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '10px',
+              backgroundColor: 'rgba(245, 158, 11, 0.12)',
+              color: '#f59e0b',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
             <Clock size={24} />
           </div>
           <div>
             <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-text-muted, #64748b)' }}>
-              {isBn ? 'অবশিষ্ট দিন' : 'Days Remaining'}
+              {isBn ? 'সাবস্ক্রিপশন মেয়াদ (লাস্ট ডেট)' : 'Subscription Expiry (Due Date)'}
             </span>
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', marginTop: '0.2rem' }}>
-              {isBn ? `${daysLeft} দিন` : `${daysLeft} Days`}
+              {validUntilStr}
             </div>
-            <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted, #64748b)', marginTop: '0.3rem', display: 'block' }}>
-              {isBn ? 'মেয়াদ শেষের আগে রিনিউ করলে মেয়াদকাল যোগ হবে' : 'Renewing early extends existing validity'}
-            </span>
           </div>
         </div>
       </div>
@@ -517,7 +543,64 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
             marginBottom: '1.5rem',
           }}
         >
-          {/* Yearly Plan Card (Recommended) */}
+          {/* Monthly Plan Card (Left) */}
+          <div
+            onClick={() => setSelectedPlan('monthly')}
+            style={{
+              borderRadius: '12px',
+              border: `2px solid ${selectedPlan === 'monthly' ? 'var(--color-primary, #059669)' : 'var(--color-border, #cbd5e1)'}`,
+              backgroundColor: selectedPlan === 'monthly' ? 'rgba(5, 150, 105, 0.05)' : 'var(--background-alt, #fafbfc)',
+              padding: '1.25rem',
+              cursor: 'pointer',
+              position: 'relative',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+              <div>
+                <span style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-main, #0f172a)' }}>
+                  {isBn ? 'মাসিক সাবস্ক্রিপশন (১ মাস)' : 'Monthly Subscription (1 Month)'}
+                </span>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    color: 'var(--color-text-muted, #64748b)',
+                    marginTop: '0.2rem',
+                  }}
+                >
+                  {isBn ? 'প্রতি মাসের জন্য ফ্লেক্সিবল রিনিউয়াল' : 'Flexible monthly renewal'}
+                </span>
+              </div>
+              <input
+                type="radio"
+                name="planType"
+                checked={selectedPlan === 'monthly'}
+                onChange={() => setSelectedPlan('monthly')}
+                style={{ accentColor: 'var(--color-primary, #059669)', width: '18px', height: '18px', cursor: 'pointer' }}
+              />
+            </div>
+
+            <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'baseline', gap: '0.6rem' }}>
+              <span style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-main, #0f172a)' }}>
+                ৳৫০০
+              </span>
+              <span style={{ fontSize: '0.92rem', color: 'var(--color-text-muted, #94a3b8)', textDecoration: 'line-through' }}>
+                ৳১,০০০
+              </span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted, #64748b)' }}>
+                / {isBn ? 'মাস' : 'month'}
+              </span>
+            </div>
+
+            <ul style={{ margin: '0.85rem 0 0', paddingLeft: '1.1rem', fontSize: '0.76rem', color: 'var(--color-text-muted, #64748b)', lineHeight: 1.5 }}>
+              <li>{isBn ? '৩০ দিনের জন্য অ্যাপ ও হোস্টিং সক্রিয়তা' : '30 days app & hosting activity'}</li>
+              <li>{isBn ? 'বর্তমান মেয়াদের পর থেকে ৩০ দিন মেয়াদ বৃদ্ধি' : '+30 Days extended from current due date'}</li>
+            </ul>
+          </div>
+
+          {/* Yearly Plan Card (Right - Recommended) */}
           <div
             onClick={() => setSelectedPlan('yearly')}
             style={{
@@ -572,63 +655,6 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
               <li>{isBn ? 'সম্পূর্ণ ৩৬৫ দিনের সিস্টেম ও সার্ভার সুবিধা' : 'Full 365 days cloud server privilege'}</li>
               <li>{isBn ? 'ক্লাউড ব্যাকআপ ও সার্বক্ষণিক টেক সাপোর্ট' : 'Cloud backups & priority support'}</li>
               <li>{isBn ? 'বর্তমান মেয়াদের পর থেকে অতিরিক্ত ১ বছর যুক্ত হবে' : '+1 Year extended from current due date'}</li>
-            </ul>
-          </div>
-
-          {/* Monthly Plan Card */}
-          <div
-            onClick={() => setSelectedPlan('monthly')}
-            style={{
-              borderRadius: '12px',
-              border: `2px solid ${selectedPlan === 'monthly' ? 'var(--color-primary, #059669)' : 'var(--color-border, #cbd5e1)'}`,
-              backgroundColor: selectedPlan === 'monthly' ? 'rgba(5, 150, 105, 0.05)' : 'var(--background-alt, #fafbfc)',
-              padding: '1.25rem',
-              cursor: 'pointer',
-              position: 'relative',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-              <div>
-                <span style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-main, #0f172a)' }}>
-                  {isBn ? 'মাসিক সাবস্ক্রিপশন (১ মাস)' : 'Monthly Subscription (1 Month)'}
-                </span>
-                <span
-                  style={{
-                    display: 'block',
-                    fontSize: '0.72rem',
-                    fontWeight: 600,
-                    color: 'var(--color-text-muted, #64748b)',
-                    marginTop: '0.2rem',
-                  }}
-                >
-                  {isBn ? 'প্রতি মাসের জন্য ফ্লেক্সিবল রিনিউয়াল' : 'Flexible monthly renewal'}
-                </span>
-              </div>
-              <input
-                type="radio"
-                name="planType"
-                checked={selectedPlan === 'monthly'}
-                onChange={() => setSelectedPlan('monthly')}
-                style={{ accentColor: 'var(--color-primary, #059669)', width: '18px', height: '18px', cursor: 'pointer' }}
-              />
-            </div>
-
-            <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'baseline', gap: '0.6rem' }}>
-              <span style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-main, #0f172a)' }}>
-                ৳৫০০
-              </span>
-              <span style={{ fontSize: '0.92rem', color: 'var(--color-text-muted, #94a3b8)', textDecoration: 'line-through' }}>
-                ৳১,০০০
-              </span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted, #64748b)' }}>
-                / {isBn ? 'মাস' : 'month'}
-              </span>
-            </div>
-
-            <ul style={{ margin: '0.85rem 0 0', paddingLeft: '1.1rem', fontSize: '0.76rem', color: 'var(--color-text-muted, #64748b)', lineHeight: 1.5 }}>
-              <li>{isBn ? '৩০ দিনের জন্য অ্যাপ ও হোস্টিং সক্রিয়তা' : '30 days app & hosting activity'}</li>
-              <li>{isBn ? 'বর্তমান মেয়াদের পর থেকে ৩০ দিন মেয়াদ বৃদ্ধি' : '+30 Days extended from current due date'}</li>
             </ul>
           </div>
         </div>
