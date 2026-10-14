@@ -11,6 +11,7 @@ import {
   studentPosts,
   studentPostExpenses,
   studentProfiles,
+  teacherProfiles,
   users,
   organizations,
   donations,
@@ -22,6 +23,7 @@ import {
   CreateStudentPostInput,
   PostVerificationStatus,
   UserRole,
+  PermissionModuleKey,
 } from '@sadaqahbd/schema';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -108,6 +110,7 @@ export class PostsService {
     // 1. Notify the Student's Organization
     await this.notificationsService.createNotification({
       recipientOrgId: orgId,
+      recipientRole: 'organization',
       titleBn: 'নতুন শিক্ষার্থী সহায়তা আবেদন',
       titleEn: 'New Student Aid Application',
       messageBn: `শিক্ষার্থী "${studentUser.fullName}" একটি নতুন শিক্ষা সহায়তা আবেদন ("${input.title}") জমা দিয়েছেন। বিস্তারিত পর্যালোচনা করে ছাড়পত্র দিন।`,
@@ -116,9 +119,10 @@ export class PostsService {
       link: '/organization?tab=post_approvals',
     });
 
-    // 2. Notify Teachers of the institution
+    // 2. Notify Teachers of the student's specific institution
     await this.notificationsService.createNotification({
       recipientRole: 'teacher',
+      recipientOrgId: orgId,
       titleBn: 'শিক্ষার্থীর নতুন সহায়তা আবেদন',
       titleEn: 'Student Aid Campaign Submitted',
       messageBn: `আপনার প্রতিষ্ঠানের শিক্ষার্থী "${studentUser.fullName}" সহায়তার আবেদন ("${input.title}") করেছেন। শিক্ষক হিসেবে সত্যায়ন করুন।`,
@@ -127,9 +131,10 @@ export class PostsService {
       link: '/teacher?tab=post_approvals',
     });
 
-    // 3. Notify Super Admin & Master Admin
+    // 3. Notify Super Admin & Master Admin (Filtered by Permission)
     await this.notificationsService.createNotification({
       recipientRole: 'admin',
+      requiredPermission: PermissionModuleKey.STUDENT_POST_VERIFICATION_REQUESTS,
       titleBn: 'নতুন শিক্ষার্থী পোস্ট জমা হয়েছে',
       titleEn: 'New Student Post Submitted',
       messageBn: `শিক্ষার্থী "${studentUser.fullName}" ("${orgName}") নতুন সহায়তা পোস্ট তৈরি করেছেন। ছাড়পত্র পর্যালোচনা করুন।`,
@@ -594,6 +599,80 @@ export class PostsService {
     return result;
   }
 
+  async listOrgHistoryPosts(orgUser: any) {
+    let orgId = orgUser.organizationId;
+    if (!orgId) {
+      const [found] = await this.db
+        .select({ id: organizations.id })
+        .from(organizations)
+        .where(
+          or(
+            eq(organizations.requestedByUserId, orgUser.id),
+            eq(organizations.id, orgUser.id)
+          )
+        )
+        .limit(1);
+      if (found) orgId = found.id;
+    }
+    if (!orgId) return [];
+
+    const posts = await this.db
+      .select({
+        id: studentPosts.id,
+        studentId: studentPosts.studentId,
+        studentName: users.fullName,
+        studentEmail: users.email,
+        studentPhone: users.phone,
+        title: studentPosts.title,
+        problemDesc: studentPosts.problemDescription,
+        amount: studentPosts.totalRequiredAmount,
+        receivedAmount: studentPosts.receivedAmount,
+        teacherVerified: studentPosts.isTeacherVerified,
+        orgVerified: studentPosts.isOrgVerified,
+        isDoubleVerified: studentPosts.isDoubleVerified,
+        status: studentPosts.verificationStatus,
+        rejectionReason: studentPosts.rejectionReason,
+        createdAt: studentPosts.createdAt,
+        updatedAt: studentPosts.updatedAt,
+      })
+      .from(studentPosts)
+      .innerJoin(users, eq(studentPosts.studentId, users.id))
+      .where(
+        and(
+          eq(studentPosts.organizationId, orgId),
+          or(
+            eq(studentPosts.isOrgVerified, true),
+            eq(studentPosts.verificationStatus, 'rejected')
+          ),
+          isNull(studentPosts.deletedAt)
+        )
+      )
+      .orderBy(desc(studentPosts.updatedAt));
+
+    const result: any[] = [];
+    for (const p of posts) {
+      const expenses = await this.db
+        .select({
+          category: studentPostExpenses.categoryName,
+          amount: studentPostExpenses.amount,
+        })
+        .from(studentPostExpenses)
+        .where(eq(studentPostExpenses.postId, p.id));
+
+      result.push({
+        ...p,
+        amount: Number(p.amount),
+        receivedAmount: Number(p.receivedAmount || 0),
+        expenses: expenses.map((e) => ({
+          category: e.category,
+          amount: Number(e.amount),
+        })),
+      });
+    }
+
+    return result;
+  }
+
   async teacherVerifyPost(postId: string, teacherUser: any, approved: boolean) {
     const post = await this.db
       .select()
@@ -684,9 +763,10 @@ export class PostsService {
       .where(eq(studentPosts.id, postId));
 
     if (approved) {
-      // 1. Notify Super Admin & Master Admin
+      // 1. Notify Super Admin & Master Admin (Filtered by Permission)
       await this.notificationsService.createNotification({
         recipientRole: 'admin',
+        requiredPermission: PermissionModuleKey.STUDENT_POST_VERIFICATION_REQUESTS,
         titleBn: 'প্রতিষ্ঠান কর্তৃক শিক্ষার্থী পোস্ট অনুমোদিত',
         titleEn: 'Student Campaign Cleared by Institution',
         messageBn: `প্রতিষ্ঠান কর্তৃক "${targetPost.title}" পোস্টটি সিলমোহর করা হয়েছে। এখন সুপার এডমিন চূড়ান্ত ছাড়পত্র প্রদান করতে পারেন।`,
@@ -1005,6 +1085,70 @@ export class PostsService {
     }
 
     return result;
+  }
+
+  async listInstitutionPosts(currentUser: any) {
+    let orgId = currentUser.organizationId;
+    if (!orgId && currentUser.role === UserRole.TEACHER) {
+      const [tp] = await this.db
+        .select({ organizationId: teacherProfiles.organizationId })
+        .from(teacherProfiles)
+        .where(eq(teacherProfiles.userId, currentUser.id))
+        .limit(1);
+      if (tp) orgId = tp.organizationId;
+    }
+    if (!orgId) {
+      const [found] = await this.db
+        .select({ id: organizations.id })
+        .from(organizations)
+        .where(
+          or(
+            eq(organizations.requestedByUserId, currentUser.id),
+            eq(organizations.id, currentUser.id)
+          )
+        )
+        .limit(1);
+      if (found) orgId = found.id;
+    }
+
+    if (!orgId) return { live: [], history: [], all: [] };
+
+    const posts = await this.db
+      .select({
+        id: studentPosts.id,
+        studentId: studentPosts.studentId,
+        studentName: users.fullName,
+        studentEmail: users.email,
+        studentPhone: users.phone,
+        title: studentPosts.title,
+        problemDesc: studentPosts.problemDescription,
+        amount: studentPosts.totalRequiredAmount,
+        receivedAmount: studentPosts.receivedAmount,
+        remainingAmount: studentPosts.remainingAmount,
+        teacherVerified: studentPosts.isTeacherVerified,
+        orgVerified: studentPosts.isOrgVerified,
+        isDoubleVerified: studentPosts.isDoubleVerified,
+        status: studentPosts.verificationStatus,
+        rejectionReason: studentPosts.rejectionReason,
+        createdAt: studentPosts.createdAt,
+        updatedAt: studentPosts.updatedAt,
+      })
+      .from(studentPosts)
+      .innerJoin(users, eq(studentPosts.studentId, users.id))
+      .where(and(eq(studentPosts.organizationId, orgId), isNull(studentPosts.deletedAt)))
+      .orderBy(desc(studentPosts.createdAt));
+
+    const formatted = posts.map((p) => ({
+      ...p,
+      amount: Number(p.amount),
+      receivedAmount: Number(p.receivedAmount || 0),
+      remainingAmount: Number(p.remainingAmount || 0),
+    }));
+
+    const live = formatted.filter((p) => p.status === 'approved' || p.isDoubleVerified);
+    const history = formatted.filter((p) => p.status !== 'approved' && !p.isDoubleVerified);
+
+    return { live, history, all: formatted };
   }
 }
 

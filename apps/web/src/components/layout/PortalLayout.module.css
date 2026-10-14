@@ -6,10 +6,18 @@
 
 .portalRoot {
   display: flex;
-  flex-direction: column;
   min-height: 100vh;
   background-color: var(--background, #f8fafc);
   color: var(--text-main, #0f172a);
+  position: relative;
+}
+
+.workspaceWrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100vh;
 }
 
 /* ----------------------------------------------------
@@ -25,9 +33,36 @@
   padding: 0 1.5rem;
   position: sticky;
   top: 0;
-  z-index: 50;
+  z-index: 40;
   box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.3);
   color: var(--header-text, #ffffff);
+}
+
+.mobileHeaderLeft {
+  display: none;
+}
+
+.desktopHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.desktopWelcomeText {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.mobileMenuBtn {
+  background: transparent;
+  border: none;
+  color: #34d399;
+  cursor: pointer;
+  padding: 0.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .topHeaderLeft {
@@ -75,6 +110,20 @@
   font-size: 0.72rem;
   font-weight: 700;
   color: #34d399;
+}
+
+.brandRoleTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  background-color: rgba(5, 150, 105, 0.22);
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  color: #34d399;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .topHeaderRight {
@@ -265,13 +314,39 @@
   flex-shrink: 0;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: sticky;
-  top: 64px;
-  height: calc(100vh - 64px);
-  z-index: 40;
+  top: 0;
+  height: 100vh;
+  z-index: 50;
+  overflow-y: auto;
 }
 
 .sidebarDrawerCollapsed {
   width: 76px;
+}
+
+.sidebarBrandHeader {
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--drawer-border, #1e293b);
+  background-color: var(--drawer-header-bg, #0b1120);
+  min-height: 64px;
+}
+
+.sidebarDrawerCollapsed .sidebarBrandHeader {
+  padding: 0.85rem 0.5rem;
+  justify-content: center;
+}
+
+.sidebarUserCard {
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-bottom: 1px solid var(--drawer-border, #1e293b);
+  background-color: rgba(255, 255, 255, 0.02);
 }
 
 .sidebarHeader {
@@ -362,11 +437,21 @@
   overflow: hidden;
 }
 
-/* Navigation List */
-.navSection {
-  padding: 0.75rem 0.5rem;
+/* Single Unified Navigation Scroll Container */
+.navScrollContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.75rem 0.5rem;
+}
+
+.navSection {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .navSectionTitle {
@@ -486,12 +571,32 @@
 }
 
 @media (max-width: 768px) {
+  .portalRoot {
+    flex-direction: column;
+  }
+
+  .mobileHeaderLeft {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .desktopHeaderLeft {
+    display: none;
+  }
+
+  .topHeader {
+    height: 58px;
+    padding: 0 0.85rem;
+  }
+
   .sidebarDrawer {
     position: fixed;
     top: 0;
     left: 0;
     bottom: 0;
     width: 280px;
+    max-width: 85vw;
     height: 100vh;
     z-index: 1000;
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);

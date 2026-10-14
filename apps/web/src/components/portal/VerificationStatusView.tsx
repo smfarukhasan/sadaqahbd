@@ -69,8 +69,8 @@ export default function VerificationStatusView({
     const orgDisplayName = organizationName || (isBn ? 'নির্বাচিত শিক্ষা প্রতিষ্ঠান' : 'Selected Educational Institution');
 
     const descText = isBn
-      ? `আপনার আবেদনটি "${orgDisplayName}" এর নিকট প্রেরিত হয়েছে। প্রতিষ্ঠান প্রাথমিকভাবে অনুমোদন করার পর এটি মাস্টার এডমিন ও পারমিশন প্রাপ্ত সুপার এডমিনের কাছে চূড়ান্ত ছাড়পত্রের জন্য যাবে। উভয় অনুমোদন সম্পন্ন হলে তখন আপনার প্রোফাইলের বাকি সব ফিচার আনলক হবে। অনুমোদন না হওয়া পর্যন্ত কোনো ফিচার ব্যবহার করা যাবে না।`
-      : `Your affiliation request has been routed to "${orgDisplayName}". Once approved by the institution and cleared by Admins, all features will unlock.`;
+      ? `আপনার আবেদনটি "${orgDisplayName}" এর নিকট প্রেরিত হয়েছে। প্রতিষ্ঠান প্রাথমিকভাবে অনুমোদন করার পর এটি কর্তৃপক্ষের কাছে চূড়ান্ত ছাড়পত্রের জন্য যাবে। উভয় অনুমোদন সম্পন্ন হলে তখন আপনার প্রোফাইলের বাকি সব ফিচার আনলক হবে।`
+      : `Your affiliation request has been routed to "${orgDisplayName}". Once approved by the institution and cleared by authority, all features will unlock.`;
 
     return (
       <div
@@ -141,7 +141,7 @@ export default function VerificationStatusView({
               className="btn btn-outline"
             >
               <Building2 size={15} />
-              <span>{isBn ? 'প্রতিষ্ঠান পরিবর্তন / তথ্য সংশোধন' : 'Change Institution'}</span>
+              <span>{isBn ? 'প্রতিষ্ঠান পরিবর্তন / তথ্য সংশোধন' : 'Institution Transfer'}</span>
             </button>
           </div>
         )}
@@ -227,15 +227,15 @@ export default function VerificationStatusView({
                 display: 'inline-block',
               }}
             />
-            {isBn ? 'অ্যাডমিন অনুমোদনের অপেক্ষায়' : 'Awaiting Admin Approval'}
+            {isBn ? 'কর্তৃপক্ষের অনুমোদনের অপেক্ষায়' : 'Awaiting Authority Approval'}
           </div>
           <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', margin: 0 }}>
             {isBn ? 'প্রতিষ্ঠান ভেরিফিকেশন আবেদন পর্যালোচনায় রয়েছে' : 'Organization Verification Under Review'}
           </h3>
           <p style={{ maxWidth: 580, margin: '0.75rem auto 1.5rem', color: 'var(--text-muted, #64748b)', fontSize: '0.92rem', lineHeight: 1.6 }}>
             {isBn
-              ? 'আপনার প্রতিষ্ঠানের আবেদনটি সফলভাবে জমা হয়েছে এবং মাস্টার এডমিন ও পারমিশন প্রাপ্ত সুপার এডমিনের কাছে পাঠানো হয়েছে। এডমিন ভেরিফাই করে অনুমোদন প্রদান করলেই Organization প্রোফাইলের বাকি সব ফিচার আনলক হবে। অনুমোদন না হওয়া পর্যন্ত কোনো ফিচার ব্যবহার করা যাবে না।'
-              : 'Your organization verification application has been submitted and is currently being reviewed by Master and Super Admins. Dashboard features will automatically unlock upon approval.'}
+              ? 'আপনার প্রতিষ্ঠানের আবেদনটি সফলভাবে জমা হয়েছে এবং কর্তৃপক্ষের কাছে পর্যালোচনায় রয়েছে। কর্তৃপক্ষ ভেরিফাই করে অনুমোদন প্রদান করলেই প্রাতিষ্ঠানিক ড্যাশবোর্ডের সকল ফিচার সক্রিয় হয়ে যাবে।'
+              : 'Your organization verification application has been submitted and is currently being reviewed by platform authority. Dashboard features will automatically unlock upon approval.'}
           </p>
 
           {/* Submitted Details Preview Card */}
@@ -381,15 +381,15 @@ export default function VerificationStatusView({
               display: 'inline-block',
             }}
           />
-          {isBn ? 'ধাপ ২: চূড়ান্ত এডমিন অনুমোদনের অপেক্ষায়' : 'Stage 2: Pending Final Admin Review'}
+          {isBn ? 'ধাপ ২: চূড়ান্ত অনুমোদনের অপেক্ষায়' : 'Stage 2: Pending Final Authority Review'}
         </div>
         <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', margin: 0 }}>
-          {isBn ? 'প্রতিষ্ঠান অনুমোদিত! সুপার এডমিন পর্যালোচনায়' : 'Institution Approved! Final Admin Clearance Pending'}
+          {isBn ? 'প্রতিষ্ঠান অনুমোদিত! কর্তৃপক্ষের চূড়ান্ত পর্যালোচনায়' : 'Institution Approved! Final Authority Clearance Pending'}
         </h3>
         <p style={{ maxWidth: 580, margin: '0.75rem auto 1.5rem', color: 'var(--text-muted, #64748b)', fontSize: '0.92rem', lineHeight: 1.6 }}>
           {isBn
-            ? `আপনার শিক্ষা প্রতিষ্ঠান (${organizationName || 'প্রতিষ্ঠান'}) আবেদনটি অনুমোদন করেছে। এখন মাস্টার এডমিন বা পারমিশন প্রাপ্ত সুপার এডমিন চূড়ান্ত ছাড়পত্র প্রদান করলেই প্রোফাইলের বাকি সব ফিচার আনলক হবে। অনুমোদন না হওয়া পর্যন্ত কোনো ফিচার ব্যবহার করা যাবে না।`
-            : 'Your educational institution has approved your affiliation. Final review by Super Admin is underway. Features will unlock upon approval.'}
+            ? `আপনার শিক্ষা প্রতিষ্ঠান (${organizationName || 'প্রতিষ্ঠান'}) আবেদনটি অনুমোদন করেছে। এখন কর্তৃপক্ষ চূড়ান্ত ছাড়পত্র প্রদান করলেই প্রোফাইলের বাকি সব ফিচার আনলক হবে।`
+            : 'Your educational institution has approved your affiliation. Final review by platform authority is underway. Features will unlock upon approval.'}
         </p>
         <div
           style={{

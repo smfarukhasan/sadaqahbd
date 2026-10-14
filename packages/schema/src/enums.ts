@@ -47,6 +47,17 @@ export const ComplaintStatus = {
 export type ComplaintStatusType =
   (typeof ComplaintStatus)[keyof typeof ComplaintStatus];
 
+export const InstitutionTransferStatus = {
+  PENDING_CURRENT_ORG: 'pending_current_org',
+  CURRENT_ORG_APPROVED: 'current_org_approved',
+  TARGET_ORG_APPROVED: 'target_org_approved',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+} as const;
+
+export type InstitutionTransferStatusType =
+  (typeof InstitutionTransferStatus)[keyof typeof InstitutionTransferStatus];
+
 export const PermissionModuleKey = {
   SUPER_ADMIN_LIST: 'admin_users.super_admin_list',
   ADMIN_LIST: 'admin_users.admin_list',
@@ -62,6 +73,9 @@ export const PermissionModuleKey = {
   ACCOUNTS_DONATION_APPROVAL: 'accounts_management.donation_approval',
   ITEM_DONATION_APPROVAL: 'accounts_management.item_donation_approval',
   ACCOUNTS_FUND_ALLOCATION: 'accounts_management.fund_allocation',
+  MAINTENANCE_APPS_PRIVILEGE: 'maintenance.apps_privilege',
+  MAINTENANCE_SMS_PACKAGES: 'maintenance.sms_packages',
+  STUDENT_PHONE_EXEMPTIONS: 'org_management.student_phone_exemptions',
 } as const;
 
 export type PermissionModuleKeyType =

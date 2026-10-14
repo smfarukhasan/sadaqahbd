@@ -19,6 +19,7 @@ interface SearchableOrgSelectProps {
   onChange: (orgId: string, orgName?: string) => void;
   onRequestNewOrg: () => void;
   disabled?: boolean;
+  excludeOrgId?: string;
 }
 
 export default function SearchableOrgSelect({
@@ -26,6 +27,7 @@ export default function SearchableOrgSelect({
   onChange,
   onRequestNewOrg,
   disabled = false,
+  excludeOrgId,
 }: SearchableOrgSelectProps) {
   const locale = useLocale();
   const isBn = locale === 'bn';
@@ -73,11 +75,13 @@ export default function SearchableOrgSelect({
 
   const selectedOrg = organizations.find((o) => o.id === selectedOrgId);
 
-  const filteredOrgs = organizations.filter(
-    (o) =>
-      o.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.address.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredOrgs = organizations
+    .filter((o) => !excludeOrgId || o.id !== excludeOrgId)
+    .filter(
+      (o) =>
+        o.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        o.address.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
   const handleSelect = (org: OrgOption) => {
     onChange(org.id, org.name);
@@ -170,7 +174,11 @@ export default function SearchableOrgSelect({
       <button
         type="button"
         disabled={disabled}
-        onClick={onRequestNewOrg}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onRequestNewOrg();
+        }}
         className={styles.addOrgBtn}
         title={isBn ? 'তালিকায় না থাকলে নতুন প্রতিষ্ঠানের তথ্য জমা দিন' : 'Suggest new organization'}
         aria-label="Suggest new organization"

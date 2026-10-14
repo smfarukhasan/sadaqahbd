@@ -552,7 +552,7 @@ export default function PostDetailPage({
                 </div>
                 <div className={styles.fundCardSubtitle}>
                   {isBn
-                    ? `সুপার এডমিন কর্তৃক সাধারণ জরুরি ফান্ড থেকে ${post.fundingBreakdown?.randomPoolAllocationsCount || 0} কিস্তিতে বরাদ্দ`
+                    ? `কর্তৃপক্ষ কর্তৃক সাধারণ জরুরি ফান্ড থেকে ${post.fundingBreakdown?.randomPoolAllocationsCount || 0} কিস্তিতে বরাদ্দ`
                     : `Disbursed from unearmarked random donation pool`}
                 </div>
               </div>

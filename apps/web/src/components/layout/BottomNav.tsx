@@ -21,8 +21,11 @@ export default function BottomNav() {
   const isDrawerOpen = useMobileDrawerStore((s) => s.isOpen);
 
   const isMandatorySetup = pathname.includes('/set-password') || (user && !user.isPasswordSet);
+  const cleanPath = pathname ? pathname.replace(/^\/(bn|en)(\/|$)/, '/') : '';
+  const isAdminRoute = cleanPath.startsWith('/admin') || cleanPath.startsWith('/masteradmin');
 
-  if (isMandatorySetup) {
+  // Admin and Master Admin have their own dedicated admin mobile bottom navigation.
+  if (isMandatorySetup || isAdminRoute) {
     return null;
   }
 
@@ -61,7 +64,7 @@ export default function BottomNav() {
         <Link
           href={{ pathname: '/student', query: { tab: 'applications', action: 'new' } }}
           className={`${styles.tab} ${styles.donateHighlight}`}
-          style={{ background: '#059669' }}
+          style={{ background: 'none', border: 'none', textDecoration: 'none' }}
         >
           <div className={styles.donateIconWrapper}>
             <PlusCircle size={36} className={styles.heartPulse} />

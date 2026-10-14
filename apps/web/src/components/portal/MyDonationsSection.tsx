@@ -17,6 +17,7 @@ import {
   XCircle,
   Package,
   Eye,
+  EyeOff,
   Info,
   User,
   Send,
@@ -53,6 +54,50 @@ export default function MyDonationsSection() {
   const [shipmentNote, setShipmentNote] = useState('');
   const [submittingShipment, setSubmittingShipment] = useState(false);
   const [shipmentError, setShipmentError] = useState('');
+
+  const handleTogglePrivacy = async (donationId: string, isAnonymous: boolean) => {
+    try {
+      const token = await getAuthToken();
+      const apiUrl = getApiUrl();
+      const res = await fetch(`${apiUrl}/donations/${donationId}/privacy`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ isAnonymous }),
+      });
+      if (res.ok) {
+        setDonations((prev) =>
+          prev.map((d) => (d.id === donationId ? { ...d, isAnonymous } : d))
+        );
+      }
+    } catch (e) {
+      console.error('Failed to toggle privacy:', e);
+    }
+  };
+
+  const handleToggleItemPrivacy = async (itemDonationId: string, isAnonymous: boolean) => {
+    try {
+      const token = await getAuthToken();
+      const apiUrl = getApiUrl();
+      const res = await fetch(`${apiUrl}/donations/items/${itemDonationId}/privacy`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ isAnonymous }),
+      });
+      if (res.ok) {
+        setItemDonationsList((prev) =>
+          prev.map((item) => (item.id === itemDonationId ? { ...item, isAnonymous } : item))
+        );
+      }
+    } catch (e) {
+      console.error('Failed to toggle item privacy:', e);
+    }
+  };
 
   const handleShipmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,6 +173,7 @@ export default function MyDonationsSection() {
             rawAmount: Number(d.amount),
             paymentMethod: d.paymentMethod?.toUpperCase() || 'BKASH',
             senderPhone: d.senderPhone || 'N/A',
+            isAnonymous: !!d.isAnonymous,
             status:
               d.status === 'accepted'
                 ? isBn
@@ -380,8 +426,9 @@ export default function MyDonationsSection() {
                   ? 'আপনার কোনো অর্থ অনুদানের রেকর্ড এখনো নেই। সুবিধাবঞ্চিত শিক্ষার্থীদের সাহায্য করতে আজই এগিয়ে আসুন।'
                   : 'You have not made any monetary donations yet. Support underprivileged students today.'}
               </p>
-              <Link
-                href="/donate"
+              <button
+                type="button"
+                onClick={() => setIsFinancialModalOpen(true)}
                 className="btn btn-primary"
                 style={{
                   display: 'inline-flex',
@@ -389,12 +436,15 @@ export default function MyDonationsSection() {
                   gap: '0.4rem',
                   padding: '0.65rem 1.35rem',
                   fontWeight: 700,
-                  textDecoration: 'none',
                   backgroundColor: '#10b981',
+                  border: 'none',
+                  borderRadius: '10px',
+                  color: '#ffffff',
+                  cursor: 'pointer',
                 }}
               >
                 <PlusCircle size={18} /> {isBn ? 'এখনই দান করুন' : 'Donate Now'}
-              </Link>
+              </button>
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -406,6 +456,7 @@ export default function MyDonationsSection() {
                     <th style={{ padding: '0.85rem 0.75rem' }}>{isBn ? 'পেমেন্ট মেথড ও TrxID' : 'Method & TrxID'}</th>
                     <th style={{ padding: '0.85rem 0.75rem' }}>{isBn ? 'পরিমাণ' : 'Amount'}</th>
                     <th style={{ padding: '0.85rem 0.75rem' }}>{isBn ? 'স্ট্যাটাস' : 'Status'}</th>
+                    <th style={{ padding: '0.85rem 0.75rem' }}>{isBn ? 'পাবলিক তথ্য' : 'Public Info'}</th>
                     <th style={{ padding: '0.85rem 0.75rem', textAlign: 'right' }}>{isBn ? 'ই-রশিদ / একশন' : 'Action'}</th>
                   </tr>
                 </thead>
@@ -493,6 +544,44 @@ export default function MyDonationsSection() {
                           {item.rawStatus === 'rejected' && <XCircle size={14} />}
                           {item.status}
                         </span>
+                      </td>
+
+                      <td style={{ padding: '1rem 0.75rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              padding: '0.25rem 0.55rem',
+                              borderRadius: '9999px',
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              backgroundColor: item.isAnonymous ? 'rgba(124, 58, 237, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                              color: item.isAnonymous ? '#7c3aed' : '#059669',
+                            }}
+                          >
+                            {item.isAnonymous ? <EyeOff size={12} /> : <Eye size={12} />}
+                            {item.isAnonymous ? (isBn ? 'গোপন' : 'Anonymous') : (isBn ? 'পাবলিক' : 'Public')}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePrivacy(item.id, !item.isAnonymous)}
+                            title={item.isAnonymous ? (isBn ? 'পাবলিকে পরিচয় প্রকাশ করুন' : 'Make Public') : (isBn ? 'পাবলিকে পরিচয় গোপন করুন' : 'Make Anonymous')}
+                            style={{
+                              background: 'none',
+                              border: '1px solid var(--surface-border, #cbd5e1)',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              padding: '0.2rem 0.45rem',
+                              fontSize: '0.72rem',
+                              fontWeight: 600,
+                              color: 'var(--text-muted)',
+                            }}
+                          >
+                            {item.isAnonymous ? (isBn ? 'উন্মুক্ত করুন' : 'Unhide') : (isBn ? 'গোপন করুন' : 'Hide')}
+                          </button>
+                        </div>
                       </td>
 
                       <td style={{ padding: '1rem 0.75rem', textAlign: 'right' }}>
@@ -603,38 +692,75 @@ export default function MyDonationsSection() {
                       )}
                     </div>
 
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        padding: '0.35rem 0.85rem',
-                        borderRadius: '20px',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        backgroundColor:
-                          item.status === 'accepted'
-                            ? 'rgba(16, 185, 129, 0.15)'
-                            : item.status === 'pending'
-                            ? 'rgba(245, 158, 11, 0.15)'
-                            : 'rgba(239, 68, 68, 0.15)',
-                        color:
-                          item.status === 'accepted'
-                            ? '#10b981'
-                            : item.status === 'pending'
-                            ? '#f59e0b'
-                            : '#ef4444',
-                      }}
-                    >
-                      {item.status === 'accepted' && <CheckCircle2 size={14} />}
-                      {item.status === 'pending' && <Clock size={14} />}
-                      {item.status === 'rejected' && <XCircle size={14} />}
-                      {item.status === 'accepted'
-                        ? isBn ? 'গৃহীত ও অনুমোদিত' : 'Accepted'
-                        : item.status === 'pending'
-                        ? isBn ? 'যাচাই প্রক্রিয়াধীন' : 'Pending Review'
-                        : isBn ? 'বাতিলকৃত' : 'Rejected'}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: '9999px',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            backgroundColor: item.isAnonymous ? 'rgba(124, 58, 237, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                            color: item.isAnonymous ? '#7c3aed' : '#059669',
+                          }}
+                        >
+                          {item.isAnonymous ? <EyeOff size={12} /> : <Eye size={12} />}
+                          {item.isAnonymous ? (isBn ? 'গোপন' : 'Anon') : (isBn ? 'পাবলিক' : 'Public')}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleItemPrivacy(item.id, !item.isAnonymous)}
+                          style={{
+                            background: 'none',
+                            border: '1px solid var(--surface-border, #cbd5e1)',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            padding: '0.2rem 0.45rem',
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            color: 'var(--text-muted)',
+                          }}
+                        >
+                          {item.isAnonymous ? (isBn ? 'উন্মুক্ত' : 'Unhide') : (isBn ? 'গোপন' : 'Hide')}
+                        </button>
+                      </div>
+
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.35rem 0.85rem',
+                          borderRadius: '20px',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          backgroundColor:
+                            item.status === 'accepted'
+                              ? 'rgba(16, 185, 129, 0.15)'
+                              : item.status === 'pending'
+                              ? 'rgba(245, 158, 11, 0.15)'
+                              : 'rgba(239, 68, 68, 0.15)',
+                          color:
+                            item.status === 'accepted'
+                              ? '#10b981'
+                              : item.status === 'pending'
+                              ? '#f59e0b'
+                              : '#ef4444',
+                        }}
+                      >
+                        {item.status === 'accepted' && <CheckCircle2 size={14} />}
+                        {item.status === 'pending' && <Clock size={14} />}
+                        {item.status === 'rejected' && <XCircle size={14} />}
+                        {item.status === 'accepted'
+                          ? isBn ? 'গৃহীত ও অনুমোদিত' : 'Accepted'
+                          : item.status === 'pending'
+                          ? isBn ? 'যাচাই প্রক্রিয়াধীন' : 'Pending Review'
+                          : isBn ? 'বাতিলকৃত' : 'Rejected'}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Admin Instruction Box */}

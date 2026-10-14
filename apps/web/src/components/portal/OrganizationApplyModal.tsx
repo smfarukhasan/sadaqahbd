@@ -18,6 +18,7 @@ interface OrganizationApplyModalProps {
     phone?: string;
     email?: string;
     type?: string;
+    registrationNumber?: string;
     description?: string;
   };
 }
@@ -36,6 +37,7 @@ export default function OrganizationApplyModal({
   const [phone, setPhone] = useState(initialData?.phone || '');
   const [email, setEmail] = useState(initialData?.email || '');
   const [type, setType] = useState(initialData?.type || 'qawmi_madrasa');
+  const [registrationNumber, setRegistrationNumber] = useState(initialData?.registrationNumber || '');
   const [description, setDescription] = useState(initialData?.description || '');
 
   React.useEffect(() => {
@@ -45,6 +47,7 @@ export default function OrganizationApplyModal({
       if (initialData.phone) setPhone(initialData.phone);
       if (initialData.email) setEmail(initialData.email);
       if (initialData.type) setType(initialData.type);
+      if (initialData.registrationNumber) setRegistrationNumber(initialData.registrationNumber);
       if (initialData.description) setDescription(initialData.description);
     }
   }, [initialData]);
@@ -59,6 +62,10 @@ export default function OrganizationApplyModal({
     e.preventDefault();
     if (!name.trim() || !address.trim() || !phone.trim()) {
       setError(isBn ? 'প্রতিষ্ঠানের নাম, ঠিকানা ও ফোন নম্বর আবশ্যক।' : 'Organization name, address, and phone number are required.');
+      return;
+    }
+    if (!type.trim()) {
+      setError(isBn ? 'প্রতিষ্ঠানের ধরন নির্বাচন বাধ্যতামূলক।' : 'Organization type is required.');
       return;
     }
 
@@ -79,6 +86,7 @@ export default function OrganizationApplyModal({
           phone: phone.trim(),
           email: email.trim() || undefined,
           type,
+          registrationNumber: registrationNumber.trim() || undefined,
           description: description.trim() || undefined,
         }),
       });
@@ -114,7 +122,7 @@ export default function OrganizationApplyModal({
                 {isBn ? 'প্রতিষ্ঠান ভেরিফিকেশন আবেদন' : 'Organization Verification Application'}
               </h3>
               <p className={styles.modalSubtitle}>
-                {isBn ? 'সুপার এডমিন ভেরিফাই করলে সকল ফিচার আনলক হবে' : 'Unlock portal features upon admin approval'}
+                {isBn ? 'কর্তৃপক্ষ ভেরিফাই করলে সকল ফিচার সক্রিয় হবে' : 'Unlock portal features upon authority approval'}
               </p>
             </div>
           </div>
@@ -126,13 +134,13 @@ export default function OrganizationApplyModal({
         {isSuccess ? (
           <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center' }}>
             <CheckCircle2 size={44} color="#059669" style={{ margin: '0 auto 1rem' }} />
-            <h4 style={{ fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem' }}>
+            <h4 style={{ fontWeight: 800, color: 'var(--text-main, #f8fafc)', marginBottom: '0.5rem' }}>
               {isBn ? 'ভেরিফিকেশন আবেদন জমা হয়েছে!' : 'Verification Application Submitted!'}
             </h4>
-            <p style={{ fontSize: '0.85rem', color: '#64748b' }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #94a3b8)' }}>
               {isBn
-                ? 'আপনার আবেদনটি মাস্টার এডমিন ও সুপার এডমিনের কাছে পাঠানো হয়েছে। অনুমোদন হওয়া মাত্রই ড্যাশবোর্ড স্বয়ংক্রিয়ভাবে আনলক হয়ে যাবে।'
-                : 'Your verification request has been routed to master/super admins. Portal features will unlock upon approval.'}
+                ? 'আপনার আবেদনটি কর্তৃপক্ষের কাছে পাঠানো হয়েছে। অনুমোদন হওয়া মাত্রই ড্যাশবোর্ড স্বয়ংক্রিয়ভাবে সক্রিয় হয়ে যাবে।'
+                : 'Your verification request has been routed to platform authority. Portal features will unlock upon approval.'}
             </p>
           </div>
         ) : (
@@ -203,6 +211,19 @@ export default function OrganizationApplyModal({
                   placeholder="01XXXXXXXXX"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>
+                  {isBn ? 'সরকারি / বোর্ড নিবন্ধন কোড (যদি থাকে)' : 'Govt / Board Registration Code (Optional)'}
+                </label>
+                <input
+                  type="text"
+                  className={styles.formInput}
+                  placeholder={isBn ? 'যেমন: REG-12345 বা বোর্ড কোড' : 'e.g., REG-12345 or Board Code'}
+                  value={registrationNumber}
+                  onChange={(e) => setRegistrationNumber(e.target.value)}
                 />
               </div>
 

@@ -93,7 +93,7 @@ export default function RequestNewOrgModal({
                 {isBn ? 'নতুন প্রতিষ্ঠানের আবেদন' : 'Suggest New Organization'}
               </h3>
               <p className={styles.modalSubtitle}>
-                {isBn ? 'সুপার এডমিন সরেজমিনে ভেরিফাই করে যুক্ত করবেন' : 'Super admin will physically verify and onboard'}
+                {isBn ? 'কর্তৃপক্ষ সরেজমিনে ভেরিফাই করে যুক্ত করবেন' : 'Authority will physically verify and onboard'}
               </p>
             </div>
           </div>
@@ -105,13 +105,13 @@ export default function RequestNewOrgModal({
         {success ? (
           <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center' }}>
             <CheckCircle2 size={44} color="#059669" style={{ margin: '0 auto 1rem' }} />
-            <h4 style={{ fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem' }}>
+            <h4 style={{ fontWeight: 800, color: 'var(--text-main, #f8fafc)', marginBottom: '0.5rem' }}>
               {isBn ? 'আবেদনটি সফলভাবে জমা হয়েছে!' : 'Request Submitted Successfully!'}
             </h4>
-            <p style={{ fontSize: '0.85rem', color: '#64748b' }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #94a3b8)' }}>
               {isBn
-                ? 'সুপার এডমিন প্রদত্ত ঠিকানা অনুসারে প্রতিষ্ঠানটি সরেজমিনে যাচাই করে সিস্টেমে যুক্ত করবেন।'
-                : 'Super admin will physically inspect this organization and onboard it to the platform.'}
+                ? 'কর্তৃপক্ষ প্রদত্ত ঠিকানা অনুসারে প্রতিষ্ঠানটি সরেজমিনে যাচাই করে সিস্টেমে যুক্ত করবেন।'
+                : 'Platform authority will physically inspect this organization and onboard it to the platform.'}
             </p>
           </div>
         ) : (
@@ -119,8 +119,8 @@ export default function RequestNewOrgModal({
             <div className={styles.modalBody}>
               <div className={styles.infoBanner}>
                 {isBn
-                  ? 'আপনার প্রতিষ্ঠান ড্রপডাউনে না থাকলে বিস্তারিত তথ্য জমা দিন। সুপার এডমিন সরেজমিনে গিয়ে প্রতিষ্ঠানের ঠিকানা যাচাই করবেন এবং একাউন্ট তৈরির ব্যবস্থা নিবেন।'
-                  : 'If your institution is not found, submit details below. Super admins will physically verify the address and assist onboarding.'}
+                  ? 'আপনার প্রতিষ্ঠান ড্রপডাউনে না থাকলে বিস্তারিত তথ্য জমা দিন। কর্তৃপক্ষ সরেজমিনে গিয়ে প্রতিষ্ঠানের ঠিকানা যাচাই করবেন এবং একাউন্ট তৈরির ব্যবস্থা নিবেন।'
+                  : 'If your institution is not found, submit details below. Platform authority will physically verify the address and assist onboarding.'}
               </div>
 
               {error && <div className={styles.errorMsg}>{error}</div>}

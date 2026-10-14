@@ -26,9 +26,11 @@ import {
   organizations,
   studentProfiles,
   teacherProfiles,
+  itemDonations,
+  complaints,
 } from '../../database';
 import { randomUUID } from 'crypto';
-import { eq, and, or, isNull, sql, desc, inArray } from 'drizzle-orm';
+import { eq, and, or, isNull, isNotNull, sql, desc, inArray } from 'drizzle-orm';
 import {
   CreateAdminUserSchema,
   CreateAdminUserInput,
@@ -154,7 +156,7 @@ export class MasterAdminController {
 
   @Get('all-users')
   async listAllUsers(@CurrentUser() user: any) {
-    return this.db
+    const userList = await this.db
       .select({
         id: users.id,
         email: users.email,
@@ -168,6 +170,29 @@ export class MasterAdminController {
       .from(users)
       .where(isNull(users.deletedAt))
       .orderBy(desc(users.createdAt));
+
+    // Batch query user IDs that have platform records for instant UI badges
+    const [donorRows, itemDonorRows, studentPostRows, teacherVerifierRows, complaintRows, orgRequestRows] = await Promise.all([
+      this.db.selectDistinct({ id: donations.donorId }).from(donations).where(isNotNull(donations.donorId)),
+      this.db.selectDistinct({ id: itemDonations.donorId }).from(itemDonations).where(isNotNull(itemDonations.donorId)),
+      this.db.selectDistinct({ id: studentPosts.studentId }).from(studentPosts).where(and(isNotNull(studentPosts.studentId), isNull(studentPosts.deletedAt))),
+      this.db.selectDistinct({ id: studentPosts.teacherVerifiedBy }).from(studentPosts).where(isNotNull(studentPosts.teacherVerifiedBy)),
+      this.db.selectDistinct({ id: complaints.senderId }).from(complaints).where(isNotNull(complaints.senderId)),
+      this.db.selectDistinct({ id: organizations.requestedByUserId }).from(organizations).where(isNotNull(organizations.requestedByUserId)),
+    ]);
+
+    const usersWithData = new Set<string>();
+    donorRows.forEach((r) => r.id && usersWithData.add(r.id));
+    itemDonorRows.forEach((r) => r.id && usersWithData.add(r.id));
+    studentPostRows.forEach((r) => r.id && usersWithData.add(r.id));
+    teacherVerifierRows.forEach((r) => r.id && usersWithData.add(r.id));
+    complaintRows.forEach((r) => r.id && usersWithData.add(r.id));
+    orgRequestRows.forEach((r) => r.id && usersWithData.add(r.id));
+
+    return userList.map((u) => ({
+      ...u,
+      hasPlatformData: u.role === UserRole.MASTER_ADMIN || usersWithData.has(u.id),
+    }));
   }
 
   @Post('super-admins')

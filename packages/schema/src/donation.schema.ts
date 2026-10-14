@@ -9,6 +9,7 @@ export const CreateDonationSchema = z
     paymentMethod: z.string().min(2, 'Payment method is required'),
     transactionReference: z.string().min(3, 'Transaction reference/ID is required'),
     donorNote: z.string().optional(),
+    isAnonymous: z.boolean().default(false).optional(),
   })
   .refine(
     (data) => {
@@ -24,6 +25,12 @@ export const CreateDonationSchema = z
   );
 
 export type CreateDonationInput = z.infer<typeof CreateDonationSchema>;
+
+export const ToggleDonationPrivacySchema = z.object({
+  isAnonymous: z.boolean(),
+});
+
+export type ToggleDonationPrivacyInput = z.infer<typeof ToggleDonationPrivacySchema>;
 
 export const ReviewDonationSchema = z
   .object({
@@ -63,6 +70,7 @@ export const CreateItemDonationSchema = z
     postId: z.string().uuid().optional(),
     donorPhone: z.string().min(6, 'Donor phone is required'),
     pickupAddress: z.string().optional(),
+    isAnonymous: z.boolean().default(false).optional(),
   })
   .refine(
     (data) => {

@@ -47,6 +47,7 @@ export default function ItemDonationModal({
   const [postId, setPostId] = useState(defaultPostId || '');
   const [donorPhone, setDonorPhone] = useState(user?.phone || '');
   const [pickupAddress, setPickupAddress] = useState(user?.address || '');
+  const [isAnonymous, setIsAnonymous] = useState(false);
 
   const [publicPosts, setPublicPosts] = useState<any[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
@@ -133,6 +134,7 @@ export default function ItemDonationModal({
           postId: isRandom ? undefined : postId.trim(),
           donorPhone: donorPhone.trim(),
           pickupAddress: pickupAddress.trim(),
+          isAnonymous,
         }),
       });
 
@@ -143,8 +145,8 @@ export default function ItemDonationModal({
 
       setSuccessMsg(
         isBn
-          ? 'আপনার পণ্য অনুদানের আবেদনটি সফলভাবে জমা হয়েছে! এটি মাস্টার এডমিন ও সুপার এডমিনের ভেরিফিকেশনের জন্য অপেক্ষমান থাকবে।'
-          : 'Item donation request submitted! Pending verification by Master and Super Admin.'
+          ? 'আপনার পণ্য অনুদানের আবেদনটি সফলভাবে জমা হয়েছে! এটি কর্তৃপক্ষের ভেরিফিকেশনের জন্য অপেক্ষমান থাকবে।'
+          : 'Item donation request submitted! Pending verification by platform authority.'
       );
       setTimeout(() => {
         onClose();
@@ -478,6 +480,54 @@ export default function ItemDonationModal({
                   }}
                 />
               </div>
+            </div>
+
+            {/* Anonymous / Privacy Checkbox */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.65rem',
+                padding: '0.85rem',
+                backgroundColor: isAnonymous ? 'rgba(245, 158, 11, 0.08)' : 'var(--surface-border-subtle, rgba(0,0,0,0.03))',
+                borderRadius: 'var(--radius-md, 10px)',
+                border: isAnonymous ? '1.5px solid #f59e0b' : '1px solid var(--surface-border, #cbd5e1)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+              onClick={() => setIsAnonymous(!isAnonymous)}
+            >
+              <input
+                type="checkbox"
+                id="isAnonymousItem"
+                checked={isAnonymous}
+                onChange={(e) => setIsAnonymous(e.target.checked)}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  accentColor: '#f59e0b',
+                  cursor: 'pointer',
+                  marginTop: '2px',
+                }}
+              />
+              <label
+                htmlFor="isAnonymousItem"
+                style={{
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  color: 'var(--text-main)',
+                  userSelect: 'none',
+                }}
+              >
+                <strong style={{ display: 'block', color: isAnonymous ? '#b45309' : 'var(--text-main)' }}>
+                  {isBn ? 'পরিচয় গোপন রাখতে চাই (পাবলিক তালিকায় বেনামী)' : 'Keep identity anonymous in public list'}
+                </strong>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
+                  {isBn
+                    ? 'টিক দিলে পাবলিক হিসাবে আপনার নাম "গোপন রাখা হয়েছে" হিসেবে প্রদর্শিত হবে। তবে কর্তৃপক্ষ স্বচ্ছতার জন্য যাচাই করতে পারবে।'
+                    : 'Your name will show as anonymous publicly. Authorities can verify internally.'}
+                </span>
+              </label>
             </div>
 
             {/* Submit Button */}

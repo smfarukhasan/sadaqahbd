@@ -16,10 +16,15 @@ import {
   studentPosts,
   donations,
   itemDonations,
+  institutionTransfers,
+  complaints,
+  orgMemberRemovals,
+  fundAllocations,
 } from '../../database';
 import { FirebaseAdminService } from '../auth/firebase-admin.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { eq, and, or, isNull, desc, sql, ne, inArray } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/mysql-core';
 import { randomUUID } from 'crypto';
 import { hashPassword } from '../auth/password.util';
 import {
@@ -28,6 +33,7 @@ import {
   StudentVerificationProfileInput,
   UserRole,
   UserRoleType,
+  PermissionModuleKey,
 } from '@sadaqahbd/schema';
 
 @Injectable()
@@ -254,7 +260,13 @@ export class UsersService {
     return result;
   }
 
-  async deleteUser(targetUserId: string, requester: any) {
+  /**
+   * Check if user has active platform records (donations, posts, org campaigns, complaints, allocations, transfers).
+   * In alignment with Platform Transparency & Integrity Policy:
+   * Users with active financial, campaign, or audit records CANNOT be deleted via dashboard.
+   * Only empty users with personal info only may be removed.
+   */
+  async checkUserPlatformData(targetUserId: string) {
     const target = await this.db
       .select()
       .from(users)
@@ -262,14 +274,180 @@ export class UsersService {
       .limit(1);
 
     if (target.length === 0) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('ব্যবহারকারী পাওয়া যায়নি।');
     }
 
     const targetUser = target[0];
+    const reasonsBn: string[] = [];
+    const reasonsEn: string[] = [];
+
+    // 1. Root / Master Admin
+    if (targetUser.role === UserRole.MASTER_ADMIN) {
+      reasonsBn.push('মাস্টার এডমিন অ্যাকাউন্ট সুরক্ষিত ও অপরিবর্তনযোগ্য');
+      reasonsEn.push('Master Admin account is root-protected and immutable');
+    }
+
+    // 2. Financial Donations (Donor)
+    const [donationsCount] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(donations)
+      .where(eq(donations.donorId, targetUserId));
+    if (Number(donationsCount?.count || 0) > 0) {
+      reasonsBn.push(`প্ল্যাটফর্মে ${donationsCount.count}টি আর্থিক অনুদান (সদাকাহ) রেকর্ড বিদ্যমান`);
+      reasonsEn.push(`${donationsCount.count} financial donation record(s) exist on platform`);
+    }
+
+    // 3. Item Donations (Donor or Assigned Student)
+    const [itemDonationsCount] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(itemDonations)
+      .where(
+        or(
+          eq(itemDonations.donorId, targetUserId),
+          eq(itemDonations.assignedStudentId, targetUserId)
+        )
+      );
+    if (Number(itemDonationsCount?.count || 0) > 0) {
+      reasonsBn.push(`প্ল্যাটফর্মে ${itemDonationsCount.count}টি উপহার/বস্তুগত অনুদান রেকর্ড সংরক্ষিত`);
+      reasonsEn.push(`${itemDonationsCount.count} non-monetary item donation record(s) exist`);
+    }
+
+    // 4. Student Aid Posts / Campaigns (as student or as verifier)
+    const [postsCount] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(studentPosts)
+      .where(
+        or(
+          eq(studentPosts.studentId, targetUserId),
+          eq(studentPosts.teacherVerifiedBy, targetUserId),
+          eq(studentPosts.orgVerifiedBy, targetUserId),
+          eq(studentPosts.superAdminApprovedBy, targetUserId)
+        )
+      );
+    if (Number(postsCount?.count || 0) > 0) {
+      reasonsBn.push(`প্ল্যাটফর্মে ${postsCount.count}টি শিক্ষার্থী সাহায্য আবেদন/পোস্ট বা ভেরিফিকেশন রেকর্ড রয়েছে`);
+      reasonsEn.push(`${postsCount.count} student aid campaign/verification record(s) exist`);
+    }
+
+    // 5. Organization involvement:
+    // If user is organization owner or represents an organization that has posts, teachers, or students
+    if (targetUser.role === UserRole.ORGANIZATION || targetUser.organizationId) {
+      const orgId = targetUser.organizationId;
+      if (orgId) {
+        const [orgPosts] = await this.db
+          .select({ count: sql<number>`count(*)` })
+          .from(studentPosts)
+          .where(eq(studentPosts.organizationId, orgId));
+        if (Number(orgPosts?.count || 0) > 0) {
+          reasonsBn.push(`সংশ্লিষ্ট শিক্ষা প্রতিষ্ঠানের অধীনে ${orgPosts.count}টি শিক্ষার্থীর সক্রিয় পোস্ট/ক্যাম্পেইন রয়েছে`);
+          reasonsEn.push(`Organization has ${orgPosts.count} student campaign(s) linked to it`);
+        }
+      }
+      // Or if user requested an organization
+      const [requestedOrgs] = await this.db
+        .select({ count: sql<number>`count(*)` })
+        .from(organizations)
+        .where(eq(organizations.requestedByUserId, targetUserId));
+      if (Number(requestedOrgs?.count || 0) > 0) {
+        reasonsBn.push(`শিক্ষা প্রতিষ্ঠান নিবন্ধন বা অধিভুক্তির আবেদন রেকর্ড রয়েছে`);
+        reasonsEn.push(`Organization registration request records exist`);
+      }
+    }
+
+    // 6. Complaints & Reports
+    const [complaintsCount] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(complaints)
+      .where(
+        or(
+          eq(complaints.senderId, targetUserId),
+          eq(complaints.repliedBy, targetUserId)
+        )
+      );
+    if (Number(complaintsCount?.count || 0) > 0) {
+      reasonsBn.push(`প্ল্যাটফর্মে ${complaintsCount.count}টি অভিযোগ/রিপোর্ট সংক্রান্ত অডিট রেকর্ড রয়েছে`);
+      reasonsEn.push(`${complaintsCount.count} complaint or dispute record(s) exist on platform`);
+    }
+
+    // 7. Fund Allocations (disbursing or receiving)
+    const [allocationsCount] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(fundAllocations)
+      .where(eq(fundAllocations.allocatedBy, targetUserId));
+    if (Number(allocationsCount?.count || 0) > 0) {
+      reasonsBn.push(`প্ল্যাটফর্ম র‍্যান্ডম ফান্ড থেকে অর্থ বরাদ্দের অডিট ট্রেইল বিদ্যমান`);
+      reasonsEn.push(`Random pool fund allocation records exist`);
+    }
+
+    // 8. Institution Transfers
+    const [transfersCount] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(institutionTransfers)
+      .where(
+        or(
+          eq(institutionTransfers.userId, targetUserId),
+          eq(institutionTransfers.currentOrgApprovedBy, targetUserId),
+          eq(institutionTransfers.targetOrgApprovedBy, targetUserId),
+          eq(institutionTransfers.finalApprovedBy, targetUserId)
+        )
+      );
+    if (Number(transfersCount?.count || 0) > 0) {
+      reasonsBn.push(`প্রতিষ্ঠান পরিবর্তন (ট্রান্সফার) সংক্রান্ত অডিট ট্রেইল বিদ্যমান`);
+      reasonsEn.push(`Institution transfer records exist`);
+    }
+
+    // 9. Member Removal records
+    const [removalsCount] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(orgMemberRemovals)
+      .where(
+        or(
+          eq(orgMemberRemovals.userId, targetUserId),
+          eq(orgMemberRemovals.requestedByUserId, targetUserId),
+          eq(orgMemberRemovals.adminReviewedBy, targetUserId)
+        )
+      );
+    if (Number(removalsCount?.count || 0) > 0) {
+      reasonsBn.push(`সদস্য রিমুভাল সংক্রান্ত আবেদন বা অডিট রেকর্ড বিদ্যমান`);
+      reasonsEn.push(`Member removal audit records exist`);
+    }
+
+    const hasPlatformData = reasonsBn.length > 0;
+
+    return {
+      canDelete: !hasPlatformData,
+      hasPlatformData,
+      user: {
+        id: targetUser.id,
+        fullName: targetUser.fullName,
+        email: targetUser.email,
+        phone: targetUser.phone,
+        role: targetUser.role,
+        status: targetUser.status,
+      },
+      reasonsBn,
+      reasonsEn,
+      policyNoticeBn: 'প্ল্যাটফর্মের স্বচ্ছতা ও সততার স্বার্থে কোনো তথ্য বা অডিট রেকর্ড যুক্ত থাকা অ্যাকাউন্ট ড্যাশবোর্ড থেকে ডিলিট করা সম্পূর্ণ নিষিদ্ধ। শুধুমাত্র ব্যক্তিগত তথ্যসম্পন্ন খালি অ্যাকাউন্ট ডিলিটযোগ্য। কোনো বিশেষ রেকর্ড অপসারণের প্রয়োজনে প্ল্যাটফর্ম প্রযুক্তি পরিচালনাকারী সফটওয়্যার কোম্পানির সাথে যোগাযোগ করতে হবে।',
+      policyNoticeEn: 'For platform transparency and audit integrity, deleting accounts linked to active records or transactions is strictly prohibited. Only empty accounts with purely personal information may be deleted. For extraordinary data removal requests, please contact the software development company.',
+    };
+  }
+
+  async deleteUser(targetUserId: string, requester: any) {
+    const eligibility = await this.checkUserPlatformData(targetUserId);
+
+    // Strict Platform Transparency & Integrity Policy Enforced:
+    if (eligibility.hasPlatformData || !eligibility.canDelete) {
+      const reasonsList = eligibility.reasonsBn.join(', ');
+      throw new ForbiddenException(
+        `[প্ল্যাটফর্ম সততা ও স্বচ্ছতা সুরক্ষা নীতি]: এই অ্যাকাউন্টের সাথে গুরুত্বপূর্ণ প্ল্যাটফর্ম রেকর্ড সংরক্ষিত থাকায় এটি ড্যাশবোর্ড থেকে ডিলিট করা সম্পূর্ণ নিষিদ্ধ (${reasonsList})। প্ল্যাটফর্মের স্বচ্ছতা ও সততার স্বার্থে শুধুমাত্র কোনো প্রকার লেনদেন বা পোস্ট ছাড়া ব্যক্তিগত তথ্যসম্পন্ন খালি অ্যাকাউন্ট ডিলিটযোগ্য। কোনো বিশেষ ডাটা রিমুভ করার প্রয়োজন হলে প্ল্যাটফর্ম প্রযুক্তি পরিচালনাকারী সফটওয়্যার কোম্পানির সাথে যোগাযোগ করতে হবে।`
+      );
+    }
+
+    const targetUser = eligibility.user;
 
     // Master Admin cannot be deleted by ANYONE
     if (targetUser.role === UserRole.MASTER_ADMIN) {
-      throw new ForbiddenException('Master Admin cannot be deleted or modified');
+      throw new ForbiddenException('মাস্টার এডমিন অ্যাকাউন্ট সুরক্ষিত ও অপরিবর্তনযোগ্য।');
     }
 
     // Super Admin can delete users if permitted, but cannot delete another Super Admin unless permitted
@@ -279,17 +457,17 @@ export class UsersService {
           p.moduleKey === 'admin_users.super_admin_list' && p.canDelete
       );
       if (!canDeleteSuper) {
-        throw new ForbiddenException('You do not have permission to delete Super Admins');
+        throw new ForbiddenException('সুপার এডমিন অ্যাকাউন্ট ডিলিট করার অনুমতি আপনার নেই।');
       }
     }
 
-    // Soft delete
+    // Soft delete purely personal empty accounts
     await this.db
       .update(users)
       .set({ deletedAt: new Date(), status: 'suspended' })
       .where(eq(users.id, targetUserId));
 
-    return { success: true, message: 'User deleted successfully' };
+    return { success: true, message: 'ব্যক্তিগত তথ্যসম্পন্ন অ্যাকাউন্টটি সফলভাবে মুছে ফেলা হয়েছে।' };
   }
 
   async submitStudentProfile(studentUser: any, input: StudentVerificationProfileInput) {
@@ -353,10 +531,15 @@ export class UsersService {
         type: organizations.type,
         description: organizations.description,
         isRequestedByMember: organizations.isRequestedByMember,
+        requestedByUserId: organizations.requestedByUserId,
+        requesterName: users.fullName,
+        requesterRole: users.role,
+        requesterEmail: users.email,
         status: organizations.status,
         createdAt: organizations.createdAt,
       })
       .from(organizations)
+      .leftJoin(users, eq(organizations.requestedByUserId, users.id))
       .where(and(eq(organizations.status, 'pending'), isNull(organizations.deletedAt)))
       .orderBy(desc(organizations.createdAt));
 
@@ -450,43 +633,93 @@ export class UsersService {
       .where(eq(organizations.id, orgId))
       .limit(1);
 
-    if (org && org.requestedByUserId) {
-      await this.db
-        .update(users)
-        .set({
-          status: approved ? 'active' : 'rejected',
-          organizationId: orgId,
-        })
-        .where(eq(users.id, org.requestedByUserId));
+    if (approved) {
+      if (editData?.assignedUserId || org?.isRequestedByMember) {
+        const assignedUserId = editData?.assignedUserId;
+        if (!assignedUserId && org?.isRequestedByMember) {
+          throw new BadRequestException('সাধারণ সদস্য কর্তৃক প্রস্তাবিত প্রতিষ্ঠানের জন্য একজন অর্গানাইজেশন ইউজার অ্যাকাউন্ট নির্ধারণ করা আবশ্যক।');
+        }
 
-      await this.notificationsService.createNotification({
-        recipientUserId: org.requestedByUserId,
-        titleBn: approved ? 'প্রতিষ্ঠান অনুমোদিত হয়েছে!' : 'প্রতিষ্ঠান আবেদন প্রত্যাখ্যাত',
-        titleEn: approved ? 'Organization Approved!' : 'Organization Rejected',
-        messageBn: approved
-          ? `আপনার প্রতিষ্ঠান "${org.name}" সফলভাবে অনুমোদিত হয়েছে। এখন ড্যাশবোর্ডের সব ফিচার সচল।`
-          : `আপনার প্রতিষ্ঠানের আবেদনটি এডমিন দ্বারা প্রত্যাখ্যাত হয়েছে। কারণ: ${reason || 'যথাযথ তথ্য পাওয়া যায়নি'}`,
-        messageEn: approved
-          ? `Your organization "${org.name}" has been approved. All dashboard features are now unlocked.`
-          : `Your organization application has been rejected. Reason: ${reason || 'Incomplete details'}`,
-        type: 'org_verification',
-        link: '/organization',
-      });
+        if (assignedUserId) {
+          const [assignedUser] = await this.db
+            .select()
+            .from(users)
+            .where(and(eq(users.id, assignedUserId), isNull(users.deletedAt)))
+            .limit(1);
+
+          if (!assignedUser) {
+            throw new NotFoundException('নির্বাচিত অর্গানাইজেশন ইউজার অ্যাকাউন্টটি পাওয়া যায়নি।');
+          }
+
+          // Bind user to organization and activate
+          await this.db
+            .update(users)
+            .set({
+              organizationId: orgId,
+              status: 'active',
+              updatedAt: new Date(),
+            })
+            .where(eq(users.id, assignedUserId));
+
+          // Notify assigned organization user
+          await this.notificationsService.createNotification({
+            recipientUserId: assignedUserId,
+            titleBn: 'প্রতিষ্ঠান অ্যাকাউন্টের দায়িত্ব অর্পণ ও অনুমোদন',
+            titleEn: 'Organization Authority Assigned & Approved',
+            messageBn: `আপনাকে "${org.name}" শিক্ষা প্রতিষ্ঠানের প্রাতিষ্ঠানিক অথরিটি হিসেবে নির্ধারণ করা হয়েছে। এখন আপনি ড্যাশবোর্ডে লগইন করে পরিচালনা করতে পারবেন।`,
+            messageEn: `You have been assigned as the authority for "${org.name}". You can now access and manage your portal.`,
+            type: 'org_verification',
+            link: '/organization',
+          });
+
+          // Notify proposing member (student/teacher)
+          if (org.requestedByUserId && org.isRequestedByMember) {
+            await this.notificationsService.createNotification({
+              recipientUserId: org.requestedByUserId,
+              titleBn: 'প্রস্তাবিত প্রতিষ্ঠান অনুমোদিত হয়েছে!',
+              titleEn: 'Proposed Institution Approved!',
+              messageBn: `আপনার প্রস্তাবিত প্রতিষ্ঠান "${org.name}" সফলভাবে অনুমোদিত হয়েছে এবং প্রাতিষ্ঠানিক অ্যাকাউন্ট নির্ধারণ করা হয়েছে।`,
+              messageEn: `Your proposed institution "${org.name}" has been approved by authority.`,
+              type: 'org_verification',
+              link: '/dashboard',
+            });
+          }
+        }
+      } else if (org && org.requestedByUserId) {
+        // Standard organization account self-application
+        await this.db
+          .update(users)
+          .set({
+            status: 'active',
+            organizationId: orgId,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, org.requestedByUserId));
+
+        await this.notificationsService.createNotification({
+          recipientUserId: org.requestedByUserId,
+          titleBn: 'প্রতিষ্ঠান অনুমোদিত হয়েছে!',
+          titleEn: 'Organization Approved!',
+          messageBn: `আপনার প্রতিষ্ঠান "${org.name}" সফলভাবে অনুমোদিত হয়েছে। এখন ড্যাশবোর্ডের সব ফিচার সচল।`,
+          messageEn: `Your organization "${org.name}" has been approved. All dashboard features are now unlocked.`,
+          type: 'org_verification',
+          link: '/organization',
+        });
+      }
+    } else {
+      // Rejection
+      if (org && org.requestedByUserId) {
+        await this.notificationsService.createNotification({
+          recipientUserId: org.requestedByUserId,
+          titleBn: 'প্রতিষ্ঠান আবেদন প্রত্যাখ্যাত',
+          titleEn: 'Organization Rejected',
+          messageBn: `আপনার প্রতিষ্ঠানের আবেদনটি এডমিন দ্বারা প্রত্যাখ্যাত হয়েছে। কারণ: ${reason || 'যথাযথ তথ্য পাওয়া যায়নি'}`,
+          messageEn: `Your organization application has been rejected. Reason: ${reason || 'Incomplete details'}`,
+          type: 'org_verification',
+          link: '/organization',
+        });
+      }
     }
-
-    await this.db
-      .update(users)
-      .set({
-        status: approved ? 'active' : 'rejected',
-      })
-      .where(eq(users.id, orgId));
-
-    await this.db
-      .update(users)
-      .set({
-        status: approved ? 'active' : 'rejected',
-      })
-      .where(eq(users.organizationId, orgId));
 
     return {
       success: true,
@@ -611,6 +844,7 @@ export class UsersService {
       // Notify the Organization
       await this.notificationsService.createNotification({
         recipientOrgId: dto.organizationId,
+        recipientRole: 'organization',
         titleBn: 'নতুন শিক্ষকের ভেরিফিকেশন আবেদন',
         titleEn: 'New Teacher Affiliation Request',
         messageBn: `শিক্ষক "${currentUser.fullName}" আপনার প্রতিষ্ঠানের সাথে যুক্ত হওয়ার আবেদন করেছেন।`,
@@ -619,9 +853,10 @@ export class UsersService {
         link: '/organization?tab=affiliations',
       });
 
-      // Notify Super Admins and Master Admin
+      // Notify Super Admins and Master Admin (Filtered by Permission)
       await this.notificationsService.createNotification({
         recipientRole: 'admin',
+        requiredPermission: PermissionModuleKey.TEACHER_VERIFICATION_REQUESTS,
         titleBn: 'শিক্ষকের প্রতিষ্ঠানে যুক্ত হওয়ার আবেদন',
         titleEn: 'Teacher Affiliation Submitted',
         messageBn: `শিক্ষক "${currentUser.fullName}" ("${org.name}") প্রতিষ্ঠানে যুক্ত হওয়ার আবেদন করেছেন।`,
@@ -681,6 +916,7 @@ export class UsersService {
       // Notify the Organization
       await this.notificationsService.createNotification({
         recipientOrgId: dto.organizationId,
+        recipientRole: 'organization',
         titleBn: 'নতুন শিক্ষার্থীর ভেরিফিকেশন আবেদন',
         titleEn: 'New Student Affiliation Request',
         messageBn: `শিক্ষার্থী "${currentUser.fullName}" আপনার প্রতিষ্ঠানের সাথে যুক্ত হওয়ার আবেদন করেছেন।`,
@@ -689,9 +925,10 @@ export class UsersService {
         link: '/organization?tab=affiliations',
       });
 
-      // Notify Super Admins and Master Admin
+      // Notify Super Admins and Master Admin (Filtered by Permission)
       await this.notificationsService.createNotification({
         recipientRole: 'admin',
+        requiredPermission: PermissionModuleKey.STUDENT_VERIFICATION_REQUESTS,
         titleBn: 'শিক্ষার্থীর প্রতিষ্ঠানে যুক্ত হওয়ার আবেদন',
         titleEn: 'Student Affiliation Submitted',
         messageBn: `শিক্ষার্থী "${currentUser.fullName}" ("${org.name}") প্রতিষ্ঠানে যুক্ত হওয়ার আবেদন করেছেন।`,
@@ -1384,22 +1621,35 @@ export class UsersService {
       throw new NotFoundException('Donor not found');
     }
 
-    // Get all monetary donations by this donor
+    const reviewerUser = alias(users, 'donor_reviewer_user');
+    const itemReviewerUser = alias(users, 'item_reviewer_user');
+
+    // Get all monetary donations by this donor with reviewer & target info
     const userDonations = await this.db
       .select({
         id: donations.id,
         amount: donations.amount,
         isRandom: donations.isRandom,
+        isAnonymous: donations.isAnonymous,
         postId: donations.postId,
         postTitle: studentPosts.title,
+        studentName: studentPosts.studentFullName,
+        orgName: organizations.name,
         paymentMethod: donations.paymentMethod,
         trxId: donations.transactionReference,
+        donorNote: donations.donorNote,
         status: donations.status,
         rejectionReason: donations.rejectionReason,
         createdAt: donations.createdAt,
+        reviewedAt: donations.reviewedAt,
+        reviewerName: reviewerUser.fullName,
+        reviewerRole: reviewerUser.role,
+        reviewerPhone: reviewerUser.phone,
       })
       .from(donations)
       .leftJoin(studentPosts, eq(donations.postId, studentPosts.id))
+      .leftJoin(organizations, eq(studentPosts.organizationId, organizations.id))
+      .leftJoin(reviewerUser, eq(donations.reviewedBy, reviewerUser.id))
       .where(eq(donations.donorId, donorId))
       .orderBy(desc(donations.createdAt));
 
@@ -1411,14 +1661,21 @@ export class UsersService {
         description: itemDonations.description,
         quantity: itemDonations.quantity,
         isRandom: itemDonations.isRandom,
+        isAnonymous: itemDonations.isAnonymous,
         postId: itemDonations.postId,
         postTitle: studentPosts.title,
         status: itemDonations.status,
         deliveryStatus: itemDonations.deliveryStatus,
         createdAt: itemDonations.createdAt,
+        reviewedAt: itemDonations.reviewedAt,
+        adminInstruction: itemDonations.adminInstruction,
+        reviewerName: itemReviewerUser.fullName,
+        reviewerRole: itemReviewerUser.role,
+        reviewerPhone: itemReviewerUser.phone,
       })
       .from(itemDonations)
       .leftJoin(studentPosts, eq(itemDonations.postId, studentPosts.id))
+      .leftJoin(itemReviewerUser, eq(itemDonations.reviewedBy, itemReviewerUser.id))
       .where(eq(itemDonations.donorId, donorId))
       .orderBy(desc(itemDonations.createdAt));
 
@@ -1435,6 +1692,7 @@ export class UsersService {
         email: donorUser.email,
         fullName: donorUser.fullName,
         phone: donorUser.phone,
+        role: donorUser.role,
         address: donorUser.address,
         avatarUrl: donorUser.avatarUrl,
         status: donorUser.status,
@@ -1449,13 +1707,687 @@ export class UsersService {
       donations: userDonations.map((d) => ({
         ...d,
         amount: Number(d.amount),
-        studentName: d.postTitle || (d.isRandom ? 'সাধারণ শিক্ষা তহবিল' : 'সরাসরি শিক্ষার্থী'),
+        targetName: d.isRandom
+          ? 'সাদাকাহ বিডি সাধারণ শিক্ষা তহবিল'
+          : `${d.studentName || 'শিক্ষার্থী'}${d.orgName ? ` (${d.orgName})` : ''}`,
+        studentName: d.isRandom
+          ? 'সাধারণ শিক্ষা তহবিল'
+          : `${d.studentName || d.postTitle || 'সরাসরি শিক্ষার্থী'}${d.orgName ? ` • ${d.orgName}` : ''}`,
+        reviewer: d.reviewerName
+          ? {
+              name: d.reviewerName,
+              role: d.reviewerRole,
+              phone: d.reviewerPhone,
+            }
+          : null,
         time: d.createdAt ? new Date(d.createdAt).toLocaleString('bn-BD') : '',
       })),
       itemDonations: userItemDonations.map((item) => ({
         ...item,
+        reviewer: item.reviewerName
+          ? {
+              name: item.reviewerName,
+              role: item.reviewerRole,
+              phone: item.reviewerPhone,
+            }
+          : null,
         time: item.createdAt ? new Date(item.createdAt).toLocaleString('bn-BD') : '',
       })),
+    };
+  }
+
+  async requestInstitutionTransfer(
+    currentUser: any,
+    dto: { targetOrgId: string; reason: string }
+  ) {
+    if (currentUser.role !== UserRole.STUDENT && currentUser.role !== UserRole.TEACHER) {
+      throw new BadRequestException('শুধুমাত্র শিক্ষার্থী এবং শিক্ষক প্রতিষ্ঠান পরিবর্তনের আবেদন করতে পারবেন।');
+    }
+
+    if (!currentUser.organizationId) {
+      throw new BadRequestException('আপনি বর্তমানে কোনো অনুমোদিত প্রতিষ্ঠানের সাথে যুক্ত নন।');
+    }
+
+    if (!dto.targetOrgId) {
+      throw new BadRequestException('অনুগ্রহ করে কাঙ্ক্ষিত নতুন প্রতিষ্ঠানটি নির্বাচন করুন।');
+    }
+
+    if (dto.targetOrgId === currentUser.organizationId) {
+      throw new BadRequestException('আপনার বর্তমান প্রতিষ্ঠান এবং নতুন প্রতিষ্ঠান একই হতে পারবে না।');
+    }
+
+    const cleanReason = dto.reason?.trim();
+    if (!cleanReason || cleanReason.length < 5) {
+      throw new BadRequestException('অনুগ্রহ করে প্রতিষ্ঠান পরিবর্তনের সুস্পষ্ট কারণ লিখুন (কমপক্ষে ৫ অক্ষর)।');
+    }
+
+    // Verify target organization exists and is active
+    const [targetOrg] = await this.db
+      .select()
+      .from(organizations)
+      .where(and(eq(organizations.id, dto.targetOrgId), isNull(organizations.deletedAt)))
+      .limit(1);
+
+    if (!targetOrg) {
+      throw new NotFoundException('নির্বাচিত নতুন প্রতিষ্ঠানটি পাওয়া যায়নি।');
+    }
+
+    if (targetOrg.status !== 'active') {
+      throw new BadRequestException('নির্বাচিত প্রতিষ্ঠানটি এখনও সক্রিয় বা অনুমোদিত নয়।');
+    }
+
+    // Check if user already has an active pending transfer
+    const [existingTransfer] = await this.db
+      .select()
+      .from(institutionTransfers)
+      .where(
+        and(
+          eq(institutionTransfers.userId, currentUser.id),
+          inArray(institutionTransfers.status, [
+            'pending_current_org',
+            'current_org_approved',
+            'target_org_approved',
+          ])
+        )
+      )
+      .limit(1);
+
+    if (existingTransfer) {
+      throw new BadRequestException(
+        'আপনার একটি প্রতিষ্ঠান পরিবর্তনের আবেদন ইতিমধ্যে প্রক্রিয়াধীন রয়েছে। অনুগ্রহ করে পূর্বের আবেদনটি সম্পন্ন হওয়া পর্যন্ত অপেক্ষা করুন।'
+      );
+    }
+
+    // Current org details
+    const [currentOrg] = await this.db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, currentUser.organizationId))
+      .limit(1);
+
+    const transferId = randomUUID();
+    await this.db.insert(institutionTransfers).values({
+      id: transferId,
+      userId: currentUser.id,
+      userRole: currentUser.role,
+      currentOrgId: currentUser.organizationId,
+      targetOrgId: dto.targetOrgId,
+      reason: cleanReason,
+      status: 'pending_current_org',
+    });
+
+    const roleNameBn = currentUser.role === UserRole.TEACHER ? 'শিক্ষক' : 'শিক্ষার্থী';
+    const roleNameEn = currentUser.role === UserRole.TEACHER ? 'Teacher' : 'Student';
+
+    // 1. Notify Current Organization (Needs release approval)
+    await this.notificationsService.createNotification({
+      recipientOrgId: currentUser.organizationId,
+      recipientRole: 'organization',
+      titleBn: 'প্রতিষ্ঠান পরিবর্তন ও ছাড়পত্রের আবেদন',
+      titleEn: 'Institution Transfer & Release Request',
+      messageBn: `${roleNameBn} "${currentUser.fullName}" অন্য প্রতিষ্ঠানে (${targetOrg.name}) স্থানান্তরিত হওয়ার জন্য ছাড়পত্রের আবেদন করেছেন।`,
+      messageEn: `${roleNameEn} "${currentUser.fullName}" requested release clearance to transfer to "${targetOrg.name}".`,
+      type: 'transfer_request',
+      link: '/organization?tab=transfers',
+    });
+
+    // 2. Notify Super Admins and Master Admin (Filtered by Permission)
+    await this.notificationsService.createNotification({
+      recipientRole: 'admin',
+      requiredPermission:
+        currentUser.role === UserRole.TEACHER
+          ? PermissionModuleKey.TEACHER_VERIFICATION_REQUESTS
+          : PermissionModuleKey.STUDENT_VERIFICATION_REQUESTS,
+      titleBn: 'প্রতিষ্ঠান পরিবর্তনের আবেদন জমা হয়েছে',
+      titleEn: 'New Institution Transfer Request',
+      messageBn: `${roleNameBn} "${currentUser.fullName}" ("${currentOrg?.name || 'বর্তমান প্রতিষ্ঠান'}" থেকে "${targetOrg.name}") প্রতিষ্ঠান পরিবর্তনের আবেদন করেছেন। (বর্তমানে পূর্বের প্রতিষ্ঠান ছাড়পত্রের অপেক্ষায়)`,
+      messageEn: `${roleNameEn} "${currentUser.fullName}" applied for institution transfer from "${currentOrg?.name || 'Current'}" to "${targetOrg.name}". (Awaiting current org release).`,
+      type: 'transfer_request',
+      link: '/admin?tab=transfer_requests',
+    });
+
+    // 3. Notify User
+    await this.notificationsService.createNotification({
+      recipientUserId: currentUser.id,
+      titleBn: 'প্রতিষ্ঠান পরিবর্তনের আবেদন সফলভাবে জমা হয়েছে',
+      titleEn: 'Transfer Request Submitted Successfully',
+      messageBn: `আপনার প্রতিষ্ঠান পরিবর্তনের আবেদন সফলভাবে জমা হয়েছে। বর্তমান প্রতিষ্ঠান "${currentOrg?.name || ''}" কর্তৃক ছাড়পত্র প্রদানের অপেক্ষায় রয়েছে।`,
+      messageEn: `Your transfer request has been submitted. Waiting for release approval from your current institution.`,
+      type: 'transfer_request',
+      link: currentUser.role === UserRole.TEACHER ? '/teacher' : '/student',
+    });
+
+    return {
+      success: true,
+      message: 'প্রতিষ্ঠান পরিবর্তনের আবেদন সফলভাবে জমা হয়েছে। বর্তমান প্রতিষ্ঠানের ছাড়পত্রের অপেক্ষায় রয়েছে।',
+      transferId,
+    };
+  }
+
+  async cancelInstitutionTransfer(currentUser: any) {
+    const [transfer] = await this.db
+      .select()
+      .from(institutionTransfers)
+      .where(
+        and(
+          eq(institutionTransfers.userId, currentUser.id),
+          eq(institutionTransfers.status, 'pending_current_org')
+        )
+      )
+      .limit(1);
+
+    if (!transfer) {
+      throw new BadRequestException('প্রত্যাহার করার মতো কোনো অপেক্ষমাণ ছাড়পত্র আবেদন পাওয়া যায়নি।');
+    }
+
+    await this.db
+      .update(institutionTransfers)
+      .set({
+        status: 'rejected',
+        rejectionStage: 'current_org',
+        currentOrgRejectionReason: 'শিক্ষক/শিক্ষার্থী নিজেই আবেদন প্রত্যাহার করেছেন।',
+        updatedAt: new Date(),
+      })
+      .where(eq(institutionTransfers.id, transfer.id));
+
+    return {
+      success: true,
+      message: 'প্রতিষ্ঠান পরিবর্তনের আবেদনটি প্রত্যাহার করা হয়েছে।',
+    };
+  }
+
+  async getMyInstitutionTransfer(currentUser: any) {
+    const [latest] = await this.db
+      .select({
+        id: institutionTransfers.id,
+        userId: institutionTransfers.userId,
+        userRole: institutionTransfers.userRole,
+        currentOrgId: institutionTransfers.currentOrgId,
+        targetOrgId: institutionTransfers.targetOrgId,
+        reason: institutionTransfers.reason,
+        status: institutionTransfers.status,
+        currentOrgApprovedBy: institutionTransfers.currentOrgApprovedBy,
+        currentOrgApprovedAt: institutionTransfers.currentOrgApprovedAt,
+        currentOrgRejectionReason: institutionTransfers.currentOrgRejectionReason,
+        targetOrgApprovedBy: institutionTransfers.targetOrgApprovedBy,
+        targetOrgApprovedAt: institutionTransfers.targetOrgApprovedAt,
+        targetOrgRejectionReason: institutionTransfers.targetOrgRejectionReason,
+        finalApprovedBy: institutionTransfers.finalApprovedBy,
+        finalApprovedAt: institutionTransfers.finalApprovedAt,
+        finalRejectionReason: institutionTransfers.finalRejectionReason,
+        rejectionStage: institutionTransfers.rejectionStage,
+        createdAt: institutionTransfers.createdAt,
+        updatedAt: institutionTransfers.updatedAt,
+      })
+      .from(institutionTransfers)
+      .where(eq(institutionTransfers.userId, currentUser.id))
+      .orderBy(desc(institutionTransfers.createdAt))
+      .limit(1);
+
+    if (!latest) return { hasTransfer: false, transfer: null };
+
+    const [currentOrg] = await this.db
+      .select({ id: organizations.id, name: organizations.name, address: organizations.address })
+      .from(organizations)
+      .where(eq(organizations.id, latest.currentOrgId))
+      .limit(1);
+
+    const [targetOrg] = await this.db
+      .select({ id: organizations.id, name: organizations.name, address: organizations.address })
+      .from(organizations)
+      .where(eq(organizations.id, latest.targetOrgId))
+      .limit(1);
+
+    const isPending = [
+      'pending_current_org',
+      'current_org_approved',
+      'target_org_approved',
+    ].includes(latest.status);
+
+    return {
+      hasTransfer: true,
+      isPending,
+      transfer: {
+        ...latest,
+        currentOrgName: currentOrg?.name || 'পূর্বের প্রতিষ্ঠান',
+        currentOrgAddress: currentOrg?.address || '',
+        targetOrgName: targetOrg?.name || 'নতুন প্রতিষ্ঠান',
+        targetOrgAddress: targetOrg?.address || '',
+      },
+    };
+  }
+
+  async listAdminTransferRequests() {
+    const records = await this.db
+      .select({
+        id: institutionTransfers.id,
+        userId: institutionTransfers.userId,
+        userRole: institutionTransfers.userRole,
+        currentOrgId: institutionTransfers.currentOrgId,
+        targetOrgId: institutionTransfers.targetOrgId,
+        reason: institutionTransfers.reason,
+        status: institutionTransfers.status,
+        currentOrgApprovedAt: institutionTransfers.currentOrgApprovedAt,
+        currentOrgRejectionReason: institutionTransfers.currentOrgRejectionReason,
+        targetOrgApprovedAt: institutionTransfers.targetOrgApprovedAt,
+        targetOrgRejectionReason: institutionTransfers.targetOrgRejectionReason,
+        finalApprovedAt: institutionTransfers.finalApprovedAt,
+        finalRejectionReason: institutionTransfers.finalRejectionReason,
+        rejectionStage: institutionTransfers.rejectionStage,
+        createdAt: institutionTransfers.createdAt,
+        userName: users.fullName,
+        userEmail: users.email,
+        userPhone: users.phone,
+        userAvatar: users.avatarUrl,
+      })
+      .from(institutionTransfers)
+      .innerJoin(users, eq(institutionTransfers.userId, users.id))
+      .orderBy(desc(institutionTransfers.createdAt));
+
+    const allOrgIds = Array.from(
+      new Set(records.flatMap((r) => [r.currentOrgId, r.targetOrgId]))
+    );
+    const orgsList = allOrgIds.length
+      ? await this.db
+          .select({ id: organizations.id, name: organizations.name, address: organizations.address })
+          .from(organizations)
+          .where(inArray(organizations.id, allOrgIds))
+      : [];
+    const orgMap = new Map(orgsList.map((o) => [o.id, o]));
+
+    const mapped = records.map((r) => ({
+      ...r,
+      currentOrgName: orgMap.get(r.currentOrgId)?.name || 'অজানা প্রতিষ্ঠান',
+      targetOrgName: orgMap.get(r.targetOrgId)?.name || 'অজানা প্রতিষ্ঠান',
+    }));
+
+    return {
+      actionable: mapped.filter((r) => r.status === 'target_org_approved'),
+      monitoring: mapped.filter((r) =>
+        ['pending_current_org', 'current_org_approved'].includes(r.status)
+      ),
+      history: mapped.filter((r) => ['approved', 'rejected'].includes(r.status)),
+    };
+  }
+
+  async reviewAdminTransfer(
+    currentUser: any,
+    transferId: string,
+    approved: boolean,
+    reason?: string
+  ) {
+    const [transfer] = await this.db
+      .select()
+      .from(institutionTransfers)
+      .where(eq(institutionTransfers.id, transferId))
+      .limit(1);
+
+    if (!transfer) {
+      throw new NotFoundException('প্রতিষ্ঠান পরিবর্তনের আবেদনটি পাওয়া যায়নি।');
+    }
+
+    if (transfer.status !== 'target_org_approved') {
+      throw new BadRequestException(
+        'উভয় প্রতিষ্ঠান (বর্তমান ও নতুন) অনুমোদন করার পরেই কেবল এডমিন চূড়ান্ত অনুমোদন দিতে পারেন।'
+      );
+    }
+
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.id, transfer.userId))
+      .limit(1);
+
+    if (!user) {
+      throw new NotFoundException('ব্যবহারকারী পাওয়া যায়নি।');
+    }
+
+    const [targetOrg] = await this.db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, transfer.targetOrgId))
+      .limit(1);
+
+    const [currentOrg] = await this.db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, transfer.currentOrgId))
+      .limit(1);
+
+    if (approved) {
+      await this.db.transaction(async (tx) => {
+        // 1. Mark transfer approved
+        await tx
+          .update(institutionTransfers)
+          .set({
+            status: 'approved',
+            finalApprovedBy: currentUser.id,
+            finalApprovedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(institutionTransfers.id, transferId));
+
+        // 2. Update user organization
+        await tx
+          .update(users)
+          .set({
+            organizationId: transfer.targetOrgId,
+            status: 'active',
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, transfer.userId));
+
+        // 3. Update profile
+        if (transfer.userRole === 'student') {
+          await tx
+            .update(studentProfiles)
+            .set({
+              organizationId: transfer.targetOrgId,
+              institutionName: targetOrg?.name || 'নতুন প্রতিষ্ঠান',
+              updatedAt: new Date(),
+            })
+            .where(eq(studentProfiles.userId, transfer.userId));
+        } else if (transfer.userRole === 'teacher') {
+          await tx
+            .update(teacherProfiles)
+            .set({
+              organizationId: transfer.targetOrgId,
+              updatedAt: new Date(),
+            })
+            .where(eq(teacherProfiles.userId, transfer.userId));
+        }
+      });
+
+      const roleNameBn = transfer.userRole === 'teacher' ? 'শিক্ষক' : 'শিক্ষার্থী';
+      const roleNameEn = transfer.userRole === 'teacher' ? 'Teacher' : 'Student';
+
+      // Notify User
+      await this.notificationsService.createNotification({
+        recipientUserId: transfer.userId,
+        titleBn: 'অভিনন্দন! প্রতিষ্ঠান পরিবর্তন চূড়ান্তভাবে অনুমোদিত হয়েছে',
+        titleEn: 'Institution Transfer Approved by Admin',
+        messageBn: `সাদাকাহ বিডি এডমিন কর্তৃক আপনার প্রতিষ্ঠান পরিবর্তন চূড়ান্তভাবে অনুমোদিত হয়েছে। আপনার বর্তমান শিক্ষা প্রতিষ্ঠান এখন "${targetOrg?.name}"।`,
+        messageEn: `Your transfer to "${targetOrg?.name}" has received final approval from the Administrator.`,
+        type: 'transfer_completed',
+        link: transfer.userRole === 'teacher' ? '/teacher' : '/student',
+      });
+
+      // Notify Current Org
+      await this.notificationsService.createNotification({
+        recipientOrgId: transfer.currentOrgId,
+        titleBn: `${roleNameBn} স্থানান্তর সম্পন্ন হয়েছে`,
+        titleEn: `${roleNameEn} Transfer Completed`,
+        messageBn: `আপনার প্রতিষ্ঠানের ${roleNameBn} "${user.fullName}" এডমিনের চূড়ান্ত অনুমোদনের মাধ্যমে "${targetOrg?.name}" প্রতিষ্ঠানে স্থানান্তরিত হয়েছেন।`,
+        messageEn: `${roleNameEn} "${user.fullName}" has been transferred to "${targetOrg?.name}".`,
+        type: 'transfer_completed',
+      });
+
+      // Notify Target Org
+      await this.notificationsService.createNotification({
+        recipientOrgId: transfer.targetOrgId,
+        titleBn: `নতুন ${roleNameBn} আপনার প্রতিষ্ঠানে স্থানান্তরিত হয়েছেন`,
+        titleEn: `New ${roleNameEn} Officially Joined`,
+        messageBn: `${roleNameBn} "${user.fullName}" এডমিনের চূড়ান্ত অনুমোদনের মাধ্যমে আপনার প্রতিষ্ঠানে অন্তর্ভুক্ত হয়েছেন।`,
+        messageEn: `${roleNameEn} "${user.fullName}" has officially joined your institution.`,
+        type: 'transfer_completed',
+        link: `/organization?tab=${transfer.userRole === 'teacher' ? 'teachers' : 'affiliations'}`,
+      });
+
+      return {
+        success: true,
+        message: 'প্রতিষ্ঠান পরিবর্তন চূড়ান্তভাবে অনুমোদিত ও সফল হয়েছে।',
+      };
+    } else {
+      await this.db
+        .update(institutionTransfers)
+        .set({
+          status: 'rejected',
+          finalRejectionReason: reason?.trim() || 'এডমিন কর্তৃক আবেদন বাতিল করা হয়েছে।',
+          rejectionStage: 'admin',
+          updatedAt: new Date(),
+        })
+        .where(eq(institutionTransfers.id, transferId));
+
+      await this.notificationsService.createNotification({
+        recipientUserId: transfer.userId,
+        titleBn: 'প্রতিষ্ঠান পরিবর্তনের আবেদন প্রত্যাখ্যাত হয়েছে',
+        titleEn: 'Institution Transfer Rejected by Admin',
+        messageBn: `এডমিন কর্তৃক প্রতিষ্ঠান পরিবর্তনের আবেদনটি বাতিল করা হয়েছে। কারণ: ${reason?.trim() || 'প্রদত্ত তথ্য অপর্যাপ্ত'}`,
+        messageEn: `Your institution transfer request was rejected by admin. Reason: ${reason?.trim() || 'Insufficient information'}`,
+        type: 'transfer_rejected',
+        link: transfer.userRole === 'teacher' ? '/teacher' : '/student',
+      });
+
+      return {
+        success: true,
+        message: 'স্থানান্তরের আবেদন বাতিল করা হয়েছে।',
+      };
+    }
+  }
+
+  async listUnassignedOrgUsers() {
+    return this.db
+      .select({
+        id: users.id,
+        fullName: users.fullName,
+        email: users.email,
+        phone: users.phone,
+        status: users.status,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .where(
+        and(
+          eq(users.role, UserRole.ORGANIZATION),
+          or(isNull(users.organizationId), eq(users.organizationId, '')),
+          isNull(users.deletedAt)
+        )
+      )
+      .orderBy(desc(users.createdAt));
+  }
+
+  async getMyInstitutionHistory(currentUser: any) {
+    const [userRecord] = await this.db
+      .select({
+        id: users.id,
+        organizationId: users.organizationId,
+      })
+      .from(users)
+      .where(eq(users.id, currentUser.id))
+      .limit(1);
+
+    let currentOrg: any = null;
+    if (userRecord?.organizationId) {
+      const [found] = await this.db
+        .select({
+          id: organizations.id,
+          name: organizations.name,
+          address: organizations.address,
+          type: organizations.type,
+          phone: organizations.contactPhone,
+          email: organizations.email,
+        })
+        .from(organizations)
+        .where(eq(organizations.id, userRecord.organizationId))
+        .limit(1);
+      currentOrg = found;
+    }
+
+    // 1. Approved institution transfers where user was transferred
+    const approvedTransfers = await this.db
+      .select({
+        id: institutionTransfers.id,
+        orgId: institutionTransfers.currentOrgId,
+        orgName: organizations.name,
+        orgAddress: organizations.address,
+        date: institutionTransfers.finalApprovedAt,
+        reason: institutionTransfers.reason,
+        type: sql<string>`'transfer'`,
+      })
+      .from(institutionTransfers)
+      .innerJoin(organizations, eq(institutionTransfers.currentOrgId, organizations.id))
+      .where(
+        and(
+          eq(institutionTransfers.userId, currentUser.id),
+          eq(institutionTransfers.status, 'approved')
+        )
+      )
+      .orderBy(desc(institutionTransfers.finalApprovedAt));
+
+    // 2. Approved member removals where user was removed from an org
+    const approvedRemovals = await this.db
+      .select({
+        id: orgMemberRemovals.id,
+        orgId: orgMemberRemovals.organizationId,
+        orgName: organizations.name,
+        orgAddress: organizations.address,
+        date: orgMemberRemovals.adminReviewedAt,
+        reason: orgMemberRemovals.reason,
+        type: sql<string>`'removal'`,
+      })
+      .from(orgMemberRemovals)
+      .innerJoin(organizations, eq(orgMemberRemovals.organizationId, organizations.id))
+      .where(
+        and(
+          eq(orgMemberRemovals.userId, currentUser.id),
+          eq(orgMemberRemovals.status, 'approved')
+        )
+      )
+      .orderBy(desc(orgMemberRemovals.adminReviewedAt));
+
+    const combinedHistory = [...approvedTransfers, ...approvedRemovals].sort((a, b) => {
+      const timeA = a.date ? new Date(a.date).getTime() : 0;
+      const timeB = b.date ? new Date(b.date).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    return {
+      hasCurrentOrg: !!currentOrg,
+      currentOrg,
+      hasHistory: combinedHistory.length > 0,
+      previousInstitutions: combinedHistory,
+    };
+  }
+
+  async getAdminUserDetails(userId: string) {
+    const [user] = await this.db
+      .select({
+        id: users.id,
+        fullName: users.fullName,
+        email: users.email,
+        phone: users.phone,
+        role: users.role,
+        status: users.status,
+        address: users.address,
+        avatarUrl: users.avatarUrl,
+        organizationId: users.organizationId,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .where(and(eq(users.id, userId), isNull(users.deletedAt)))
+      .limit(1);
+
+    if (!user) {
+      throw new NotFoundException('ব্যবহারকারী পাওয়া যায়নি।');
+    }
+
+    let currentOrg: any = null;
+    if (user.organizationId) {
+      const [org] = await this.db
+        .select()
+        .from(organizations)
+        .where(eq(organizations.id, user.organizationId))
+        .limit(1);
+      currentOrg = org;
+    }
+
+    // Previous institutions history
+    const history = await this.getMyInstitutionHistory({ id: user.id });
+
+    // Profile details (student or teacher)
+    let studentProfile: any = null;
+    let teacherProfile: any = null;
+    if (user.role === UserRole.STUDENT) {
+      const [sp] = await this.db
+        .select()
+        .from(studentProfiles)
+        .where(eq(studentProfiles.userId, user.id))
+        .limit(1);
+      studentProfile = sp;
+    } else if (user.role === UserRole.TEACHER) {
+      const [tp] = await this.db
+        .select()
+        .from(teacherProfiles)
+        .where(eq(teacherProfiles.userId, user.id))
+        .limit(1);
+      teacherProfile = tp;
+    }
+
+    // Posts (if student)
+    const userPosts = await this.db
+      .select({
+        id: studentPosts.id,
+        title: studentPosts.title,
+        problemDescription: studentPosts.problemDescription,
+        totalRequiredAmount: studentPosts.totalRequiredAmount,
+        receivedAmount: studentPosts.receivedAmount,
+        verificationStatus: studentPosts.verificationStatus,
+        createdAt: studentPosts.createdAt,
+      })
+      .from(studentPosts)
+      .where(and(eq(studentPosts.studentId, user.id), isNull(studentPosts.deletedAt)))
+      .orderBy(desc(studentPosts.createdAt));
+
+    // Teacher attestations (posts verified by this teacher)
+    const teacherAttestations = user.role === UserRole.TEACHER
+      ? await this.db
+          .select({
+            id: studentPosts.id,
+            title: studentPosts.title,
+            studentName: users.fullName,
+            verificationStatus: studentPosts.verificationStatus,
+            createdAt: studentPosts.createdAt,
+          })
+          .from(studentPosts)
+          .innerJoin(users, eq(studentPosts.studentId, users.id))
+          .where(and(eq(studentPosts.teacherVerifiedBy, user.id), isNull(studentPosts.deletedAt)))
+          .orderBy(desc(studentPosts.createdAt))
+      : [];
+
+    // Complaints submitted by user
+    const userComplaints = await this.db
+      .select()
+      .from(complaints)
+      .where(eq(complaints.senderId, user.id))
+      .orderBy(desc(complaints.createdAt));
+
+    // Donations made by this user
+    const userDonations = await this.db
+      .select({
+        id: donations.id,
+        amount: donations.amount,
+        paymentMethod: donations.paymentMethod,
+        transactionReference: donations.transactionReference,
+        status: donations.status,
+        createdAt: donations.createdAt,
+      })
+      .from(donations)
+      .where(eq(donations.donorId, user.id))
+      .orderBy(desc(donations.createdAt));
+
+    const deletionEligibility = await this.checkUserPlatformData(user.id);
+
+    return {
+      user,
+      currentOrg,
+      previousInstitutions: history.previousInstitutions,
+      studentProfile,
+      teacherProfile,
+      posts: userPosts,
+      attestations: teacherAttestations,
+      complaints: userComplaints,
+      donations: userDonations,
+      deletionEligibility,
     };
   }
 }

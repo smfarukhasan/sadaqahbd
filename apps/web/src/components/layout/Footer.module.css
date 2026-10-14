@@ -158,6 +158,34 @@
   gap: 1rem;
 }
 
+.bottomCopyrightGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.developerCredit {
+  font-size: 0.82rem;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0;
+}
+
+.creditLink {
+  color: #34d399;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.creditLink:hover {
+  color: #10b981;
+  text-decoration: underline;
+}
+
 .bottomLinks {
   display: flex;
   align-items: center;
@@ -171,4 +199,10 @@
 
 .bottomLink:hover {
   color: #34d399;
+}
+
+@media (max-width: 767px) {
+  .footer {
+    padding-bottom: calc(85px + env(safe-area-inset-bottom, 8px));
+  }
 }

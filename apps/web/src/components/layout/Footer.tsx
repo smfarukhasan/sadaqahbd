@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { Link, usePathname } from '../../i18n/routing';
 import styles from './Footer.module.css';
 import {
@@ -18,6 +18,8 @@ import { isPanelRoute } from '../../lib/is-panel-route';
 export default function Footer() {
   const t = useTranslations('Common');
   const navT = useTranslations('Nav');
+  const locale = useLocale();
+  const isBn = locale === 'bn';
   const pathname = usePathname();
 
   // Dedicated User Panels (Admin, Student, Teacher, Org, Donor, MasterAdmin) have their own separate executive portal UI
@@ -26,7 +28,7 @@ export default function Footer() {
   }
 
   return (
-    <footer className={`${styles.footer} desktop-only`}>
+    <footer className={styles.footer}>
       <div className={`container ${styles.footerContainer}`}>
         <div className={styles.grid}>
           {/* Column 1: Brand & Mission */}
@@ -134,10 +136,22 @@ export default function Footer() {
 
         {/* Bottom Bar */}
         <div className={styles.bottomBar}>
-          <p className={styles.copyright}>
-            © ২০২৬ {t('siteName')} (Sadaqahbd) • সার্বিক সহযোগিতায় শিক্ষানুরাগী
-            সমাজ
-          </p>
+          <div className={styles.bottomCopyrightGroup}>
+            <p className={styles.copyright}>
+              © ২০২৬ {t('siteName')} (Sadaqahbd) • সার্বিক সহযোগিতায় শিক্ষানুরাগী সমাজ
+            </p>
+            <p className={styles.developerCredit}>
+              <span>{isBn ? 'ডিজাইন ও ডেভেলপমেন্টেঃ ' : 'Design & Development: '}</span>
+              <a
+                href="https://khubsoja.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.creditLink}
+              >
+                {isBn ? 'খুব সোজা' : 'Khub Soja'}
+              </a>
+            </p>
+          </div>
           <div className={styles.bottomLinks}>
             <span>১০০% নিরাপদ ও সুরক্ষিত</span>
             <span>•</span>

@@ -53,6 +53,7 @@ export default function FinancialDonationModal({
   const [paymentMethod, setPaymentMethod] = useState('Mobile Banking');
   const [trxId, setTrxId] = useState('');
   const [donorNote, setDonorNote] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -155,6 +156,7 @@ export default function FinancialDonationModal({
           paymentMethod,
           transactionReference: trxId.trim(),
           donorNote: donorNote.trim() || undefined,
+          isAnonymous,
         }),
       });
 
@@ -541,6 +543,54 @@ export default function FinancialDonationModal({
                   resize: 'vertical',
                 }}
               />
+            </div>
+
+            {/* Anonymous / Hide Identity Checkbox */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.65rem',
+                padding: '0.85rem',
+                backgroundColor: isAnonymous ? 'rgba(16, 185, 129, 0.08)' : 'var(--surface-border-subtle, rgba(0,0,0,0.03))',
+                borderRadius: 'var(--radius-md, 10px)',
+                border: isAnonymous ? '1.5px solid #10b981' : '1px solid var(--surface-border, #cbd5e1)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+              onClick={() => setIsAnonymous(!isAnonymous)}
+            >
+              <input
+                type="checkbox"
+                id="isAnonymousFinancial"
+                checked={isAnonymous}
+                onChange={(e) => setIsAnonymous(e.target.checked)}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  accentColor: '#10b981',
+                  cursor: 'pointer',
+                  marginTop: '2px',
+                }}
+              />
+              <label
+                htmlFor="isAnonymousFinancial"
+                style={{
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  color: 'var(--text-main)',
+                  userSelect: 'none',
+                }}
+              >
+                <strong style={{ display: 'block', color: isAnonymous ? '#059669' : 'var(--text-main)' }}>
+                  {isBn ? 'পরিচয় গোপন রাখতে চাই (পাবলিক লেজারে বেনামী)' : 'Keep identity anonymous in public ledger'}
+                </strong>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
+                  {isBn
+                    ? 'টিক দিলে পাবলিক হিসাব বইতে আপনার নাম "গোপন রাখা হয়েছে" হিসেবে দেখাবে। তবে মাস্টার এডমিন ও অনুমোদিত কর্তৃপক্ষ স্বচ্ছতা নিশ্চিতকরণে অভ্যন্তরীণভাবে দেখতে পারবে।'
+                    : 'Your name will show as anonymous on the public transparency ledger. Admins can verify internally.'}
+                </span>
+              </label>
             </div>
 
             {/* Submit Button */}

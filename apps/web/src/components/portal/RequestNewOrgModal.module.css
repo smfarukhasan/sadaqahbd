@@ -1,9 +1,9 @@
 .modalOverlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(4px);
-  z-index: 1200;
+  background-color: rgba(9, 14, 23, 0.8);
+  backdrop-filter: blur(6px);
+  z-index: 1400;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -19,10 +19,10 @@
 .modalCard {
   width: 100%;
   max-width: 520px;
-  background-color: var(--surface, #ffffff);
-  border: 1px solid var(--surface-border, #e2e8f0);
+  background-color: var(--surface, #111a28);
+  border: 1px solid var(--surface-border, #1e2d42);
   border-radius: 18px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -30,8 +30,8 @@
 
 .modalHeader {
   padding: 1.25rem 1.5rem;
-  background-color: var(--background-alt, #f8fafc);
-  border-bottom: 1px solid var(--surface-border, #e2e8f0);
+  background-color: var(--background-alt, #0d1522);
+  border-bottom: 1px solid var(--surface-border, #1e2d42);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -47,7 +47,7 @@
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background-color: rgba(5, 150, 105, 0.15);
+  background-color: rgba(16, 185, 129, 0.15);
   color: #10b981;
   display: flex;
   align-items: center;
@@ -57,21 +57,23 @@
 .modalTitle {
   font-size: 1.05rem;
   font-weight: 800;
-  color: var(--text-main, #0f172a);
+  color: var(--text-main, #f8fafc);
+  margin: 0;
 }
 
 .modalSubtitle {
   font-size: 0.75rem;
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted, #94a3b8);
+  margin: 2px 0 0;
 }
 
 .closeBtn {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  border: 1px solid var(--surface-border, #cbd5e1);
+  border: 1px solid var(--surface-border, #1e2d42);
   background: transparent;
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted, #94a3b8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -80,9 +82,9 @@
 }
 
 .closeBtn:hover {
-  background-color: #fee2e2;
-  color: #ef4444;
-  border-color: #fca5a5;
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
 }
 
 .modalBody {
@@ -92,14 +94,15 @@
   gap: 1rem;
   max-height: 75vh;
   overflow-y: auto;
+  background-color: var(--surface, #111a28);
 }
 
 .infoBanner {
   padding: 0.75rem 1rem;
-  background-color: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background-color: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.25);
   border-radius: 10px;
-  color: var(--text-main, #1e40af);
+  color: #7dd3fc;
   font-size: 0.8rem;
   line-height: 1.45;
 }
@@ -113,7 +116,7 @@
 .formLabel {
   font-size: 0.82rem;
   font-weight: 700;
-  color: var(--text-main, #334155);
+  color: var(--text-main, #f8fafc);
 }
 
 .formInput,
@@ -121,20 +124,25 @@
 .formTextarea {
   width: 100%;
   padding: 0.65rem 0.85rem;
-  background-color: var(--surface, #ffffff);
-  border: 1px solid var(--surface-border, #cbd5e1);
+  background-color: var(--surface, #111a28);
+  border: 1px solid var(--surface-border, #1e2d42);
   border-radius: 10px;
   font-size: 0.875rem;
-  color: var(--text-main, #0f172a);
+  color: var(--text-main, #f8fafc);
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.formSelect option {
+  background-color: var(--surface, #111a28);
+  color: var(--text-main, #f8fafc);
 }
 
 .formInput:focus,
 .formSelect:focus,
 .formTextarea:focus {
-  border-color: #059669;
-  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15);
+  border-color: var(--primary, #10b981);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
 }
 
 .formTextarea {
@@ -144,8 +152,8 @@
 
 .modalFooter {
   padding: 1rem 1.5rem;
-  background-color: var(--background-alt, #f8fafc);
-  border-top: 1px solid var(--surface-border, #e2e8f0);
+  background-color: var(--background-alt, #0d1522);
+  border-top: 1px solid var(--surface-border, #1e2d42);
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -154,38 +162,40 @@
 
 .cancelBtn {
   padding: 0.6rem 1.25rem;
-  background-color: var(--surface, #ffffff);
-  border: 1px solid var(--surface-border, #cbd5e1);
+  background-color: transparent;
+  border: 1px solid var(--surface-border, #1e2d42);
   border-radius: 10px;
   font-size: 0.875rem;
-  font-weight: 700;
-  color: var(--text-muted, #475569);
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .cancelBtn:hover {
-  background-color: var(--background-alt, #f1f5f9);
+  background-color: rgba(255, 255, 255, 0.06);
+  color: var(--text-main, #f8fafc);
 }
 
 .submitBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 1.4rem;
-  background-color: #059669;
+  padding: 0.6rem 1.35rem;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
   border: none;
   border-radius: 10px;
   font-size: 0.875rem;
   font-weight: 700;
   color: #ffffff;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
 }
 
 .submitBtn:hover:not(:disabled) {
-  background-color: #047857;
-  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  transform: translateY(-1px);
 }
 
 .submitBtn:disabled {
@@ -193,11 +203,34 @@
   cursor: not-allowed;
 }
 
-.errorMsg {
+.errorBanner {
   padding: 0.65rem 0.85rem;
-  background-color: #fef2f2;
-  border: 1px solid #fca5a5;
+  background-color: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 8px;
-  color: #dc2626;
+  color: #f87171;
   font-size: 0.82rem;
+}
+
+.successBanner {
+  padding: 2rem 1.5rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.successTitle {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #34d399;
+  margin: 0;
+}
+
+.successText {
+  font-size: 0.85rem;
+  color: var(--text-body, #cbd5e1);
+  margin: 0;
+  line-height: 1.5;
 }

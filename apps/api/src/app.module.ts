@@ -11,6 +11,8 @@ import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { MasterAdminModule } from './modules/masteradmin/masteradmin.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { SmsModule } from './modules/sms/sms.module';
+import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -31,6 +33,8 @@ import { HealthController } from './health.controller';
     MasterAdminModule,
     NotificationsModule,
     OrganizationsModule,
+    SmsModule,
+    MaintenanceModule,
   ],
   providers: [
     {

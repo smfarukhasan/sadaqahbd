@@ -13,8 +13,10 @@ import {
   studentPosts,
   fundAllocations,
   users,
+  organizations,
 } from '../../database';
 import { eq, and, sql, desc, isNull, inArray } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/mysql-core';
 import {
   CreateDonationInput,
   ReviewDonationInput,
@@ -25,6 +27,7 @@ import {
   AdminFollowUpItemDonationInput,
   DonationStatus,
   UserRole,
+  PermissionModuleKey,
 } from '@sadaqahbd/schema';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -64,7 +67,20 @@ export class DonationsService {
       paymentMethod: input.paymentMethod,
       transactionReference: input.transactionReference,
       donorNote: input.donorNote,
+      isAnonymous: input.isAnonymous ?? false,
       status: DonationStatus.PENDING,
+    });
+
+    // Notify Super Admins and Master Admin (Filtered by Permission)
+    await this.notificationsService.createNotification({
+      recipientRole: 'admin',
+      requiredPermission: PermissionModuleKey.ACCOUNTS_DONATION_APPROVAL,
+      titleBn: 'নতুন অনুদান যাচাই ও অনুমোদন',
+      titleEn: 'New Donation Pending Approval',
+      messageBn: `৳${Number(input.amount).toLocaleString('bn-BD')} টাকার একটি নতুন অনুদান এসেছে। ট্রানজেকশন আইডি: ${input.transactionReference}`,
+      messageEn: `A donation of ৳${input.amount} has been submitted (TxID: ${input.transactionReference}).`,
+      type: 'donation_submitted',
+      link: '/admin?tab=donation_approval',
     });
 
     return {
@@ -197,17 +213,19 @@ export class DonationsService {
   async allocateRandomFund(allocator: any, input: AllocateFundInput) {
     if (
       allocator.role !== UserRole.MASTER_ADMIN &&
-      allocator.role !== UserRole.SUPER_ADMIN
+      allocator.role !== UserRole.SUPER_ADMIN &&
+      allocator.role !== UserRole.ADMIN
     ) {
       throw new ForbiddenException(
-        'Only Master Admin or Super Admin can allocate random donation funds'
+        'Only Master Admin, Super Admin, or authorized Admin can allocate random donation funds'
       );
     }
 
-    if (allocator.role === UserRole.SUPER_ADMIN) {
+    if (allocator.role !== UserRole.MASTER_ADMIN) {
       const hasPerm = allocator.permissions?.some(
         (p: any) =>
-          (p.moduleKey === 'accounts_management.fund_allocation' ||
+          (p.moduleKey === PermissionModuleKey.ACCOUNTS_FUND_ALLOCATION ||
+            p.moduleKey === 'accounts_management.fund_allocation' ||
             p.moduleKey === 'accounts_management.donation_approval') &&
           (p.canApprove || p.canEdit)
       );
@@ -355,6 +373,7 @@ export class DonationsService {
         id: donations.id,
         amount: donations.amount,
         isRandom: donations.isRandom,
+        isAnonymous: donations.isAnonymous,
         paymentMethod: donations.paymentMethod,
         transactionReference: donations.transactionReference,
         status: donations.status,
@@ -370,6 +389,56 @@ export class DonationsService {
       .orderBy(desc(donations.createdAt));
 
     return history;
+  }
+
+  async toggleDonationPrivacy(donorUser: any, donationId: string, isAnonymous: boolean) {
+    const donation = await this.db
+      .select()
+      .from(donations)
+      .where(and(eq(donations.id, donationId), eq(donations.donorId, donorUser.id)))
+      .limit(1);
+
+    if (donation.length === 0) {
+      throw new NotFoundException('Donation record not found or not owned by you');
+    }
+
+    await this.db
+      .update(donations)
+      .set({ isAnonymous: !!isAnonymous })
+      .where(eq(donations.id, donationId));
+
+    return {
+      success: true,
+      isAnonymous: !!isAnonymous,
+      message: isAnonymous
+        ? 'আপনার পরিচয় সফলভাবে গোপন করা হয়েছে।'
+        : 'আপনার পরিচয় সফলভাবে উন্মুক্ত করা হয়েছে।',
+    };
+  }
+
+  async toggleItemDonationPrivacy(donorUser: any, itemDonationId: string, isAnonymous: boolean) {
+    const target = await this.db
+      .select()
+      .from(itemDonations)
+      .where(and(eq(itemDonations.id, itemDonationId), eq(itemDonations.donorId, donorUser.id)))
+      .limit(1);
+
+    if (target.length === 0) {
+      throw new NotFoundException('Item donation record not found or not owned by you');
+    }
+
+    await this.db
+      .update(itemDonations)
+      .set({ isAnonymous: !!isAnonymous })
+      .where(eq(itemDonations.id, itemDonationId));
+
+    return {
+      success: true,
+      isAnonymous: !!isAnonymous,
+      message: isAnonymous
+        ? 'পণ্য অনুদানে পরিচয় সফলভাবে গোপন করা হয়েছে।'
+        : 'পণ্য অনুদানে পরিচয় সফলভাবে উন্মুক্ত করা হয়েছে।',
+    };
   }
 
   async listPendingDonations() {
@@ -447,7 +516,20 @@ export class DonationsService {
 
 
 
-  async listAllocationsHistory() {
+  async listAllocationsHistory(user?: any) {
+    if (user && user.role !== UserRole.MASTER_ADMIN) {
+      const hasPerm = user.permissions?.some(
+        (p: any) =>
+          (p.moduleKey === PermissionModuleKey.ACCOUNTS_FUND_ALLOCATION ||
+            p.moduleKey === 'accounts_management.fund_allocation' ||
+            p.moduleKey === 'accounts_management.donation_approval') &&
+          (p.canView || p.canApprove || p.canEdit)
+      );
+      if (!hasPerm) {
+        throw new ForbiddenException('ফান্ড বণ্টনের তথ্য দেখার জন্য আপনার পারমিশন নেই');
+      }
+    }
+
     const list = await this.db
       .select({
         id: fundAllocations.id,
@@ -458,10 +540,12 @@ export class DonationsService {
         postTitle: studentPosts.title,
         studentName: studentPosts.studentFullName,
         studentId: studentPosts.studentId,
+        orgName: organizations.name,
         allocatedByAdminName: users.fullName,
       })
       .from(fundAllocations)
       .innerJoin(studentPosts, eq(fundAllocations.studentPostId, studentPosts.id))
+      .leftJoin(organizations, eq(studentPosts.organizationId, organizations.id))
       .leftJoin(users, eq(fundAllocations.allocatedBy, users.id))
       .orderBy(desc(fundAllocations.createdAt));
 
@@ -471,7 +555,20 @@ export class DonationsService {
     }));
   }
 
-  async listEligibleStudentPostsForAllocation() {
+  async listEligibleStudentPostsForAllocation(user?: any) {
+    if (user && user.role !== UserRole.MASTER_ADMIN) {
+      const hasPerm = user.permissions?.some(
+        (p: any) =>
+          (p.moduleKey === PermissionModuleKey.ACCOUNTS_FUND_ALLOCATION ||
+            p.moduleKey === 'accounts_management.fund_allocation' ||
+            p.moduleKey === 'accounts_management.donation_approval') &&
+          (p.canView || p.canApprove || p.canEdit)
+      );
+      if (!hasPerm) {
+        throw new ForbiddenException('ফান্ড বণ্টনের তথ্য দেখার জন্য আপনার পারমিশন নেই');
+      }
+    }
+
     const posts = await this.db
       .select({
         id: studentPosts.id,
@@ -479,6 +576,7 @@ export class DonationsService {
         studentFullName: studentPosts.studentFullName,
         studentClassDepartment: studentPosts.studentClassDepartment,
         studentId: studentPosts.studentId,
+        orgName: organizations.name,
         totalRequiredAmount: studentPosts.totalRequiredAmount,
         receivedAmount: studentPosts.receivedAmount,
         remainingAmount: studentPosts.remainingAmount,
@@ -486,6 +584,7 @@ export class DonationsService {
         createdAt: studentPosts.createdAt,
       })
       .from(studentPosts)
+      .leftJoin(organizations, eq(studentPosts.organizationId, organizations.id))
       .where(
         and(
           eq(studentPosts.verificationStatus, 'approved'),
@@ -534,10 +633,23 @@ export class DonationsService {
       description: input.description,
       quantity: input.quantity,
       isRandom: input.isRandom,
+      isAnonymous: input.isAnonymous ?? false,
       postId: input.isRandom ? null : input.postId,
       pickupAddress: input.pickupAddress,
       status: DonationStatus.PENDING,
       deliveryStatus: 'pending_review',
+    });
+
+    // Notify Super Admins and Master Admin (Filtered by Permission)
+    await this.notificationsService.createNotification({
+      recipientRole: 'admin',
+      requiredPermission: PermissionModuleKey.ITEM_DONATION_APPROVAL,
+      titleBn: 'নতুন পণ্য অনুদান যাচাই ও অনুমোদন',
+      titleEn: 'New In-Kind Item Donation Pending Approval',
+      messageBn: `"${input.itemName}" (${input.quantity}) পণ্য অনুদানের একটি নতুন আবেদন এসেছে।`,
+      messageEn: `An in-kind item donation ("${input.itemName}") has been submitted for verification.`,
+      type: 'item_donation_created',
+      link: '/admin?tab=item_donation_review',
     });
 
     return {
@@ -745,6 +857,7 @@ export class DonationsService {
         description: itemDonations.description,
         quantity: itemDonations.quantity,
         isRandom: itemDonations.isRandom,
+        isAnonymous: itemDonations.isAnonymous,
         status: itemDonations.status,
         adminInstruction: itemDonations.adminInstruction,
         donorShipmentNote: itemDonations.donorShipmentNote,
@@ -779,6 +892,7 @@ export class DonationsService {
         description: itemDonations.description,
         quantity: itemDonations.quantity,
         isRandom: itemDonations.isRandom,
+        isAnonymous: itemDonations.isAnonymous,
         postId: itemDonations.postId,
         postTitle: studentPosts.title,
         pickupAddress: itemDonations.pickupAddress,
@@ -798,6 +912,231 @@ export class DonationsService {
       .orderBy(desc(itemDonations.createdAt));
 
     return list;
+  }
+
+  async getPublicTransparencyFeed() {
+    // 1. Accepted Donations
+    const acceptedDonations = await this.db
+      .select({
+        id: donations.id,
+        amount: donations.amount,
+        isRandom: donations.isRandom,
+        isAnonymous: donations.isAnonymous,
+        paymentMethod: donations.paymentMethod,
+        createdAt: donations.createdAt,
+        donorName: users.fullName,
+        donorRole: users.role,
+        donorAvatarUrl: users.avatarUrl,
+        postTitle: studentPosts.title,
+        studentName: studentPosts.studentFullName,
+        orgName: organizations.name,
+      })
+      .from(donations)
+      .leftJoin(users, eq(donations.donorId, users.id))
+      .leftJoin(studentPosts, eq(donations.postId, studentPosts.id))
+      .leftJoin(organizations, eq(studentPosts.organizationId, organizations.id))
+      .where(eq(donations.status, DonationStatus.ACCEPTED))
+      .orderBy(desc(donations.createdAt))
+      .limit(100);
+
+    // 2. Fund Allocations from General Education Fund (On behalf of Sadaqah BD)
+    const allocations = await this.db
+      .select({
+        id: fundAllocations.id,
+        amount: fundAllocations.amount,
+        createdAt: fundAllocations.createdAt,
+        notes: fundAllocations.notes,
+        postTitle: studentPosts.title,
+        studentName: studentPosts.studentFullName,
+        orgName: organizations.name,
+        allocatedByAdminName: users.fullName,
+        allocatedByAdminRole: users.role,
+      })
+      .from(fundAllocations)
+      .innerJoin(studentPosts, eq(fundAllocations.studentPostId, studentPosts.id))
+      .leftJoin(organizations, eq(studentPosts.organizationId, organizations.id))
+      .leftJoin(users, eq(fundAllocations.allocatedBy, users.id))
+      .orderBy(desc(fundAllocations.createdAt))
+      .limit(50);
+
+    const formattedDonations = acceptedDonations.map((d) => {
+      const isAnon = d.isAnonymous;
+      return {
+        id: d.id,
+        type: 'monetary',
+        isAnonymous: isAnon,
+        donorName: isAnon ? 'গোপন রাখা হয়েছে' : (d.donorName || 'সম্মানিত শুভাকাঙ্ক্ষী'),
+        donorRole: isAnon ? null : (d.donorRole || 'donor'),
+        donorAvatarUrl: isAnon ? null : d.donorAvatarUrl,
+        targetType: d.isRandom ? 'general_fund' : 'student_post',
+        targetLabel: d.isRandom
+          ? 'সাদাকাহ বিডি ফান্ড'
+          : `${d.studentName || 'শিক্ষার্থী'}${d.orgName ? ` • ${d.orgName}` : ''}`,
+        amount: Number(d.amount),
+        paymentMethod: d.paymentMethod,
+        createdAt: d.createdAt,
+      };
+    });
+
+    const formattedAllocations = allocations.map((a) => ({
+      id: a.id,
+      type: 'fund_allocation',
+      isAnonymous: false,
+      donorName: 'সাদাকাহ বিডি',
+      donorRole: 'organization',
+      donorAvatarUrl: null,
+      targetType: 'student_post',
+      targetLabel: `${a.studentName || 'শিক্ষার্থী'}${a.orgName ? ` • ${a.orgName}` : ''}`,
+      amount: Number(a.amount),
+      paymentMethod: 'শিক্ষা তহবিল বরাদ্দ',
+      createdAt: a.createdAt,
+    }));
+
+    const allFeeds = [...formattedDonations, ...formattedAllocations].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    return allFeeds.slice(0, 100);
+  }
+
+  async getAdminDonorsAndDonations(adminUser: any) {
+    if (
+      adminUser.role !== UserRole.MASTER_ADMIN &&
+      adminUser.role !== UserRole.SUPER_ADMIN
+    ) {
+      throw new ForbiddenException('Access denied. Administrator privileges required.');
+    }
+
+    const reviewerUser = alias(users, 'reviewer_user');
+
+    // Fetch all distinct donor users who have actually made at least one donation
+    const donorRows = await this.db
+      .selectDistinct({ donorId: donations.donorId })
+      .from(donations)
+      .where(sql`${donations.donorId} IS NOT NULL`);
+
+    const donorUserIds = donorRows.map((r) => r.donorId).filter(Boolean) as string[];
+    if (donorUserIds.length === 0) {
+      return [];
+    }
+
+    // Fetch current user info for each donor (reflects live name, avatar, role, phone)
+    const donorUsers = await this.db
+      .select({
+        id: users.id,
+        fullName: users.fullName,
+        email: users.email,
+        phone: users.phone,
+        role: users.role,
+        avatarUrl: users.avatarUrl,
+        status: users.status,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .where(and(inArray(users.id, donorUserIds), isNull(users.deletedAt)));
+
+    // Fetch all donations by these users with post, school and reviewer audit details
+    const allDonations = await this.db
+      .select({
+        id: donations.id,
+        donorId: donations.donorId,
+        amount: donations.amount,
+        isRandom: donations.isRandom,
+        isAnonymous: donations.isAnonymous,
+        paymentMethod: donations.paymentMethod,
+        trxId: donations.transactionReference,
+        donorNote: donations.donorNote,
+        status: donations.status,
+        rejectionReason: donations.rejectionReason,
+        createdAt: donations.createdAt,
+        reviewedAt: donations.reviewedAt,
+        postTitle: studentPosts.title,
+        studentName: studentPosts.studentFullName,
+        orgName: organizations.name,
+        reviewerName: reviewerUser.fullName,
+        reviewerRole: reviewerUser.role,
+        reviewerPhone: reviewerUser.phone,
+      })
+      .from(donations)
+      .leftJoin(studentPosts, eq(donations.postId, studentPosts.id))
+      .leftJoin(organizations, eq(studentPosts.organizationId, organizations.id))
+      .leftJoin(reviewerUser, eq(donations.reviewedBy, reviewerUser.id))
+      .where(inArray(donations.donorId, donorUserIds))
+      .orderBy(desc(donations.createdAt));
+
+    // Aggregate per donor
+    const donorsMap = new Map<string, any>();
+    for (const u of donorUsers) {
+      donorsMap.set(u.id, {
+        id: u.id,
+        fullName: u.fullName,
+        email: u.email,
+        phone: u.phone,
+        role: u.role,
+        avatarUrl: u.avatarUrl,
+        status: u.status,
+        joinedAt: u.createdAt,
+        totalDonatedAmount: 0,
+        totalDonationsCount: 0,
+        acceptedDonationsCount: 0,
+        pendingDonationsCount: 0,
+        lastDonatedAt: null as Date | null,
+        transactions: [] as any[],
+      });
+    }
+
+    for (const d of allDonations) {
+      if (!d.donorId || !donorsMap.has(d.donorId)) continue;
+      const donorObj = donorsMap.get(d.donorId);
+      const amt = Number(d.amount);
+
+      donorObj.totalDonationsCount += 1;
+      if (d.status === DonationStatus.ACCEPTED) {
+        donorObj.totalDonatedAmount += amt;
+        donorObj.acceptedDonationsCount += 1;
+      } else if (d.status === DonationStatus.PENDING) {
+        donorObj.pendingDonationsCount += 1;
+      }
+
+      if (!donorObj.lastDonatedAt || new Date(d.createdAt) > new Date(donorObj.lastDonatedAt)) {
+        donorObj.lastDonatedAt = d.createdAt;
+      }
+
+      donorObj.transactions.push({
+        id: d.id,
+        amount: amt,
+        isRandom: d.isRandom,
+        isAnonymous: d.isAnonymous,
+        paymentMethod: d.paymentMethod,
+        trxId: d.trxId,
+        donorNote: d.donorNote,
+        status: d.status,
+        rejectionReason: d.rejectionReason,
+        createdAt: d.createdAt,
+        reviewedAt: d.reviewedAt,
+        targetName: d.isRandom
+          ? 'সাদাকাহ বিডি সাধারণ শিক্ষা তহবিল'
+          : `${d.studentName || 'শিক্ষার্থী'}${d.orgName ? ` (${d.orgName})` : ''}`,
+        postTitle: d.postTitle,
+        reviewer: d.reviewerName
+          ? {
+              name: d.reviewerName,
+              role: d.reviewerRole,
+              phone: d.reviewerPhone,
+            }
+          : null,
+      });
+    }
+
+    // Convert map to array and sort by totalDonatedAmount DESC (Highest donors on top)
+    const result = Array.from(donorsMap.values()).sort((a, b) => {
+      if (b.totalDonatedAmount !== a.totalDonatedAmount) {
+        return b.totalDonatedAmount - a.totalDonatedAmount;
+      }
+      return b.totalDonationsCount - a.totalDonationsCount;
+    });
+
+    return result;
   }
 }
 

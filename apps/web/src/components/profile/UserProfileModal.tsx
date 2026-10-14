@@ -23,10 +23,14 @@ import {
   HeartHandshake,
   Heart,
   Calendar,
+  Building2,
+  History,
   Lock,
   Eye,
   EyeOff,
+  Smartphone,
 } from 'lucide-react';
+import PhoneVerificationModal from './PhoneVerificationModal';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -95,6 +99,7 @@ export default function UserProfileModal({
   const [fullName, setFullName] = useState(user?.fullName || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [address, setAddress] = useState(user?.address || '');
+  const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [fetchingStudent, setFetchingStudent] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState('');
@@ -116,6 +121,16 @@ export default function UserProfileModal({
   const [guardianPhone, setGuardianPhone] = useState('');
   const [guardianAddress, setGuardianAddress] = useState('');
   const [isProfileLocked, setIsProfileLocked] = useState(false);
+
+  // Institution & Previous History States
+  const [institutionData, setInstitutionData] = useState<{
+    currentOrganization: any;
+    previousInstitutions: any[];
+  }>({
+    currentOrganization: null,
+    previousInstitutions: [],
+  });
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   // Photo Upload States
   const [cropperFile, setCropperFile] = useState<File | null>(null);
@@ -207,6 +222,30 @@ export default function UserProfileModal({
       setFetchingStudent(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen && user && (user.role === 'student' || user.role === 'teacher' || user.role === 'organization')) {
+      const loadHistory = async () => {
+        try {
+          const token = await getAuthToken();
+          const apiUrl = getApiUrl();
+          const res = await fetch(`${apiUrl}/users/my-institution-history`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setInstitutionData({
+              currentOrganization: data.currentOrganization || null,
+              previousInstitutions: Array.isArray(data.previousInstitutions) ? data.previousInstitutions : [],
+            });
+          }
+        } catch (err) {
+          console.error('Failed to load institution history:', err);
+        }
+      };
+      loadHistory();
+    }
+  }, [isOpen, user]);
 
   if (!isOpen) return null;
 
@@ -547,6 +586,81 @@ export default function UserProfileModal({
               </div>
             </div>
 
+            {/* Institution & History Card */}
+            {(user?.role === 'student' || user?.role === 'teacher') && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1rem',
+                  backgroundColor: 'var(--background)',
+                  border: '1px solid var(--surface-border)',
+                  borderRadius: '12px',
+                  marginBottom: '1rem',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <div
+                    style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(5, 150, 105, 0.12)',
+                      color: 'var(--primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Building2 size={18} />
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', fontWeight: 600 }}>
+                      {isBn ? 'বর্তমান শিক্ষা প্রতিষ্ঠান' : 'Current Institution'}
+                    </span>
+                    <strong style={{ fontSize: '0.9rem', color: 'var(--text-main)', display: 'block' }}>
+                      {institutionData.currentOrganization?.name || (isBn ? 'কোনো প্রতিষ্ঠানের সাথে যুক্ত নেই' : 'Not affiliated')}
+                    </strong>
+                  </div>
+                </div>
+
+                {institutionData.previousInstitutions.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowHistoryModal(true)}
+                    className="btn btn-outline"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.35rem 0.75rem',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      borderColor: 'var(--surface-border)',
+                    }}
+                  >
+                    <History size={14} />
+                    <span>{isBn ? 'হিস্টোরি' : 'History'}</span>
+                    <span
+                      style={{
+                        padding: '0.1rem 0.4rem',
+                        fontSize: '0.7rem',
+                        borderRadius: '9999px',
+                        backgroundColor: 'var(--primary)',
+                        color: '#fff',
+                      }}
+                    >
+                      {institutionData.previousInstitutions.length}
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Nav Tabs */}
             <div className={styles.tabs}>
               <button
@@ -622,7 +736,43 @@ export default function UserProfileModal({
                   </div>
 
                   <div className={styles.formGroup}>
-                    <label className={styles.label}>{isBn ? 'ফোন নম্বর' : 'Phone Number'}</label>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                      <label className={styles.label} style={{ margin: 0 }}>
+                        {isBn ? 'মোবাইল নম্বর' : 'Phone Number'}
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <span
+                          style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            padding: '0.1rem 0.45rem',
+                            borderRadius: '10px',
+                            backgroundColor: user?.isPhoneVerified ? '#d1fae5' : '#fee2e2',
+                            color: user?.isPhoneVerified ? '#047857' : '#b91c1c',
+                          }}
+                        >
+                          {user?.isPhoneVerified
+                            ? (isBn ? '✓ ভেরিফাইড' : '✓ Verified')
+                            : (isBn ? '✕ আনভেরিফাইড' : '✕ Unverified')}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsPhoneModalOpen(true)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--color-primary, #059669)',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            padding: 0,
+                          }}
+                        >
+                          {isBn ? 'নম্বর পরিবর্তন / ব্যবস্থাপনা' : 'Manage / Verify'}
+                        </button>
+                      </div>
+                    </div>
                     <input
                       type="tel"
                       value={phone}
@@ -1152,6 +1302,126 @@ export default function UserProfileModal({
           </div>
         </div>
       </div>
+
+      {/* Previous Institutions History Modal */}
+      {showHistoryModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '1rem',
+          }}
+          onClick={() => setShowHistoryModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--surface)',
+              borderRadius: '16px',
+              border: '1px solid var(--surface-border)',
+              maxWidth: '460px',
+              width: '100%',
+              padding: '1.5rem',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.25)',
+              color: 'var(--text-main)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <History size={20} color="var(--primary)" />
+                <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                  {isBn ? 'পূর্বের শিক্ষা প্রতিষ্ঠানের হিস্টোরি' : 'Previous Institutions History'}
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHistoryModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '340px', overflowY: 'auto' }}>
+              {institutionData.previousInstitutions.map((item, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    padding: '0.85rem',
+                    backgroundColor: 'var(--background)',
+                    borderRadius: '10px',
+                    border: '1px solid var(--surface-border)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    <strong style={{ fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                      {item.orgName || (isBn ? 'অজ্ঞাত প্রতিষ্ঠান' : 'Unknown')}
+                    </strong>
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        padding: '0.15rem 0.5rem',
+                        borderRadius: '9999px',
+                        backgroundColor: item.type === 'transfer' ? 'rgba(37, 99, 235, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                        color: item.type === 'transfer' ? '#2563eb' : '#ef4444',
+                      }}
+                    >
+                      {item.type === 'transfer' ? (isBn ? 'স্থানান্তর' : 'Transfer') : (isBn ? 'রিমুভ' : 'Removal')}
+                    </span>
+                  </div>
+                  {item.orgAddress && (
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                      <MapPin size={12} style={{ display: 'inline', marginRight: '4px' }} />
+                      {item.orgAddress}
+                    </div>
+                  )}
+                  {item.reason && (
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem', fontStyle: 'italic' }}>
+                      {isBn ? 'কারণ: ' : 'Reason: '} {item.reason}
+                    </div>
+                  )}
+                  {item.transferredAt && (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                      {new Date(item.transferredAt).toLocaleDateString(isBn ? 'bn-BD' : 'en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowHistoryModal(false)}
+              className="btn btn-outline"
+              style={{ width: '100%', marginTop: '1.25rem', padding: '0.55rem', fontSize: '0.85rem', fontWeight: 700 }}
+            >
+              {isBn ? 'বন্ধ করুন' : 'Close'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Multi-phone Management & Verification Modal */}
+      <PhoneVerificationModal
+        isOpen={isPhoneModalOpen}
+        onClose={() => setIsPhoneModalOpen(false)}
+        isBn={isBn}
+        mode="manage_phones"
+        onSuccess={() => {
+          setPhone(useAuthStore.getState().user?.phone || '');
+        }}
+      />
     </>
   );
 }

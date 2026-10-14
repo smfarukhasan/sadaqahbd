@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { useAuthStore } from '../../lib/auth-store';
+import { getApiUrl } from '../../lib/api-config';
 
 export default function AuthInitializer() {
   const syncProfile = useAuthStore((s) => s.syncProfile);
@@ -43,7 +44,7 @@ export default function AuthInitializer() {
           }
 
           if (storedToken) {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000/api/v1';
+            const apiUrl = getApiUrl();
             fetch(`${apiUrl}/auth/me`, {
               headers: {
                 Authorization: `Bearer ${storedToken}`,

@@ -62,6 +62,20 @@ export class PostsController {
     return this.postsService.listOrgPendingPosts(user);
   }
 
+  @Get('org-history')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(UserRole.ORGANIZATION, UserRole.MASTER_ADMIN)
+  async listOrgHistory(@CurrentUser() user: any) {
+    return this.postsService.listOrgHistoryPosts(user);
+  }
+
+  @Get('institution-posts')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(UserRole.TEACHER, UserRole.ORGANIZATION, UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async listInstitutionPosts(@CurrentUser() user: any) {
+    return this.postsService.listInstitutionPosts(user);
+  }
+
   @Get(':id')
   async getDetails(@Param('id') id: string, @Query('donorId') donorId?: string) {
     return this.postsService.getPostDetails(id, donorId);

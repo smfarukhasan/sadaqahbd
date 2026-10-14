@@ -14,6 +14,7 @@ import {
   Send,
   Building2,
   Heart,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuthStore, getRoleDashboardPath } from '../../../lib/auth-store';
 import PortalLayout, { PortalNavItem } from '../../../components/layout/PortalLayout';
@@ -23,6 +24,8 @@ import AffiliationApplyModal from '../../../components/portal/AffiliationApplyMo
 import VerificationStatusView from '../../../components/portal/VerificationStatusView';
 import StudentApplicationForm from '../../../components/portal/StudentApplicationForm';
 import UserProfileModal from '../../../components/profile/UserProfileModal';
+import InstitutionTransferModal from '../../../components/portal/InstitutionTransferModal';
+import TransferStatusBanner from '../../../components/portal/TransferStatusBanner';
 
 import MyDonationsSection from '../../../components/portal/MyDonationsSection';
 
@@ -34,12 +37,12 @@ export default function StudentDashboardPage() {
   const firebaseUser = useAuthStore((s) => s.firebaseUser);
   const loadingAuth = useAuthStore((s) => s.loading);
 
-  const [activeNav, setActiveNav] = useState<'overview' | 'applications' | 'complaints' | 'my-donations'>('overview');
+  const [activeNav, setActiveNav] = useState<'overview' | 'applications' | 'transfers' | 'complaints' | 'my-donations'>('overview');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const tabParam = new URLSearchParams(window.location.search).get('tab');
-      if (tabParam === 'my-donations' || tabParam === 'overview' || tabParam === 'applications' || tabParam === 'complaints') {
+      if (tabParam === 'my-donations' || tabParam === 'overview' || tabParam === 'applications' || tabParam === 'transfers' || tabParam === 'complaints') {
         setActiveNav(tabParam as any);
       }
     }
@@ -53,6 +56,12 @@ export default function StudentDashboardPage() {
     organization: any;
   } | null>(null);
   const [isAffiliationModalOpen, setIsAffiliationModalOpen] = useState(false);
+  const [transferData, setTransferData] = useState<{
+    hasTransfer: boolean;
+    isPending: boolean;
+    transfer: any;
+  } | null>(null);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
 
   // Student Profile Completion Gate State
@@ -91,6 +100,20 @@ export default function StudentDashboardPage() {
     return true;
   };
 
+  const handleCloseIncompleteModal = () => {
+    setShowIncompleteProfileModal(false);
+    if (typeof window !== 'undefined') {
+      try {
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.delete('action');
+        const nextQuery = currentUrl.searchParams.toString();
+        window.history.replaceState({}, '', currentUrl.pathname + (nextQuery ? `?${nextQuery}` : ''));
+      } catch {
+        // ignore
+      }
+    }
+  };
+
   // Check URL query parameters to auto-open application creation
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -107,6 +130,16 @@ export default function StudentDashboardPage() {
       if (params.get('action') === 'new' || params.get('action') === 'new_post') {
         setActiveNav('applications');
         handleOpenApplicationForm(studentProfileData);
+
+        // Remove the action parameter from the URL history so page reloads (Ctrl+Shift+R) don't re-trigger it
+        try {
+          const currentUrl = new URL(window.location.href);
+          currentUrl.searchParams.delete('action');
+          const nextQuery = currentUrl.searchParams.toString();
+          window.history.replaceState({}, '', currentUrl.pathname + (nextQuery ? `?${nextQuery}` : ''));
+        } catch {
+          // ignore
+        }
       }
     }
   }, [studentProfileData]);
@@ -137,8 +170,8 @@ export default function StudentDashboardPage() {
       const apiUrl = getApiUrl();
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Parallelize fetching affiliation status, student posts, and full profile
-      const [affRes, postsRes, profRes] = await Promise.all([
+      // Parallelize fetching affiliation status, student posts, full profile, and transfer request
+      const [affRes, postsRes, profRes, transferRes] = await Promise.all([
         fetch(`${apiUrl}/users/my-affiliation`, { headers }).catch((err) => {
           console.error('Failed to load student affiliation status:', err);
           return null;
@@ -149,6 +182,10 @@ export default function StudentDashboardPage() {
         }),
         fetch(`${apiUrl}/users/my-student-profile`, { headers }).catch((err) => {
           console.error('Failed to load student full profile:', err);
+          return null;
+        }),
+        fetch(`${apiUrl}/users/my-institution-transfer`, { headers }).catch((err) => {
+          console.error('Failed to load student transfer status:', err);
           return null;
         }),
       ]);
@@ -167,6 +204,11 @@ export default function StudentDashboardPage() {
         const profJson = await profRes.json().catch(() => null);
         if (profJson) setStudentProfileData(profJson);
       }
+
+      if (transferRes && transferRes.ok) {
+        const transJson = await transferRes.json().catch(() => null);
+        if (transJson) setTransferData(transJson);
+      }
     } catch (err) {
       console.error('Failed to load student portal data:', err);
     } finally {
@@ -177,15 +219,15 @@ export default function StudentDashboardPage() {
   useEffect(() => {
     if (user && user.role === 'student') {
       loadData();
-      // Only live poll if unverified (waiting for institution or admin review)
-      if (affiliationData?.status !== 'verified') {
+      // Live poll if unverified or if transfer is in progress
+      if (affiliationData?.status !== 'verified' || transferData?.isPending) {
         const timer = setInterval(() => {
           loadData();
         }, 8000);
         return () => clearInterval(timer);
       }
     }
-  }, [firebaseUser, user, affiliationData?.status]);
+  }, [firebaseUser, user, affiliationData?.status, transferData?.isPending]);
 
   const handleComplaintSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -260,6 +302,13 @@ export default function StudentDashboardPage() {
           labelEn: 'Support & Complaints',
           icon: MessageSquareWarning,
           badge: complaintsList.length,
+        },
+        {
+          id: 'transfers',
+          labelBn: 'প্রতিষ্ঠান পরিবর্তন',
+          labelEn: 'Institution Transfer',
+          icon: Building2,
+          badge: transferData?.isPending ? 1 : undefined,
         },
         {
           id: 'my-donations',
@@ -386,6 +435,25 @@ export default function StudentDashboardPage() {
           />
         ) : (
           <div>
+            {/* If transfer is pending or rejected, show notification banner on top of overview */}
+            {transferData?.isPending && activeNav !== 'transfers' && (
+              <div style={{ marginBottom: '1.5rem' }}>
+                <TransferStatusBanner
+                  transfer={transferData.transfer}
+                  onRefresh={loadData}
+                  onRequestNewTransfer={() => setIsTransferModalOpen(true)}
+                />
+              </div>
+            )}
+            {transferData?.hasTransfer && transferData.transfer?.status === 'rejected' && activeNav !== 'transfers' && (
+              <div style={{ marginBottom: '1.5rem' }}>
+                <TransferStatusBanner
+                  transfer={transferData.transfer}
+                  onRefresh={loadData}
+                  onRequestNewTransfer={() => setIsTransferModalOpen(true)}
+                />
+              </div>
+            )}
             {/* VIEW 1: OVERVIEW */}
             {activeNav === 'overview' && (
               <div>
@@ -411,18 +479,38 @@ export default function StudentDashboardPage() {
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveNav('applications');
-                      setIsCreatingPost(true);
-                    }}
-                    className="btn btn-primary"
-                    style={{ cursor: 'pointer', border: 'none' }}
-                  >
-                    <PlusCircle size={18} />
-                    <span>{isBn ? 'নতুন আবেদন তৈরি করুন' : 'Create New Application'}</span>
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsTransferModalOpen(true)}
+                      className="btn btn-outline"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        fontSize: '0.86rem',
+                        fontWeight: 700,
+                        padding: '0.62rem 1.15rem',
+                        borderRadius: 'var(--radius-md, 8px)',
+                      }}
+                    >
+                      <Building2 size={16} />
+                      <span>{isBn ? 'প্রতিষ্ঠান পরিবর্তন' : 'Institution Transfer'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveNav('applications');
+                        setIsCreatingPost(true);
+                      }}
+                      className="btn btn-primary"
+                      style={{ cursor: 'pointer', border: 'none' }}
+                    >
+                      <PlusCircle size={18} />
+                      <span>{isBn ? 'নতুন আবেদন তৈরি করুন' : 'Create New Application'}</span>
+                    </button>
+                  </div>
                 </div>
                 {/* KPI Cards */}
                 <div
@@ -940,6 +1028,159 @@ export default function StudentDashboardPage() {
           </div>
         )}
 
+        {/* VIEW 3.5: INSTITUTION TRANSFER */}
+        {activeNav === 'transfers' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                  {isBn ? 'প্রতিষ্ঠান পরিবর্তন ও ডিজিটাল ছাড়পত্র' : 'Institution Transfer & Release Clearance'}
+                </h1>
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+                  {isBn
+                    ? 'আপনার বর্তমান শিক্ষা প্রতিষ্ঠান পরিবর্তন এবং ৩-ধাপের ডিজিটাল ছাড়পত্র অগ্রগতি পরিচালনা করুন'
+                    : 'Manage institution transfer requests and track your 3-stage digital clearance workflow'}
+                </p>
+              </div>
+
+              {!transferData?.isPending && (
+                <button
+                  type="button"
+                  onClick={() => setIsTransferModalOpen(true)}
+                  className="btn btn-primary"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.65rem 1.25rem',
+                    fontWeight: 700,
+                    background: '#059669',
+                    boxShadow: '0 4px 12px -2px rgba(5, 150, 105, 0.4)',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md, 8px)',
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Building2 size={18} />
+                  <span>{isBn ? 'নতুন প্রতিষ্ঠান পরিবর্তনের আবেদন করুন' : 'Apply for Institution Transfer'}</span>
+                </button>
+              )}
+            </div>
+
+            {/* If transfer is pending or was rejected, show the full status stepper banner */}
+            {transferData?.hasTransfer && (
+              <div style={{ marginBottom: '1.5rem' }}>
+                <TransferStatusBanner
+                  transfer={transferData.transfer}
+                  onRefresh={loadData}
+                  onRequestNewTransfer={() => setIsTransferModalOpen(true)}
+                />
+              </div>
+            )}
+
+            {/* Current Institution Card */}
+            <div
+              style={{
+                padding: '1.5rem',
+                backgroundColor: 'var(--surface)',
+                borderRadius: 'var(--radius-lg, 12px)',
+                border: '1px solid var(--surface-border, #e2e8f0)',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                marginBottom: '1.5rem',
+              }}
+            >
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Building2 size={20} color="#059669" />
+                {isBn ? 'বর্তমান সংযুক্ত প্রতিষ্ঠান' : 'Currently Affiliated Institution'}
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+                <div style={{ padding: '1rem', background: 'var(--background, #f8fafc)', borderRadius: '8px', border: '1px solid var(--surface-border, #e2e8f0)' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
+                    {isBn ? 'প্রতিষ্ঠানের নাম' : 'Institution Name'}
+                  </span>
+                  <strong style={{ fontSize: '1rem', color: 'var(--text-main)' }}>
+                    {affiliationData?.organization?.name || affiliationData?.profile?.institutionName || (isBn ? 'অনির্ধারিত' : 'Not specified')}
+                  </strong>
+                </div>
+                <div style={{ padding: '1rem', background: 'var(--background, #f8fafc)', borderRadius: '8px', border: '1px solid var(--surface-border, #e2e8f0)' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
+                    {isBn ? 'সত্যায়ন অবস্থা' : 'Affiliation Status'}
+                  </span>
+                  <strong style={{ fontSize: '0.95rem', color: '#059669', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <CheckCircle2 size={16} />
+                    {isBn ? 'সত্যায়িত ও সক্রিয়' : 'Verified & Active'}
+                  </strong>
+                </div>
+                {affiliationData?.organization?.address && (
+                  <div style={{ padding: '1rem', background: 'var(--background, #f8fafc)', borderRadius: '8px', border: '1px solid var(--surface-border, #e2e8f0)' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
+                      {isBn ? 'ঠিকানা' : 'Address'}
+                    </span>
+                    <strong style={{ fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                      {affiliationData.organization.address}
+                    </strong>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 3-Stage Transfer Clearance Policy Guide */}
+            <div
+              style={{
+                padding: '1.5rem',
+                backgroundColor: 'var(--surface)',
+                borderRadius: 'var(--radius-lg, 12px)',
+                border: '1px solid var(--surface-border, #e2e8f0)',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              }}
+            >
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <ShieldCheck size={20} color="#059669" />
+                {isBn ? 'প্রতিষ্ঠান পরিবর্তন ও ছাড়পত্র নির্দেশিকা' : 'Transfer & Clearance Policy Guidelines'}
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
+                <div style={{ padding: '1.15rem', background: 'rgba(5, 150, 105, 0.04)', borderRadius: '8px', border: '1px solid rgba(5, 150, 105, 0.15)' }}>
+                  <div style={{ fontWeight: 800, color: '#059669', fontSize: '0.95rem', marginBottom: '0.35rem' }}>
+                    {isBn ? '১. বর্তমান প্রতিষ্ঠানের ছাড়পত্র' : '1. Current Institution Release'}
+                  </div>
+                  <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                    {isBn
+                      ? 'আবেদন করার পর আপনার বর্তমান প্রতিষ্ঠান পর্যালোচনা করে অনাপত্তি/ছাড়পত্র প্রদান করবে।'
+                      : 'After submission, your current institution reviews the request and grants release clearance.'}
+                  </p>
+                </div>
+                <div style={{ padding: '1.15rem', background: 'rgba(14, 165, 233, 0.04)', borderRadius: '8px', border: '1px solid rgba(14, 165, 233, 0.15)' }}>
+                  <div style={{ fontWeight: 800, color: '#0284c7', fontSize: '0.95rem', marginBottom: '0.35rem' }}>
+                    {isBn ? '২. নতুন প্রতিষ্ঠানের গ্রহণ' : '2. Target Institution Acceptance'}
+                  </div>
+                  <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                    {isBn
+                      ? 'বর্তমান প্রতিষ্ঠান ছাড়পত্র দিলে আপনার নির্বাচিত নতুন প্রতিষ্ঠান আবেদনটি পর্যালোচনা করে গ্রহণ করবে।'
+                      : 'Once released, your newly selected institution reviews and accepts the affiliation.'}
+                  </p>
+                </div>
+                <div style={{ padding: '1.15rem', background: 'rgba(124, 58, 237, 0.04)', borderRadius: '8px', border: '1px solid rgba(124, 58, 237, 0.15)' }}>
+                  <div style={{ fontWeight: 800, color: '#7c3aed', fontSize: '0.95rem', marginBottom: '0.35rem' }}>
+                    {isBn ? '৩. কর্তৃপক্ষের চূড়ান্ত ছাড়পত্র' : '3. Final Authority Clearance'}
+                  </div>
+                  <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                    {isBn
+                      ? 'উভয় প্রতিষ্ঠানের অনুমোদনের পর কর্তৃপক্ষ চূড়ান্ত অডিট যাচাই শেষে প্রোফাইল আপডেট করবেন।'
+                      : 'After both institutions agree, authority verifies and completes the official profile migration.'}
+                  </p>
+                </div>
+              </div>
+              <div style={{ marginTop: '1.25rem', padding: '0.85rem 1rem', background: 'var(--background, #f8fafc)', borderRadius: '8px', border: '1px solid var(--surface-border, #e2e8f0)', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                ℹ️ <strong>{isBn ? 'রেকর্ড সংরক্ষণ নীতি:' : 'Data Integrity Note:'}</strong>{' '}
+                {isBn
+                  ? 'আপনার পূর্ববর্তী আবেদন, ক্যাম্পেইন ও অনুদানের অডিট রেকর্ড পূর্বের প্রতিষ্ঠানের অধীনে স্থায়ীভাবে সংরক্ষিত থাকবে। স্থানান্তরের পর থেকে সকল নতুন কার্যক্রম আপনার নতুন প্রতিষ্ঠানের সাথে যুক্ত হবে।'
+                  : 'Your past aid campaigns, allocations, and verified donations will remain permanently associated with your previous institution for historical accuracy. Future activities will link to the new institution.'}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* VIEW 4: MY DONATIONS */}
         {activeNav === 'my-donations' && <MyDonationsSection />}
       </div>
@@ -955,6 +1196,22 @@ export default function StudentDashboardPage() {
             loadData();
           }}
           initialData={affiliationData?.profile}
+        />
+
+        {/* Institution Transfer Modal */}
+        <InstitutionTransferModal
+          isOpen={isTransferModalOpen}
+          onClose={() => setIsTransferModalOpen(false)}
+          role="student"
+          currentOrg={
+            affiliationData?.organization || {
+              id: affiliationData?.profile?.organizationId || (user as any)?.organizationId || '',
+              name: affiliationData?.profile?.institutionName || 'বর্তমান প্রতিষ্ঠান',
+            }
+          }
+          onSuccess={() => {
+            loadData();
+          }}
         />
 
         {/* Incomplete Profile Alert Modal */}
@@ -974,7 +1231,7 @@ export default function StudentDashboardPage() {
               justifyContent: 'center',
               padding: '1rem',
             }}
-            onClick={() => setShowIncompleteProfileModal(false)}
+            onClick={handleCloseIncompleteModal}
           >
             <div
               style={{
@@ -1039,7 +1296,7 @@ export default function StudentDashboardPage() {
               <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
                 <button
                   type="button"
-                  onClick={() => setShowIncompleteProfileModal(false)}
+                  onClick={handleCloseIncompleteModal}
                   style={{
                     padding: '0.6rem 1.15rem',
                     borderRadius: '8px',
@@ -1056,7 +1313,7 @@ export default function StudentDashboardPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setShowIncompleteProfileModal(false);
+                    handleCloseIncompleteModal();
                     setIsProfileModalOpen(true);
                   }}
                   style={{

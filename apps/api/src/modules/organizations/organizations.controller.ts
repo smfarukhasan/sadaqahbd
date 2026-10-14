@@ -92,6 +92,50 @@ export class OrganizationsController {
     );
   }
 
+  @Get('my-members')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(UserRole.ORGANIZATION, UserRole.TEACHER, UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async getMyOrganizationMembers(@CurrentUser() user: any) {
+    return this.organizationsService.getOrganizationMembers(user, 'my');
+  }
+
+  @Post('members/:role/:id/remove-request')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(UserRole.ORGANIZATION)
+  async requestMemberRemoval(
+    @CurrentUser() user: any,
+    @Param('role') role: 'teacher' | 'student',
+    @Param('id') id: string,
+    @Body('reason') reason: string
+  ) {
+    return this.organizationsService.requestMemberRemoval(user, role, id, reason);
+  }
+
+  @Get('removal-requests')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(UserRole.ORGANIZATION, UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async listRemovalRequests(@CurrentUser() user: any) {
+    return this.organizationsService.listRemovalRequests(user);
+  }
+
+  @Patch('removal-requests/:id/review')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN)
+  async reviewMemberRemoval(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() body: { approved: boolean; reason?: string }
+  ) {
+    return this.organizationsService.reviewMemberRemoval(user, id, body.approved, body.reason);
+  }
+
+  @Get('students-donations')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(UserRole.ORGANIZATION, UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async getOrganizationStudentDonations(@CurrentUser() user: any) {
+    return this.organizationsService.getOrganizationStudentDonations(user);
+  }
+
   @Get(':id/members')
   @UseGuards(FirebaseAuthGuard)
   async getOrganizationMembers(
@@ -99,5 +143,28 @@ export class OrganizationsController {
     @Param('id') id: string
   ) {
     return this.organizationsService.getOrganizationMembers(user, id);
+  }
+
+  @Get('transfer-requests')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(UserRole.ORGANIZATION)
+  async getOrganizationTransferRequests(@CurrentUser() user: any) {
+    return this.organizationsService.getOrganizationTransferRequests(user);
+  }
+
+  @Patch('transfers/:id/review')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(UserRole.ORGANIZATION)
+  async reviewTransferByOrg(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() body: { approved: boolean; reason?: string }
+  ) {
+    return this.organizationsService.reviewTransferByOrg(
+      user,
+      id,
+      body.approved,
+      body.reason
+    );
   }
 }

@@ -78,6 +78,10 @@ export const users = mysqlTable(
     mustChangePassword: boolean('must_change_password')
       .default(false)
       .notNull(),
+    isPhoneVerified: boolean('is_phone_verified').default(false).notNull(),
+    secondaryPhone: varchar('secondary_phone', { length: 20 }),
+    isSecondaryPhoneVerified: boolean('is_secondary_phone_verified').default(false).notNull(),
+    phoneExemptionValidUntil: timestamp('phone_exemption_valid_until'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
     deletedAt: timestamp('deleted_at'),
@@ -184,9 +188,9 @@ export const teacherProfiles = mysqlTable(
       .notNull()
       .unique()
       .references(() => users.id, { onDelete: 'cascade' }),
-    organizationId: varchar('organization_id', { length: 36 })
-      .notNull()
-      .references(() => organizations.id),
+    organizationId: varchar('organization_id', { length: 36 }).references(
+      () => organizations.id
+    ),
     department: varchar('department', { length: 100 }),
     designation: varchar('designation', { length: 100 }),
     employeeId: varchar('employee_id', { length: 50 }),
@@ -308,6 +312,7 @@ export const donations = mysqlTable(
       length: 255,
     }).notNull(),
     donorNote: text('donor_note'),
+    isAnonymous: boolean('is_anonymous').default(false).notNull(),
     status: mysqlEnum('status', ['pending', 'accepted', 'rejected'])
       .default('pending')
       .notNull(),
@@ -341,6 +346,7 @@ export const itemDonations = mysqlTable(
     description: text('description').notNull(),
     quantity: varchar('quantity', { length: 100 }).notNull(),
     isRandom: boolean('is_random').default(false).notNull(),
+    isAnonymous: boolean('is_anonymous').default(false).notNull(),
     postId: varchar('post_id', { length: 36 }).references(() => studentPosts.id),
     pickupAddress: text('pickup_address'),
     status: mysqlEnum('status', ['pending', 'accepted', 'rejected'])
@@ -442,6 +448,7 @@ export const notifications = mysqlTable(
     recipientOrgId: varchar('recipient_org_id', { length: 36 }).references(
       () => organizations.id
     ),
+    requiredPermission: varchar('required_permission', { length: 100 }),
     titleBn: varchar('title_bn', { length: 255 }).notNull(),
     titleEn: varchar('title_en', { length: 255 }).notNull(),
     messageBn: text('message_bn').notNull(),
@@ -455,7 +462,260 @@ export const notifications = mysqlTable(
     index('notif_recipient_user_idx').on(table.recipientUserId),
     index('notif_recipient_role_idx').on(table.recipientRole),
     index('notif_recipient_org_idx').on(table.recipientOrgId),
+    index('notif_required_perm_idx').on(table.requiredPermission),
     index('notif_read_idx').on(table.isRead),
+  ]
+);
+
+// ----------------------------------------------------
+// 11. Institution Transfers Table
+// ----------------------------------------------------
+export const institutionTransfers = mysqlTable(
+  'institution_transfers',
+  {
+    id: varchar('id', { length: 36 }).primaryKey(),
+    userId: varchar('user_id', { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    userRole: mysqlEnum('user_role', ['student', 'teacher']).notNull(),
+    currentOrgId: varchar('current_org_id', { length: 36 })
+      .notNull()
+      .references(() => organizations.id),
+    targetOrgId: varchar('target_org_id', { length: 36 })
+      .notNull()
+      .references(() => organizations.id),
+    reason: text('reason').notNull(),
+    status: mysqlEnum('status', [
+      'pending_current_org',
+      'current_org_approved',
+      'target_org_approved',
+      'approved',
+      'rejected',
+    ])
+      .default('pending_current_org')
+      .notNull(),
+    currentOrgApprovedBy: varchar('current_org_approved_by', { length: 36 }),
+    currentOrgApprovedAt: timestamp('current_org_approved_at'),
+    currentOrgRejectionReason: text('current_org_rejection_reason'),
+    targetOrgApprovedBy: varchar('target_org_approved_by', { length: 36 }),
+    targetOrgApprovedAt: timestamp('target_org_approved_at'),
+    targetOrgRejectionReason: text('target_org_rejection_reason'),
+    finalApprovedBy: varchar('final_approved_by', { length: 36 }),
+    finalApprovedAt: timestamp('final_approved_at'),
+    finalRejectionReason: text('final_rejection_reason'),
+    rejectionStage: mysqlEnum('rejection_stage', ['current_org', 'target_org', 'admin']),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    index('transfer_user_idx').on(table.userId),
+    index('transfer_status_idx').on(table.status),
+    index('transfer_current_org_idx').on(table.currentOrgId),
+    index('transfer_target_org_idx').on(table.targetOrgId),
+  ]
+);
+
+// ----------------------------------------------------
+// 12. Organization Member Removal Requests Table
+// ----------------------------------------------------
+export const orgMemberRemovals = mysqlTable(
+  'org_member_removals',
+  {
+    id: varchar('id', { length: 36 }).primaryKey(),
+    organizationId: varchar('organization_id', { length: 36 })
+      .notNull()
+      .references(() => organizations.id),
+    userId: varchar('user_id', { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    userRole: mysqlEnum('user_role', ['student', 'teacher']).notNull(),
+    reason: text('reason').notNull(),
+    status: mysqlEnum('status', ['pending', 'approved', 'rejected'])
+      .default('pending')
+      .notNull(),
+    requestedByUserId: varchar('requested_by_user_id', { length: 36 }).references(
+      () => users.id
+    ),
+    adminReviewedBy: varchar('admin_reviewed_by', { length: 36 }).references(
+      () => users.id
+    ),
+    adminReviewedAt: timestamp('admin_reviewed_at'),
+    adminRejectionReason: text('admin_rejection_reason'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    index('org_removal_org_idx').on(table.organizationId),
+    index('org_removal_user_idx').on(table.userId),
+    index('org_removal_status_idx').on(table.status),
+  ]
+);
+
+// ----------------------------------------------------
+// 13. App Maintenance Settings (Khub Soja Subscription)
+// ----------------------------------------------------
+export const appMaintenanceSettings = mysqlTable('app_maintenance_settings', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  currentValidUntil: timestamp('current_valid_until').notNull(),
+  monthlyPrice: decimal('monthly_price', { precision: 10, scale: 2 }).default('500.00').notNull(),
+  yearlyPrice: decimal('yearly_price', { precision: 10, scale: 2 }).default('5000.00').notNull(),
+  regularMonthlyPrice: decimal('regular_monthly_price', { precision: 10, scale: 2 }).default('1000.00').notNull(),
+  regularYearlyPrice: decimal('regular_yearly_price', { precision: 10, scale: 2 }).default('10000.00').notNull(),
+  lastWarningSmsDate: varchar('last_warning_sms_date', { length: 20 }),
+  lastWarningNotifDate: varchar('last_warning_notif_date', { length: 20 }),
+  updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+});
+
+// ----------------------------------------------------
+// 14. App Maintenance Payments (Khub Soja Gateway History)
+// ----------------------------------------------------
+export const appMaintenancePayments = mysqlTable(
+  'app_maintenance_payments',
+  {
+    id: varchar('id', { length: 36 }).primaryKey(),
+    planType: varchar('plan_type', { length: 20 }).notNull(), // 'monthly' | 'yearly'
+    amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+    transactionId: varchar('transaction_id', { length: 100 }).notNull().unique(),
+    orderId: varchar('order_id', { length: 100 }).notNull(),
+    gatewayProvider: varchar('gateway_provider', { length: 50 }).default('khubsoja').notNull(),
+    status: varchar('status', { length: 20 }).default('pending').notNull(),
+    paidByUserId: varchar('paid_by_user_id', { length: 36 }).references(() => users.id),
+    paidByName: varchar('paid_by_name', { length: 150 }),
+    paidByEmail: varchar('paid_by_email', { length: 255 }),
+    previousValidUntil: timestamp('previous_valid_until'),
+    extendedValidUntil: timestamp('extended_valid_until'),
+    paidAt: timestamp('paid_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('maint_pay_tx_idx').on(table.transactionId),
+    index('maint_pay_status_idx').on(table.status),
+  ]
+);
+
+// ----------------------------------------------------
+// 15. SMS Balance & Meter
+// ----------------------------------------------------
+export const smsBalance = mysqlTable('sms_balance', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  totalCredited: int('total_credited').default(0).notNull(),
+  totalUsed: int('total_used').default(0).notNull(),
+  remainingSms: int('remaining_sms').default(0).notNull(),
+  lastLowBalanceNotifDate: varchar('last_low_balance_notif_date', { length: 20 }),
+  lastZeroBalanceSmsDate: varchar('last_zero_balance_sms_date', { length: 20 }),
+  updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+});
+
+// ----------------------------------------------------
+// 16. SMS Package Purchases (via Khub Soja Payment Gateway)
+// ----------------------------------------------------
+export const smsPackagePurchases = mysqlTable(
+  'sms_package_purchases',
+  {
+    id: varchar('id', { length: 36 }).primaryKey(),
+    packageName: varchar('package_name', { length: 100 }).notNull(),
+    smsCount: int('sms_count').notNull(),
+    amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+    transactionId: varchar('transaction_id', { length: 100 }).notNull().unique(),
+    orderId: varchar('order_id', { length: 100 }).notNull(),
+    status: varchar('status', { length: 20 }).default('pending').notNull(),
+    purchasedByUserId: varchar('purchased_by_user_id', { length: 36 }).references(() => users.id),
+    purchasedAt: timestamp('purchased_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('sms_pkg_tx_idx').on(table.transactionId),
+    index('sms_pkg_status_idx').on(table.status),
+  ]
+);
+
+// ----------------------------------------------------
+// 17. SMS Logs (Outgoing SMS & OTP Auditing)
+// ----------------------------------------------------
+export const smsLogs = mysqlTable(
+  'sms_logs',
+  {
+    id: varchar('id', { length: 36 }).primaryKey(),
+    recipientPhone: varchar('recipient_phone', { length: 20 }).notNull(),
+    recipientUserId: varchar('recipient_user_id', { length: 36 }),
+    message: text('message').notNull(),
+    purpose: varchar('purpose', { length: 50 }).notNull(),
+    status: varchar('status', { length: 20 }).notNull(),
+    gatewayResponse: text('gateway_response'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('sms_log_phone_idx').on(table.recipientPhone),
+    index('sms_log_created_idx').on(table.createdAt),
+  ]
+);
+
+// ----------------------------------------------------
+// 18. Phone OTP Verifications
+// ----------------------------------------------------
+export const phoneVerifications = mysqlTable(
+  'phone_verifications',
+  {
+    id: varchar('id', { length: 36 }).primaryKey(),
+    userId: varchar('user_id', { length: 36 }).references(() => users.id, { onDelete: 'cascade' }),
+    phone: varchar('phone', { length: 20 }).notNull(),
+    otpCode: varchar('otp_code', { length: 10 }).notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    isVerified: boolean('is_verified').default(false).notNull(),
+    verifiedAt: timestamp('verified_at'),
+    attempts: int('attempts').default(0).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('phone_verif_user_idx').on(table.userId),
+    index('phone_verif_phone_idx').on(table.phone),
+  ]
+);
+
+// ----------------------------------------------------
+// 19. User Verified Phone Numbers (Max 2 per user)
+// ----------------------------------------------------
+export const userVerifiedPhones = mysqlTable(
+  'user_verified_phones',
+  {
+    id: varchar('id', { length: 36 }).primaryKey(),
+    userId: varchar('user_id', { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    phone: varchar('phone', { length: 20 }).notNull(),
+    isPrimary: boolean('is_primary').default(true).notNull(),
+    verifiedAt: timestamp('verified_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('uvp_phone_idx').on(table.phone),
+    index('uvp_user_idx').on(table.userId),
+  ]
+);
+
+// ----------------------------------------------------
+// 20. Student Phone Exemption Requests
+// ----------------------------------------------------
+export const studentPhoneExemptions = mysqlTable(
+  'student_phone_exemptions',
+  {
+    id: varchar('id', { length: 36 }).primaryKey(),
+    studentId: varchar('student_id', { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    reason: text('reason').notNull(),
+    status: mysqlEnum('status', ['pending', 'approved', 'rejected'])
+      .default('pending')
+      .notNull(),
+    validUntil: timestamp('valid_until'),
+    reviewedBy: varchar('reviewed_by', { length: 36 }).references(() => users.id),
+    reviewedAt: timestamp('reviewed_at'),
+    rejectionReason: text('rejection_reason'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    index('spe_student_idx').on(table.studentId),
+    index('spe_status_idx').on(table.status),
   ]
 );
 
@@ -530,3 +790,21 @@ export const donationsRelations = relations(donations, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+export const institutionTransfersRelations = relations(
+  institutionTransfers,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [institutionTransfers.userId],
+      references: [users.id],
+    }),
+    currentOrg: one(organizations, {
+      fields: [institutionTransfers.currentOrgId],
+      references: [organizations.id],
+    }),
+    targetOrg: one(organizations, {
+      fields: [institutionTransfers.targetOrgId],
+      references: [organizations.id],
+    }),
+  })
+);

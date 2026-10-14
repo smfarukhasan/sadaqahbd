@@ -219,8 +219,8 @@ export default function PublicMobileDrawer() {
           )}
         </nav>
 
-        {/* Footer Logout */}
-        {user && (
+        {/* Footer: Logout when logged in, Khub Soja Credit when logged out */}
+        {user ? (
           <div className={styles.drawerFooter}>
             <button
               type="button"
@@ -230,6 +230,21 @@ export default function PublicMobileDrawer() {
               <LogOut size={18} />
               <span>{isBn ? 'লগআউট' : 'Logout'}</span>
             </button>
+          </div>
+        ) : (
+          <div className={styles.drawerCreditFooter}>
+            <span className={styles.creditLabel}>
+              {isBn ? 'ডিজাইন ও ডেভেলপমেন্টেঃ ' : 'Design & Development: '}
+            </span>
+            <a
+              href="https://khubsoja.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.creditLink}
+              onClick={closeDrawer}
+            >
+              {isBn ? 'খুব সোজা' : 'Khub Soja'}
+            </a>
           </div>
         )}
       </aside>

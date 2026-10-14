@@ -14,6 +14,10 @@ export interface AppUser {
   isPasswordSet: boolean;
   mustChangePassword?: boolean;
   permissions?: any[];
+  isPhoneVerified?: boolean;
+  secondaryPhone?: string | null;
+  isSecondaryPhoneVerified?: boolean;
+  phoneExemptionValidUntil?: string | null;
 }
 
 import { getApiUrl } from './api-config';

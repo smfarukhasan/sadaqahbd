@@ -2,6 +2,8 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
+  Param,
   Body,
   UseGuards,
 } from '@nestjs/common';
@@ -35,6 +37,38 @@ export class DonationsController {
   @Get('ledger-stats')
   async getLedgerStats() {
     return this.donationsService.getTransparencyLedgerStats();
+  }
+
+  @Get('public-feed')
+  async getPublicFeed() {
+    return this.donationsService.getPublicTransparencyFeed();
+  }
+
+  @Get('admin-donors-ledger')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN)
+  async getAdminDonorsLedger(@CurrentUser() user: any) {
+    return this.donationsService.getAdminDonorsAndDonations(user);
+  }
+
+  @Patch(':id/privacy')
+  @UseGuards(FirebaseAuthGuard)
+  async togglePrivacy(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() body: { isAnonymous: boolean }
+  ) {
+    return this.donationsService.toggleDonationPrivacy(user, id, body.isAnonymous);
+  }
+
+  @Patch('items/:id/privacy')
+  @UseGuards(FirebaseAuthGuard)
+  async toggleItemPrivacy(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() body: { isAnonymous: boolean }
+  ) {
+    return this.donationsService.toggleItemDonationPrivacy(user, id, body.isAnonymous);
   }
 
   @Get('pending')
@@ -74,7 +108,7 @@ export class DonationsController {
 
   @Post('allocate-fund')
   @UseGuards(FirebaseAuthGuard, RolesGuard)
-  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
   async allocateFund(
     @CurrentUser() user: any,
     @Body() body: AllocateFundInput
@@ -85,16 +119,16 @@ export class DonationsController {
 
   @Get('allocations/history')
   @UseGuards(FirebaseAuthGuard, RolesGuard)
-  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN)
-  async listAllocationsHistory() {
-    return this.donationsService.listAllocationsHistory();
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async listAllocationsHistory(@CurrentUser() user: any) {
+    return this.donationsService.listAllocationsHistory(user);
   }
 
   @Get('allocations/eligible-posts')
   @UseGuards(FirebaseAuthGuard, RolesGuard)
-  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN)
-  async listEligibleStudentPosts() {
-    return this.donationsService.listEligibleStudentPostsForAllocation();
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async listEligibleStudentPosts(@CurrentUser() user: any) {
+    return this.donationsService.listEligibleStudentPostsForAllocation(user);
   }
 
   @Get('my-history')

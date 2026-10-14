@@ -50,6 +50,23 @@ export class UsersController {
     return this.usersService.createGeneralUser(user, validated);
   }
 
+  @Get('unassigned-organizations')
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async listUnassignedOrganizations() {
+    return this.usersService.listUnassignedOrgUsers();
+  }
+
+  @Get('my-institution-history')
+  async getMyInstitutionHistory(@CurrentUser() user: any) {
+    return this.usersService.getMyInstitutionHistory(user);
+  }
+
+  @Get('admin/details/:id')
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async getAdminUserDetails(@Param('id') id: string) {
+    return this.usersService.getAdminUserDetails(id);
+  }
+
   @Get('org-requests')
   @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
   async listOrgRequests() {
@@ -79,6 +96,15 @@ export class UsersController {
     @Param('role') role: UserRoleType
   ) {
     return this.usersService.listUsersByRole(role, user);
+  }
+
+  @Get(':id/deletion-eligibility')
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async checkDeletionEligibility(
+    @CurrentUser() user: any,
+    @Param('id') targetId: string
+  ) {
+    return this.usersService.checkUserPlatformData(targetId);
   }
 
   @Delete(':id')
@@ -170,6 +196,45 @@ export class UsersController {
     return this.usersService.reviewAdminAffiliation(
       user,
       role,
+      id,
+      body.approved,
+      body.reason
+    );
+  }
+
+  @Post('institution-transfer')
+  async requestInstitutionTransfer(
+    @CurrentUser() user: any,
+    @Body() body: { targetOrgId: string; reason: string }
+  ) {
+    return this.usersService.requestInstitutionTransfer(user, body);
+  }
+
+  @Get('my-institution-transfer')
+  async getMyInstitutionTransfer(@CurrentUser() user: any) {
+    return this.usersService.getMyInstitutionTransfer(user);
+  }
+
+  @Post('institution-transfer/cancel')
+  async cancelInstitutionTransfer(@CurrentUser() user: any) {
+    return this.usersService.cancelInstitutionTransfer(user);
+  }
+
+  @Get('admin-transfer-requests')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.MASTER_ADMIN, UserRole.ADMIN)
+  async listAdminTransferRequests() {
+    return this.usersService.listAdminTransferRequests();
+  }
+
+  @Patch('transfers/:id/admin-review')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.MASTER_ADMIN)
+  async reviewAdminTransfer(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() body: { approved: boolean; reason?: string }
+  ) {
+    return this.usersService.reviewAdminTransfer(
+      user,
       id,
       body.approved,
       body.reason

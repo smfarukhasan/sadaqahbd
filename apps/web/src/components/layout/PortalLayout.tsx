@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocale } from 'next-intl';
 import { Link, usePathname, useRouter } from '../../i18n/routing';
 import styles from './PortalLayout.module.css';
@@ -21,6 +21,7 @@ import { useAuthStore } from '../../lib/auth-store';
 import { useMobileDrawerStore } from '../../lib/drawer-store';
 import UserMenuDropdown from '../profile/UserMenuDropdown';
 import AdminNotificationDropdown from './AdminNotificationDropdown';
+import PhoneVerificationModal from '../profile/PhoneVerificationModal';
 
 export interface PortalNavItem {
   id: string;
@@ -62,8 +63,29 @@ export default function PortalLayout({
   const isMobileOpen = useMobileDrawerStore((s) => s.isOpen);
   const openDrawer = useMobileDrawerStore((s) => s.openDrawer);
   const closeDrawer = useMobileDrawerStore((s) => s.closeDrawer);
-
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
+  const [hasCheckedPhone, setHasCheckedPhone] = useState(false);
+
+  useEffect(() => {
+    if (!user || role === 'admin' || hasCheckedPhone) return;
+
+    let needsVerification = false;
+    if (role === 'student') {
+      const validUntil = (user as any).phoneExemptionValidUntil
+        ? new Date((user as any).phoneExemptionValidUntil)
+        : null;
+      const isExempt = validUntil ? validUntil.getTime() > Date.now() : false;
+      needsVerification = !user.isPhoneVerified && !isExempt;
+    } else {
+      needsVerification = !user.isPhoneVerified;
+    }
+
+    if (needsVerification) {
+      setIsPhoneModalOpen(true);
+    }
+    setHasCheckedPhone(true);
+  }, [user, role, hasCheckedPhone]);
 
   const toggleLanguage = () => {
     const nextLocale = locale === 'bn' ? 'en' : 'bn';
@@ -130,7 +152,7 @@ export default function PortalLayout({
       });
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: 1 }}>
+      <div className={styles.navScrollContainer}>
         {mainItems.length > 0 && (
           <nav className={styles.navSection}>
             {!isDrawerCollapsed && (
@@ -158,114 +180,150 @@ export default function PortalLayout({
 
   return (
     <div className={styles.portalRoot}>
+      {/* Mobile Off-Canvas Drawer Backdrop */}
+      <div
+        className={`${styles.drawerOverlay} ${isMobileOpen ? styles.drawerOverlayOpen : ''}`}
+        onClick={closeDrawer}
+      />
+
       {/* ----------------------------------------------------
-          1. TOP EXECUTIVE HEADER (Brand, User Info & Actions)
+          1. LEFT EXECUTIVE SIDEBAR DRAWER (Full 100vh on Desktop)
           ---------------------------------------------------- */}
-      <header className={styles.topHeader}>
-        <div className={styles.topHeaderLeft}>
-          {/* Brand Logo & Role Badge */}
-          <div className={styles.portalBrand}>
-            <div className={styles.brandIconWrapper}>
-              <RoleIcon size={20} />
+      <aside
+        className={`${styles.sidebarDrawer} ${
+          isCollapsed ? styles.sidebarDrawerCollapsed : ''
+        } ${isMobileOpen ? styles.mobileDrawerOpen : ''}`}
+      >
+        {/* User Profile Card at the very top of Drawer */}
+        <div className={styles.sidebarHeader}>
+          {(!isCollapsed || isMobileOpen) && (
+            <div className={styles.userProfileCard}>
+              <div className={styles.userAvatar}>{userInitial}</div>
+              <div className={styles.userInfo}>
+                <span className={styles.userName}>{user?.fullName || (isBn ? roleNameBn : roleNameEn)}</span>
+                <span className={styles.userEmail}>{user?.email || (isBn ? roleNameBn : roleNameEn)}</span>
+              </div>
             </div>
-            <div className={styles.brandTextGroup}>
+          )}
+
+          <button
+            type="button"
+            className={styles.collapseToggleBtn}
+            onClick={() => {
+              if (isMobileOpen) {
+                closeDrawer();
+              } else {
+                setIsCollapsed(!isCollapsed);
+              }
+            }}
+            title={
+              isMobileOpen
+                ? (isBn ? 'ড্রয়ার বন্ধ করুন' : 'Close Drawer')
+                : isCollapsed
+                ? (isBn ? 'ড্রয়ার প্রসারিত করুন' : 'Expand Sidebar')
+                : (isBn ? 'ড্রয়ার সংকুচিত করুন' : 'Collapse Sidebar')
+            }
+          >
+            {isMobileOpen ? (
+              <X size={18} />
+            ) : isCollapsed ? (
+              <ChevronRight size={18} />
+            ) : (
+              <ChevronLeft size={18} />
+            )}
+          </button>
+        </div>
+
+        {/* Single Unified Navigation Scroll List */}
+        {renderNavList(isCollapsed && !isMobileOpen)}
+
+        {/* Drawer Bottom Logout */}
+        <div className={styles.drawerFooter}>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className={styles.drawerLogoutBtn}
+            title={isBn ? 'লগআউট' : 'Logout'}
+          >
+            <LogOut size={18} />
+            {(!isCollapsed || isMobileOpen) && <span>{isBn ? 'লগআউট' : 'Logout'}</span>}
+          </button>
+        </div>
+      </aside>
+
+      {/* ----------------------------------------------------
+          2. WORKSPACE WRAPPER (Top Header + Main Content Canvas)
+          ---------------------------------------------------- */}
+      <div className={styles.workspaceWrapper}>
+        <header className={styles.topHeader}>
+          {/* Mobile view Left (Hamburger + Brand + Role Tag) */}
+          <div className={styles.mobileHeaderLeft}>
+            <button
+              type="button"
+              className={styles.mobileMenuBtn}
+              onClick={openDrawer}
+              aria-label={isBn ? 'মেনু ড্রয়ার খুলুন' : 'Open Menu Drawer'}
+            >
+              <Menu size={22} />
+            </button>
+            <div className={styles.brandIconWrapper} style={{ width: 34, height: 34 }}>
+              <RoleIcon size={18} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <span className={styles.brandName} style={{ fontSize: '0.95rem' }}>
+                {isBn ? 'সাদাকাহ বিডি' : 'Sadaqahbd'}
+              </span>
+              <span className={styles.brandRoleTag}>
+                {isBn ? roleNameBn : roleNameEn}
+              </span>
+            </div>
+          </div>
+
+          {/* Desktop view Left: "সাদাকাহ বিডি" and role panel as a tag */}
+          <div className={styles.desktopHeaderLeft}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <div className={styles.brandIconWrapper}>
+                <RoleIcon size={20} />
+              </div>
               <span className={styles.brandName}>
                 {isBn ? 'সাদাকাহ বিডি' : 'Sadaqahbd'}
               </span>
-              <span className={styles.roleBadge}>
-                <ShieldCheck size={12} /> {isBn ? roleNameBn : roleNameEn}
+              <span className={styles.brandRoleTag}>
+                {isBn ? roleNameBn : roleNameEn}
               </span>
             </div>
           </div>
-        </div>
 
-        {/* Right Actions */}
-        <div className={styles.topHeaderRight}>
-          <Link
-            href="/"
-            className={`${styles.actionBtn} ${styles.websiteBtn}`}
-            title={isBn ? 'পাবলিক ওয়েবসাইট দেখুন' : 'Visit Public Website'}
-            aria-label={isBn ? 'পাবলিক ওয়েবসাইট' : 'Public Site'}
-          >
-            <Globe size={16} className={styles.websiteBtnIcon} />
-            <span className={styles.websiteBtnText}>{isBn ? 'ওয়েবসাইট' : 'Public Site'}</span>
-          </Link>
-
-          {/* Notifications Dropdown */}
-          <AdminNotificationDropdown />
-
-          {/* User Profile Menu with Name, Dropdown: Profile, BN/EN, Password, Logout */}
-          <UserMenuDropdown onSelectNav={onNavSelect} />
-        </div>
-      </header>
-
-      {/* ----------------------------------------------------
-          2. WORKSPACE LAYOUT: UNIFIED SIDEBAR DRAWER + MAIN CONTENT
-          ---------------------------------------------------- */}
-      <div className={styles.workspaceLayout}>
-        {/* Mobile Off-Canvas Drawer Backdrop */}
-        <div
-          className={`${styles.mobileBackdrop} ${isMobileOpen ? styles.mobileBackdropOpen : ''}`}
-          onClick={closeDrawer}
-        />
-
-        {/* Single Unified Responsive Sidebar Drawer (Mobile Slide-Over + Desktop Sticky) */}
-        <aside
-          className={`${styles.sidebarDrawer} ${
-            isCollapsed ? styles.sidebarDrawerCollapsed : ''
-          } ${isMobileOpen ? styles.mobileDrawerOpen : ''}`}
-        >
-          <div className={styles.sidebarHeader}>
-            {user && (!isCollapsed || isMobileOpen) && (
-              <div className={styles.userProfileCard}>
-                <div className={styles.userAvatar}>{userInitial}</div>
-                <div className={styles.userInfo}>
-                  <span className={styles.userName}>{user.fullName}</span>
-                  <span className={styles.userEmail}>{user.email}</span>
-                </div>
-              </div>
-            )}
-
-            <button
-              type="button"
-              className={styles.collapseToggleBtn}
-              onClick={() => {
-                if (isMobileOpen) {
-                  closeDrawer();
-                } else {
-                  setIsCollapsed(!isCollapsed);
-                }
-              }}
-              title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          {/* Right Actions (Website, Notifications, User Profile dropdown) */}
+          <div className={styles.topHeaderRight}>
+            <Link
+              href="/"
+              className={`${styles.actionBtn} ${styles.websiteBtn}`}
+              title={isBn ? 'পাবলিক ওয়েবসাইট দেখুন' : 'Visit Public Website'}
+              aria-label={isBn ? 'পাবলিক ওয়েবসাইট' : 'Public Site'}
             >
-              {isMobileOpen ? (
-                <X size={18} />
-              ) : isCollapsed ? (
-                <ChevronRight size={18} />
-              ) : (
-                <ChevronLeft size={18} />
-              )}
-            </button>
-          </div>
+              <Globe size={16} className={styles.websiteBtnIcon} />
+              <span className={styles.websiteBtnText}>{isBn ? 'ওয়েবসাইট' : 'Public Site'}</span>
+            </Link>
 
-          {renderNavList(isCollapsed && !isMobileOpen)}
+            {/* Notifications Dropdown */}
+            <AdminNotificationDropdown />
 
-          {/* Drawer Bottom Logout */}
-          <div className={styles.drawerFooter}>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className={styles.drawerLogoutBtn}
-              title={isBn ? 'লগআউট' : 'Logout'}
-            >
-              <LogOut size={18} />
-              {(!isCollapsed || isMobileOpen) && <span>{isBn ? 'লগআউট' : 'Logout'}</span>}
-            </button>
+            {/* User Profile Menu with Name, Dropdown: Profile, BN/EN, Password, Logout */}
+            <UserMenuDropdown onSelectNav={onNavSelect} />
           </div>
-        </aside>
+        </header>
 
         {/* Main Content Area */}
         <main className={styles.mainContent}>{children}</main>
+
+        {/* Mandatory Phone Verification Modal */}
+        <PhoneVerificationModal
+          isOpen={isPhoneModalOpen}
+          onClose={() => setIsPhoneModalOpen(false)}
+          isBn={isBn}
+          mode="verify_mandatory"
+        />
       </div>
     </div>
   );

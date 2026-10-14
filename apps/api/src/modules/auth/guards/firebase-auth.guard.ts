@@ -64,14 +64,39 @@ export class FirebaseAuthGuard implements CanActivate {
         throw new UnauthorizedException('User session not found. Please log in again.');
       }
 
-      // Block suspended users from accessing protected API endpoints
+      // Check if student exemption expired
+      if (
+        matchedUser.role === UserRole.STUDENT &&
+        !matchedUser.isPhoneVerified &&
+        matchedUser.phoneExemptionValidUntil &&
+        new Date() > new Date(matchedUser.phoneExemptionValidUntil)
+      ) {
+        if (matchedUser.status !== 'suspended') {
+          matchedUser.status = 'suspended';
+          await this.db
+            .update(users)
+            .set({ status: 'suspended', updatedAt: new Date() })
+            .where(eq(users.id, matchedUser.id));
+        }
+      }
+
+      // Block suspended users from accessing protected API endpoints (except phone exemption/OTP)
       if (
         matchedUser.status === 'suspended' &&
         matchedUser.role !== UserRole.MASTER_ADMIN
       ) {
-        throw new ForbiddenException(
-          'Your account has been deactivated by administration. Platform actions are restricted.'
-        );
+        const reqPath = request.url || '';
+        const isExemptionOrOtpRoute =
+          reqPath.includes('/sms/student-exemption') ||
+          reqPath.includes('/sms/send-otp') ||
+          reqPath.includes('/sms/verify-otp') ||
+          reqPath.includes('/auth/me');
+
+        if (!isExemptionOrOtpRoute) {
+          throw new ForbiddenException(
+            'আপনার ফোন নম্বর না থাকার অব্যাহতির মেয়াদ শেষ হয়ে গেছে এবং অ্যাকাউন্ট সাময়িকভাবে লক হয়েছে। পুনরায় সক্রিয় করতে নতুন আবেদন জমা দিন অথবা একটি ফোন নম্বর ভেরিফাই করুন।'
+          );
+        }
       }
 
       const perms = await this.db
@@ -142,14 +167,39 @@ export class FirebaseAuthGuard implements CanActivate {
 
       const currentUser = userList[0];
 
-      // Block suspended users from accessing protected API endpoints
+      // Check if student exemption expired
+      if (
+        currentUser.role === UserRole.STUDENT &&
+        !currentUser.isPhoneVerified &&
+        currentUser.phoneExemptionValidUntil &&
+        new Date() > new Date(currentUser.phoneExemptionValidUntil)
+      ) {
+        if (currentUser.status !== 'suspended') {
+          currentUser.status = 'suspended';
+          await this.db
+            .update(users)
+            .set({ status: 'suspended', updatedAt: new Date() })
+            .where(eq(users.id, currentUser.id));
+        }
+      }
+
+      // Block suspended users from accessing protected API endpoints (except phone exemption/OTP)
       if (
         currentUser.status === 'suspended' &&
         currentUser.role !== UserRole.MASTER_ADMIN
       ) {
-        throw new ForbiddenException(
-          'Your account has been deactivated by administration. Platform actions are restricted.'
-        );
+        const reqPath = request.url || '';
+        const isExemptionOrOtpRoute =
+          reqPath.includes('/sms/student-exemption') ||
+          reqPath.includes('/sms/send-otp') ||
+          reqPath.includes('/sms/verify-otp') ||
+          reqPath.includes('/auth/me');
+
+        if (!isExemptionOrOtpRoute) {
+          throw new ForbiddenException(
+            'আপনার ফোন নম্বর না থাকার অব্যাহতির মেয়াদ শেষ হয়ে গেছে এবং অ্যাকাউন্ট সাময়িকভাবে লক হয়েছে। পুনরায় সক্রিয় করতে নতুন আবেদন জমা দিন অথবা একটি ফোন নম্বর ভেরিফাই করুন।'
+          );
+        }
       }
 
       // Fetch user permissions
