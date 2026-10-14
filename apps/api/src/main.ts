@@ -19,12 +19,13 @@ import {
   ensureInstitutionTransfersTable,
   ensureOrgMemberRemovalsTable,
   ensureMaintenanceAndSmsTables,
+  ensurePerformanceIndexes,
 } from './database';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
-  // Auto-verify and create tables/columns
+  // Auto-verify and create tables/columns/indexes
   await ensureStudentProfileColumns();
   await ensureStudentPostsColumns();
   await ensureItemDonationsTable();
@@ -35,6 +36,7 @@ async function bootstrap() {
   await ensureInstitutionTransfersTable();
   await ensureOrgMemberRemovalsTable();
   await ensureMaintenanceAndSmsTables();
+  await ensurePerformanceIndexes();
 
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,

@@ -305,50 +305,26 @@ export class DonationsService {
   }
 
   async getTransparencyLedgerStats() {
-    // 1. Total donations accepted
-    const totalDonationsResult = await this.db
-      .select({
-        totalAccepted: sql<string>`COALESCE(SUM(${donations.amount}), '0.00')`,
-      })
-      .from(donations)
-      .where(eq(donations.status, DonationStatus.ACCEPTED));
+    // Parallel single-pass execution of donations aggregation and allocations
+    const [donationsStats, totalAllocatedResult] = await Promise.all([
+      this.db
+        .select({
+          totalAccepted: sql<string>`COALESCE(SUM(${donations.amount}), '0.00')`,
+          totalRandom: sql<string>`COALESCE(SUM(CASE WHEN ${donations.isRandom} = 1 THEN ${donations.amount} ELSE 0 END), '0.00')`,
+          totalDirect: sql<string>`COALESCE(SUM(CASE WHEN ${donations.isRandom} = 0 THEN ${donations.amount} ELSE 0 END), '0.00')`,
+        })
+        .from(donations)
+        .where(eq(donations.status, DonationStatus.ACCEPTED)),
+      this.db
+        .select({
+          totalAllocated: sql<string>`COALESCE(SUM(${fundAllocations.amount}), '0.00')`,
+        })
+        .from(fundAllocations),
+    ]);
 
-    // 2. Total Random Donations accepted
-    const totalRandomResult = await this.db
-      .select({
-        totalRandom: sql<string>`COALESCE(SUM(${donations.amount}), '0.00')`,
-      })
-      .from(donations)
-      .where(
-        and(
-          eq(donations.status, DonationStatus.ACCEPTED),
-          eq(donations.isRandom, true)
-        )
-      );
-
-    // 3. Total Direct Donations accepted
-    const totalDirectResult = await this.db
-      .select({
-        totalDirect: sql<string>`COALESCE(SUM(${donations.amount}), '0.00')`,
-      })
-      .from(donations)
-      .where(
-        and(
-          eq(donations.status, DonationStatus.ACCEPTED),
-          eq(donations.isRandom, false)
-        )
-      );
-
-    // 4. Total Random Funds Allocated
-    const totalAllocatedResult = await this.db
-      .select({
-        totalAllocated: sql<string>`COALESCE(SUM(${fundAllocations.amount}), '0.00')`,
-      })
-      .from(fundAllocations);
-
-    const totalDonated = Number(totalDonationsResult[0]?.totalAccepted || 0);
-    const totalRandom = Number(totalRandomResult[0]?.totalRandom || 0);
-    const totalDirect = Number(totalDirectResult[0]?.totalDirect || 0);
+    const totalDonated = Number(donationsStats[0]?.totalAccepted || 0);
+    const totalRandom = Number(donationsStats[0]?.totalRandom || 0);
+    const totalDirect = Number(donationsStats[0]?.totalDirect || 0);
     const totalAllocated = Number(totalAllocatedResult[0]?.totalAllocated || 0);
 
     // Remaining unallocated in general random fund pool

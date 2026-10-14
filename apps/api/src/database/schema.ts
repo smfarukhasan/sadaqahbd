@@ -42,6 +42,8 @@ export const organizations = mysqlTable(
   (table) => [
     index('org_status_idx').on(table.status),
     index('org_name_idx').on(table.name),
+    index('org_status_created_idx').on(table.status, table.createdAt),
+    index('org_req_user_idx').on(table.requestedByUserId),
   ]
 );
 
@@ -92,6 +94,8 @@ export const users = mysqlTable(
     uniqueIndex('user_phone_idx').on(table.phone),
     index('user_role_idx').on(table.role),
     index('user_org_idx').on(table.organizationId),
+    index('user_role_status_idx').on(table.role, table.status),
+    index('user_secondary_phone_idx').on(table.secondaryPhone),
   ]
 );
 
@@ -174,6 +178,7 @@ export const studentProfiles = mysqlTable(
   (table) => [
     index('student_profile_status_idx').on(table.verificationStatus),
     index('student_profile_org_idx').on(table.organizationId),
+    index('student_profile_status_created_idx').on(table.verificationStatus, table.createdAt),
   ]
 );
 
@@ -214,6 +219,7 @@ export const teacherProfiles = mysqlTable(
   (table) => [
     index('teacher_profile_status_idx').on(table.verificationStatus),
     index('teacher_profile_org_idx').on(table.organizationId),
+    index('teacher_profile_status_created_idx').on(table.verificationStatus, table.createdAt),
   ]
 );
 
@@ -275,6 +281,9 @@ export const studentPosts = mysqlTable(
     index('post_status_idx').on(table.verificationStatus),
     index('post_student_idx').on(table.studentId),
     index('post_org_idx').on(table.organizationId),
+    index('post_status_created_idx').on(table.verificationStatus, table.createdAt),
+    index('post_org_status_idx').on(table.organizationId, table.verificationStatus),
+    index('post_student_status_idx').on(table.studentId, table.verificationStatus),
   ]
 );
 
@@ -329,6 +338,10 @@ export const donations = mysqlTable(
     index('donation_donor_idx').on(table.donorId),
     index('donation_post_idx').on(table.postId),
     index('donation_random_idx').on(table.isRandom),
+    index('donation_status_created_idx').on(table.status, table.createdAt),
+    index('donation_donor_created_idx').on(table.donorId, table.createdAt),
+    index('donation_post_status_idx').on(table.postId, table.status),
+    index('donation_status_random_idx').on(table.status, table.isRandom),
   ]
 );
 
@@ -372,6 +385,8 @@ export const itemDonations = mysqlTable(
     index('item_donation_donor_idx').on(table.donorId),
     index('item_donation_post_idx').on(table.postId),
     index('item_donation_assigned_student_idx').on(table.assignedStudentId),
+    index('item_donation_status_created_idx').on(table.status, table.createdAt),
+    index('item_donation_donor_created_idx').on(table.donorId, table.createdAt),
   ]
 );
 
@@ -395,6 +410,7 @@ export const fundAllocations = mysqlTable(
   (table) => [
     index('alloc_post_idx').on(table.studentPostId),
     index('alloc_by_idx').on(table.allocatedBy),
+    index('alloc_created_idx').on(table.createdAt),
   ]
 );
 
@@ -422,6 +438,7 @@ export const complaints = mysqlTable(
   (table) => [
     index('complaint_status_idx').on(table.status),
     index('complaint_sender_idx').on(table.senderId),
+    index('complaint_status_created_idx').on(table.status, table.createdAt),
   ]
 );
 
@@ -464,6 +481,10 @@ export const notifications = mysqlTable(
     index('notif_recipient_org_idx').on(table.recipientOrgId),
     index('notif_required_perm_idx').on(table.requiredPermission),
     index('notif_read_idx').on(table.isRead),
+    index('notif_user_read_created_idx').on(table.recipientUserId, table.isRead, table.createdAt),
+    index('notif_user_created_idx').on(table.recipientUserId, table.createdAt),
+    index('notif_role_created_idx').on(table.recipientRole, table.createdAt),
+    index('notif_org_created_idx').on(table.recipientOrgId, table.createdAt),
   ]
 );
 
@@ -512,6 +533,9 @@ export const institutionTransfers = mysqlTable(
     index('transfer_status_idx').on(table.status),
     index('transfer_current_org_idx').on(table.currentOrgId),
     index('transfer_target_org_idx').on(table.targetOrgId),
+    index('transfer_status_created_idx').on(table.status, table.createdAt),
+    index('transfer_target_status_idx').on(table.targetOrgId, table.status),
+    index('transfer_current_status_idx').on(table.currentOrgId, table.status),
   ]
 );
 
@@ -548,6 +572,7 @@ export const orgMemberRemovals = mysqlTable(
     index('org_removal_org_idx').on(table.organizationId),
     index('org_removal_user_idx').on(table.userId),
     index('org_removal_status_idx').on(table.status),
+    index('org_removal_status_created_idx').on(table.status, table.createdAt),
   ]
 );
 
@@ -590,6 +615,7 @@ export const appMaintenancePayments = mysqlTable(
   (table) => [
     index('maint_pay_tx_idx').on(table.transactionId),
     index('maint_pay_status_idx').on(table.status),
+    index('maint_pay_status_created_idx').on(table.status, table.createdAt),
   ]
 );
 
@@ -626,6 +652,7 @@ export const smsPackagePurchases = mysqlTable(
   (table) => [
     index('sms_pkg_tx_idx').on(table.transactionId),
     index('sms_pkg_status_idx').on(table.status),
+    index('sms_pkg_status_created_idx').on(table.status, table.createdAt),
   ]
 );
 
@@ -647,6 +674,7 @@ export const smsLogs = mysqlTable(
   (table) => [
     index('sms_log_phone_idx').on(table.recipientPhone),
     index('sms_log_created_idx').on(table.createdAt),
+    index('sms_log_phone_created_idx').on(table.recipientPhone, table.createdAt),
   ]
 );
 
@@ -669,6 +697,7 @@ export const phoneVerifications = mysqlTable(
   (table) => [
     index('phone_verif_user_idx').on(table.userId),
     index('phone_verif_phone_idx').on(table.phone),
+    index('phone_verif_active_idx').on(table.phone, table.isVerified, table.expiresAt),
   ]
 );
 
@@ -716,6 +745,7 @@ export const studentPhoneExemptions = mysqlTable(
   (table) => [
     index('spe_student_idx').on(table.studentId),
     index('spe_status_idx').on(table.status),
+    index('spe_status_created_idx').on(table.status, table.createdAt),
   ]
 );
 

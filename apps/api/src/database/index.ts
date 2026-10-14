@@ -533,6 +533,104 @@ export async function ensureOrgMemberRemovalsTable() {
   }
 }
 
+export async function ensurePerformanceIndexes() {
+  try {
+    const [rows]: any = await poolConnection.query(`
+      SELECT TABLE_NAME, INDEX_NAME 
+      FROM information_schema.STATISTICS 
+      WHERE TABLE_SCHEMA = DATABASE()
+    `);
+    const existing = new Set<string>();
+    if (Array.isArray(rows)) {
+      for (const r of rows) {
+        existing.add(`${r.TABLE_NAME?.toLowerCase()}:${r.INDEX_NAME?.toLowerCase()}`);
+      }
+    }
+
+    const indexesToAdd: { table: string; name: string; columns: string }[] = [
+      // Organizations
+      { table: 'organizations', name: 'org_status_created_idx', columns: '`status`, `created_at`' },
+      { table: 'organizations', name: 'org_req_user_idx', columns: '`requested_by_user_id`' },
+
+      // Users
+      { table: 'users', name: 'user_role_status_idx', columns: '`role`, `status`' },
+      { table: 'users', name: 'user_secondary_phone_idx', columns: '`secondary_phone`' },
+
+      // Student Profiles
+      { table: 'student_profiles', name: 'student_profile_status_created_idx', columns: '`verification_status`, `created_at`' },
+
+      // Teacher Profiles
+      { table: 'teacher_profiles', name: 'teacher_profile_status_created_idx', columns: '`verification_status`, `created_at`' },
+
+      // Student Posts
+      { table: 'student_posts', name: 'post_status_created_idx', columns: '`verification_status`, `created_at`' },
+      { table: 'student_posts', name: 'post_org_status_idx', columns: '`organization_id`, `verification_status`' },
+      { table: 'student_posts', name: 'post_student_status_idx', columns: '`student_id`, `verification_status`' },
+
+      // Donations
+      { table: 'donations', name: 'donation_status_created_idx', columns: '`status`, `created_at`' },
+      { table: 'donations', name: 'donation_donor_created_idx', columns: '`donor_id`, `created_at`' },
+      { table: 'donations', name: 'donation_post_status_idx', columns: '`post_id`, `status`' },
+      { table: 'donations', name: 'donation_status_random_idx', columns: '`status`, `is_random`' },
+
+      // Item Donations
+      { table: 'item_donations', name: 'item_donation_status_created_idx', columns: '`status`, `created_at`' },
+      { table: 'item_donations', name: 'item_donation_donor_created_idx', columns: '`donor_id`, `created_at`' },
+
+      // Fund Allocations
+      { table: 'fund_allocations', name: 'alloc_created_idx', columns: '`created_at`' },
+
+      // Complaints
+      { table: 'complaints', name: 'complaint_status_created_idx', columns: '`status`, `created_at`' },
+
+      // Notifications
+      { table: 'notifications', name: 'notif_user_read_created_idx', columns: '`recipient_user_id`, `is_read`, `created_at`' },
+      { table: 'notifications', name: 'notif_user_created_idx', columns: '`recipient_user_id`, `created_at`' },
+      { table: 'notifications', name: 'notif_role_created_idx', columns: '`recipient_role`, `created_at`' },
+      { table: 'notifications', name: 'notif_org_created_idx', columns: '`recipient_org_id`, `created_at`' },
+
+      // Institution Transfers
+      { table: 'institution_transfers', name: 'transfer_status_created_idx', columns: '`status`, `created_at`' },
+      { table: 'institution_transfers', name: 'transfer_target_status_idx', columns: '`target_org_id`, `status`' },
+      { table: 'institution_transfers', name: 'transfer_current_status_idx', columns: '`current_org_id`, `status`' },
+
+      // Member Removals
+      { table: 'org_member_removals', name: 'org_removal_status_created_idx', columns: '`status`, `created_at`' },
+
+      // App Maintenance Payments
+      { table: 'app_maintenance_payments', name: 'maint_pay_status_created_idx', columns: '`status`, `created_at`' },
+
+      // SMS Packages
+      { table: 'sms_package_purchases', name: 'sms_pkg_status_created_idx', columns: '`status`, `created_at`' },
+
+      // SMS Logs
+      { table: 'sms_logs', name: 'sms_log_phone_created_idx', columns: '`recipient_phone`, `created_at`' },
+
+      // Phone OTP Verifications
+      { table: 'phone_verifications', name: 'phone_verif_active_idx', columns: '`phone`, `is_verified`, `expires_at`' },
+
+      // Student Phone Exemptions
+      { table: 'student_phone_exemptions', name: 'spe_status_created_idx', columns: '`status`, `created_at`' },
+    ];
+
+    for (const idx of indexesToAdd) {
+      const key = `${idx.table.toLowerCase()}:${idx.name.toLowerCase()}`;
+      if (!existing.has(key)) {
+        try {
+          await poolConnection.query(
+            `ALTER TABLE \`${idx.table}\` ADD INDEX \`${idx.name}\` (${idx.columns})`
+          );
+        } catch {
+          // Table might not exist yet or index syntax variation; ignore safely
+        }
+      }
+    }
+    console.log('Verified performance database indexes.');
+  } catch (err) {
+    console.error('ensurePerformanceIndexes warning:', err);
+  }
+}
+
 export type DrizzleDB = typeof db;
 export * from './schema';
 

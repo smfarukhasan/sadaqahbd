@@ -368,6 +368,34 @@ export class PostsService {
     };
   }
 
+  private async getExpensesForPosts(
+    postIds: string[]
+  ): Promise<Map<string, Array<{ category: string; categoryName: string; amount: number }>>> {
+    const map = new Map<string, Array<{ category: string; categoryName: string; amount: number }>>();
+    if (postIds.length === 0) return map;
+
+    const allExpenses = await this.db
+      .select({
+        postId: studentPostExpenses.postId,
+        categoryName: studentPostExpenses.categoryName,
+        amount: studentPostExpenses.amount,
+      })
+      .from(studentPostExpenses)
+      .where(inArray(studentPostExpenses.postId, postIds));
+
+    for (const exp of allExpenses) {
+      const list = map.get(exp.postId) || [];
+      list.push({
+        category: exp.categoryName,
+        categoryName: exp.categoryName,
+        amount: Number(exp.amount),
+      });
+      map.set(exp.postId, list);
+    }
+
+    return map;
+  }
+
   async listPublicVerifiedPosts() {
     const posts = await this.db
       .select({
@@ -398,29 +426,16 @@ export class PostsService {
       )
       .orderBy(desc(studentPosts.createdAt));
 
-    const result: any[] = [];
-    for (const p of posts) {
-      const expenses = await this.db
-        .select({
-          categoryName: studentPostExpenses.categoryName,
-          amount: studentPostExpenses.amount,
-        })
-        .from(studentPostExpenses)
-        .where(eq(studentPostExpenses.postId, p.id));
+    if (posts.length === 0) return [];
+    const expensesMap = await this.getExpensesForPosts(posts.map((p) => p.id));
 
-      result.push({
-        ...p,
-        totalRequiredAmount: Number(p.totalRequiredAmount),
-        receivedAmount: Number(p.receivedAmount),
-        remainingAmount: Number(p.remainingAmount),
-        expenses: expenses.map((e) => ({
-          categoryName: e.categoryName,
-          amount: Number(e.amount),
-        })),
-      });
-    }
-
-    return result;
+    return posts.map((p) => ({
+      ...p,
+      totalRequiredAmount: Number(p.totalRequiredAmount),
+      receivedAmount: Number(p.receivedAmount),
+      remainingAmount: Number(p.remainingAmount),
+      expenses: expensesMap.get(p.id) || [],
+    }));
   }
 
   async listStudentMyPosts(studentUser: any) {
@@ -456,29 +471,16 @@ export class PostsService {
       )
       .orderBy(desc(studentPosts.createdAt));
 
-    const result: any[] = [];
-    for (const p of posts) {
-      const expenses = await this.db
-        .select({
-          categoryName: studentPostExpenses.categoryName,
-          amount: studentPostExpenses.amount,
-        })
-        .from(studentPostExpenses)
-        .where(eq(studentPostExpenses.postId, p.id));
+    if (posts.length === 0) return [];
+    const expensesMap = await this.getExpensesForPosts(posts.map((p) => p.id));
 
-      result.push({
-        ...p,
-        totalRequiredAmount: Number(p.totalRequiredAmount),
-        receivedAmount: Number(p.receivedAmount),
-        remainingAmount: Number(p.remainingAmount),
-        expenses: expenses.map((e) => ({
-          categoryName: e.categoryName,
-          amount: Number(e.amount),
-        })),
-      });
-    }
-
-    return result;
+    return posts.map((p) => ({
+      ...p,
+      totalRequiredAmount: Number(p.totalRequiredAmount),
+      receivedAmount: Number(p.receivedAmount),
+      remainingAmount: Number(p.remainingAmount),
+      expenses: expensesMap.get(p.id) || [],
+    }));
   }
 
   async listTeacherPendingPosts(teacherUser: any) {
@@ -510,27 +512,14 @@ export class PostsService {
       )
       .orderBy(desc(studentPosts.createdAt));
 
-    const result: any[] = [];
-    for (const p of posts) {
-      const expenses = await this.db
-        .select({
-          category: studentPostExpenses.categoryName,
-          amount: studentPostExpenses.amount,
-        })
-        .from(studentPostExpenses)
-        .where(eq(studentPostExpenses.postId, p.id));
+    if (posts.length === 0) return [];
+    const expensesMap = await this.getExpensesForPosts(posts.map((p) => p.id));
 
-      result.push({
-        ...p,
-        amount: Number(p.amount),
-        expenses: expenses.map((e) => ({
-          category: e.category,
-          amount: Number(e.amount),
-        })),
-      });
-    }
-
-    return result;
+    return posts.map((p) => ({
+      ...p,
+      amount: Number(p.amount),
+      expenses: expensesMap.get(p.id) || [],
+    }));
   }
 
   async listOrgPendingPosts(orgUser: any) {
@@ -576,27 +565,14 @@ export class PostsService {
       )
       .orderBy(desc(studentPosts.createdAt));
 
-    const result: any[] = [];
-    for (const p of posts) {
-      const expenses = await this.db
-        .select({
-          category: studentPostExpenses.categoryName,
-          amount: studentPostExpenses.amount,
-        })
-        .from(studentPostExpenses)
-        .where(eq(studentPostExpenses.postId, p.id));
+    if (posts.length === 0) return [];
+    const expensesMap = await this.getExpensesForPosts(posts.map((p) => p.id));
 
-      result.push({
-        ...p,
-        amount: Number(p.amount),
-        expenses: expenses.map((e) => ({
-          category: e.category,
-          amount: Number(e.amount),
-        })),
-      });
-    }
-
-    return result;
+    return posts.map((p) => ({
+      ...p,
+      amount: Number(p.amount),
+      expenses: expensesMap.get(p.id) || [],
+    }));
   }
 
   async listOrgHistoryPosts(orgUser: any) {
@@ -649,28 +625,15 @@ export class PostsService {
       )
       .orderBy(desc(studentPosts.updatedAt));
 
-    const result: any[] = [];
-    for (const p of posts) {
-      const expenses = await this.db
-        .select({
-          category: studentPostExpenses.categoryName,
-          amount: studentPostExpenses.amount,
-        })
-        .from(studentPostExpenses)
-        .where(eq(studentPostExpenses.postId, p.id));
+    if (posts.length === 0) return [];
+    const expensesMap = await this.getExpensesForPosts(posts.map((p) => p.id));
 
-      result.push({
-        ...p,
-        amount: Number(p.amount),
-        receivedAmount: Number(p.receivedAmount || 0),
-        expenses: expenses.map((e) => ({
-          category: e.category,
-          amount: Number(e.amount),
-        })),
-      });
-    }
-
-    return result;
+    return posts.map((p) => ({
+      ...p,
+      amount: Number(p.amount),
+      receivedAmount: Number(p.receivedAmount || 0),
+      expenses: expensesMap.get(p.id) || [],
+    }));
   }
 
   async teacherVerifyPost(postId: string, teacherUser: any, approved: boolean) {
@@ -1003,27 +966,14 @@ export class PostsService {
       )
       .orderBy(desc(studentPosts.createdAt));
 
-    const result: any[] = [];
-    for (const p of posts) {
-      const expenses = await this.db
-        .select({
-          category: studentPostExpenses.categoryName,
-          amount: studentPostExpenses.amount,
-        })
-        .from(studentPostExpenses)
-        .where(eq(studentPostExpenses.postId, p.id));
+    if (posts.length === 0) return [];
+    const expensesMap = await this.getExpensesForPosts(posts.map((p) => p.id));
 
-      result.push({
-        ...p,
-        amount: Number(p.amount),
-        expenses: expenses.map((e) => ({
-          category: e.category,
-          amount: Number(e.amount),
-        })),
-      });
-    }
-
-    return result;
+    return posts.map((p) => ({
+      ...p,
+      amount: Number(p.amount),
+      expenses: expensesMap.get(p.id) || [],
+    }));
   }
 
   async listSuperAdminPostsHistory() {
@@ -1063,28 +1013,15 @@ export class PostsService {
       )
       .orderBy(desc(studentPosts.updatedAt), desc(studentPosts.createdAt));
 
-    const result: any[] = [];
-    for (const p of posts) {
-      const expenses = await this.db
-        .select({
-          category: studentPostExpenses.categoryName,
-          amount: studentPostExpenses.amount,
-        })
-        .from(studentPostExpenses)
-        .where(eq(studentPostExpenses.postId, p.id));
+    if (posts.length === 0) return [];
+    const expensesMap = await this.getExpensesForPosts(posts.map((p) => p.id));
 
-      result.push({
-        ...p,
-        amount: Number(p.amount),
-        receivedAmount: Number(p.receivedAmount || 0),
-        expenses: expenses.map((e) => ({
-          category: e.category,
-          amount: Number(e.amount),
-        })),
-      });
-    }
-
-    return result;
+    return posts.map((p) => ({
+      ...p,
+      amount: Number(p.amount),
+      receivedAmount: Number(p.receivedAmount || 0),
+      expenses: expensesMap.get(p.id) || [],
+    }));
   }
 
   async listInstitutionPosts(currentUser: any) {
