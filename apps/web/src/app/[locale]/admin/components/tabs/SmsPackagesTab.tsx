@@ -53,7 +53,13 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
       ]);
 
       if (meterRes.ok) setMeter(await meterRes.json());
-      if (pkgsRes.ok) setPackages(await pkgsRes.json());
+      if (pkgsRes.ok) {
+        const raw = await pkgsRes.json();
+        const sorted = Array.isArray(raw)
+          ? [...raw].sort((a: any, b: any) => Number(a.amount) - Number(b.amount))
+          : [];
+        setPackages(sorted);
+      }
       if (historyRes.ok) setPurchases(await historyRes.json());
     } catch (err) {
       console.error('Failed to load SMS data:', err);
@@ -383,141 +389,114 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
         </div>
       )}
 
-      {/* SMS Meter KPI Stats (Mobile & Desktop Adaptive) */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '1rem',
-        }}
-      >
+      {/* SMS Meter KPI Stats (Mobile & Desktop Adaptive - Always 1 Row on All Devices) */}
+      <div className={styles.smsMeterRow}>
         {/* Remaining SMS (Main Metric) */}
         <div
+          className={styles.smsMeterCard}
           style={{
-            backgroundColor: 'var(--surface, #ffffff)',
-            borderRadius: '12px',
             border: `2px solid ${isZeroBalance ? '#ef4444' : isLowBalance ? '#f59e0b' : 'var(--color-primary, #059669)'}`,
-            padding: '1.25rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
           }}
         >
           <div
+            className={styles.smsMeterIconBox}
             style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '10px',
               backgroundColor: isZeroBalance ? '#fee2e2' : isLowBalance ? '#fef3c7' : 'rgba(5, 150, 105, 0.12)',
               color: isZeroBalance ? '#dc2626' : isLowBalance ? '#d97706' : '#059669',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
             }}
           >
-            <MessageSquare size={24} />
+            <MessageSquare size={22} />
           </div>
-          <div>
-            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-text-muted, #64748b)' }}>
+          <div className={styles.smsMeterContent}>
+            <span className={styles.smsMeterLabel}>
               {isBn ? 'অবশিষ্ট ওটিপি এসএমএস' : 'Remaining SMS'}
             </span>
             <div
+              className={styles.smsMeterValue}
               style={{
-                fontSize: '1.6rem',
-                fontWeight: 800,
                 color: isZeroBalance ? '#dc2626' : isLowBalance ? '#d97706' : 'var(--text-main, #0f172a)',
-                marginTop: '0.2rem',
               }}
             >
               {meter.remainingSms.toLocaleString(isBn ? 'bn-BD' : 'en-US')}
             </div>
-            <span style={{ fontSize: '0.72rem', color: isZeroBalance ? '#dc2626' : '#059669', fontWeight: 700 }}>
+            <span
+              className={styles.smsMeterSubtext}
+              style={{
+                color: isZeroBalance ? '#dc2626' : '#059669',
+              }}
+            >
               {isZeroBalance
                 ? (isBn ? 'রিচার্জ আবশ্যক' : 'Recharge Required')
-                : (isBn ? 'ওটিপি প্রেরণ সচল' : 'OTP Active')}
+                : (isBn ? 'ওটিপি সচল' : 'OTP Active')}
             </span>
           </div>
         </div>
 
         {/* Total Used SMS */}
         <div
+          className={styles.smsMeterCard}
           style={{
-            backgroundColor: 'var(--surface, #ffffff)',
-            borderRadius: '12px',
             border: '1px solid var(--color-border, #e2e8f0)',
-            padding: '1.25rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
           }}
         >
           <div
+            className={styles.smsMeterIconBox}
             style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '10px',
               backgroundColor: 'rgba(2, 132, 199, 0.12)',
               color: '#0284c7',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
             }}
           >
-            <Send size={24} />
+            <Send size={22} />
           </div>
-          <div>
-            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-text-muted, #64748b)' }}>
+          <div className={styles.smsMeterContent}>
+            <span className={styles.smsMeterLabel}>
               {isBn ? 'মোট প্রেরিত/ব্যবহৃত' : 'Total Used'}
             </span>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', marginTop: '0.2rem' }}>
+            <div
+              className={styles.smsMeterValue}
+              style={{ color: 'var(--text-main, #0f172a)' }}
+            >
               {meter.totalUsed.toLocaleString(isBn ? 'bn-BD' : 'en-US')}
             </div>
-            <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted, #64748b)' }}>
-              {isBn ? 'ইউজার ভেরিফিকেশনে ডেলিভার্ড' : 'Delivered to users'}
+            <span
+              className={styles.smsMeterSubtext}
+              style={{ color: 'var(--color-text-muted, #64748b)' }}
+            >
+              {isBn ? 'ইউজারে ডেলিভার্ড' : 'Delivered to users'}
             </span>
           </div>
         </div>
 
         {/* Total Credited SMS */}
         <div
+          className={styles.smsMeterCard}
           style={{
-            backgroundColor: 'var(--surface, #ffffff)',
-            borderRadius: '12px',
             border: '1px solid var(--color-border, #e2e8f0)',
-            padding: '1.25rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
           }}
         >
           <div
+            className={styles.smsMeterIconBox}
             style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '10px',
               backgroundColor: 'rgba(124, 58, 237, 0.12)',
               color: '#7c3aed',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
             }}
           >
-            <ShoppingBag size={24} />
+            <ShoppingBag size={22} />
           </div>
-          <div>
-            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-text-muted, #64748b)' }}>
+          <div className={styles.smsMeterContent}>
+            <span className={styles.smsMeterLabel}>
               {isBn ? 'সর্বমোট সংগৃহীত এসএমএস' : 'Total Purchased'}
             </span>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', marginTop: '0.2rem' }}>
+            <div
+              className={styles.smsMeterValue}
+              style={{ color: 'var(--text-main, #0f172a)' }}
+            >
               {meter.totalCredited.toLocaleString(isBn ? 'bn-BD' : 'en-US')}
             </div>
-            <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted, #64748b)' }}>
+            <span
+              className={styles.smsMeterSubtext}
+              style={{ color: 'var(--color-text-muted, #64748b)' }}
+            >
               {isBn ? 'সকল প্যাকেজ যোগফল' : 'Sum of all recharges'}
             </span>
           </div>
@@ -564,19 +543,14 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
           </span>
         </div>
 
-        {/* Packages Cards Grid */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))',
-            gap: '1rem',
-          }}
-        >
+        {/* Packages Cards Grid: 4 in a row on Desktop, 2 in a row on Mobile */}
+        <div className={styles.smsPackagesGrid}>
           {packages.map((pkg) => {
             const isBuying = buyingId === pkg.id;
             return (
               <div
                 key={pkg.id}
+                className={styles.smsPackageCard}
                 style={{
                   borderRadius: '12px',
                   border: '1.5px solid var(--color-border, #e2e8f0)',
@@ -591,36 +565,44 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
                 }}
               >
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main, #0f172a)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem', gap: '0.35rem' }}>
+                    <span style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-main, #0f172a)' }}>
                       {pkg.name}
                     </span>
                     <span
                       style={{
-                        fontSize: '0.7rem',
+                        fontSize: '0.68rem',
                         fontWeight: 700,
                         padding: '0.12rem 0.45rem',
                         borderRadius: '6px',
                         backgroundColor: 'rgba(5, 150, 105, 0.1)',
                         color: 'var(--color-primary, #059669)',
+                        whiteSpace: 'nowrap',
                       }}
                     >
-                      {pkg.smsCount} SMS
+                      {pkg.smsCount} {isBn ? 'টি' : 'SMS'}
                     </span>
                   </div>
 
-                  {/* Clean Total Price in BDT (No Paisa Displayed) */}
-                  <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-primary, #059669)' }}>
+                  {/* Clean Total Price in BDT */}
+                  <div
+                    className={styles.smsPackagePrice}
+                    style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-primary, #059669)' }}
+                  >
                     ৳{Number(pkg.amount).toLocaleString(isBn ? 'bn-BD' : 'en-US')}
                   </div>
 
-                  <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: 'var(--color-text-muted, #64748b)' }}>
-                    {isBn ? `${pkg.smsCount} টি ইউজার ওটিপি পাঠানোর সুবিধা` : `Quota for ${pkg.smsCount} verification OTPs`}
+                  <p
+                    className={styles.smsPackageDesc}
+                    style={{ margin: '0.35rem 0 0', fontSize: '0.75rem', color: 'var(--color-text-muted, #64748b)', lineHeight: 1.35 }}
+                  >
+                    {isBn ? `${pkg.smsCount} টি ইউজার ওটিপি কোটা` : `Quota for ${pkg.smsCount} OTPs`}
                   </p>
                 </div>
 
                 <button
                   type="button"
+                  className={styles.smsPackageBtn}
                   onClick={() => handleBuyPackage(pkg)}
                   disabled={Boolean(buyingId)}
                   style={{

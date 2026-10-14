@@ -23,16 +23,15 @@ export interface SmsPackageItem {
 }
 
 export const SMS_PACKAGES: SmsPackageItem[] = [
-  // Standard packages (50 paisa per SMS)
+  // Sorted from small amount to large amount (20 SMS set to 1 Tk for testing per user request)
+  { id: 'pkg-20', name: '20 SMS', smsCount: 20, amount: 1 },
+  { id: 'pkg-50', name: '50 SMS', smsCount: 50, amount: 29 },
+  { id: 'pkg-100', name: '100 SMS', smsCount: 100, amount: 55 },
+  { id: 'pkg-150', name: '150 SMS', smsCount: 150, amount: 83 },
   { id: 'pkg-200', name: '200 SMS', smsCount: 200, amount: 100 },
   { id: 'pkg-500', name: '500 SMS', smsCount: 500, amount: 250 },
   { id: 'pkg-1000', name: '1000 SMS', smsCount: 1000, amount: 500 },
   { id: 'pkg-2500', name: '2500 SMS', smsCount: 2500, amount: 1250 },
-  // Small packages
-  { id: 'pkg-20', name: '20 SMS', smsCount: 20, amount: 12 },
-  { id: 'pkg-50', name: '50 SMS', smsCount: 50, amount: 29 },
-  { id: 'pkg-100', name: '100 SMS', smsCount: 100, amount: 55 },
-  { id: 'pkg-150', name: '150 SMS', smsCount: 150, amount: 83 },
 ];
 
 @Injectable()

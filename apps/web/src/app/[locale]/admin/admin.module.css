@@ -1236,5 +1236,170 @@
   color: #6ee7b7;
 }
 
+/* ==========================================================================
+   SMS Packages & Meter Responsive Layout
+   ========================================================================== */
+
+/* 3-in-a-row Meter Stats: Strictly 1 row on ALL screen sizes */
+.smsMeterRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  width: 100%;
+}
+
+.smsMeterCard {
+  background-color: var(--surface, #ffffff);
+  border-radius: 12px;
+  padding: 1.15rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  min-width: 0;
+  transition: all 0.2s ease;
+}
+
+.smsMeterIconBox {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.smsMeterContent {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.smsMeterLabel {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #64748b);
+  line-height: 1.25;
+}
+
+.smsMeterValue {
+  font-size: 1.55rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-top: 0.15rem;
+  letter-spacing: -0.02em;
+}
+
+.smsMeterSubtext {
+  font-size: 0.72rem;
+  font-weight: 600;
+  margin-top: 0.15rem;
+  line-height: 1.2;
+}
+
+/* Phone screen responsive (< 640px): Dedicated ultra-compact 3-in-1-row */
+@media (max-width: 640px) {
+  .smsMeterRow {
+    gap: 0.45rem;
+  }
+
+  .smsMeterCard {
+    padding: 0.65rem 0.35rem;
+    gap: 0.35rem;
+    border-radius: 10px;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .smsMeterIconBox {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+
+  .smsMeterIconBox svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+
+  .smsMeterContent {
+    align-items: center;
+    width: 100%;
+  }
+
+  .smsMeterLabel {
+    font-size: 0.64rem;
+    font-weight: 700;
+    line-height: 1.15;
+    text-align: center;
+    word-break: break-word;
+  }
+
+  .smsMeterValue {
+    font-size: 1.15rem;
+    font-weight: 800;
+    margin-top: 0.1rem;
+    line-height: 1.1;
+  }
+
+  .smsMeterSubtext {
+    font-size: 0.58rem;
+    margin-top: 0.1rem;
+    line-height: 1.1;
+  }
+}
+
+/* Packages Grid: 4 per row on Desktop (> 900px), 2 per row on Mobile (<= 768px) */
+.smsPackagesGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 1024px) and (min-width: 769px) {
+  .smsPackagesGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .smsPackagesGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.65rem;
+  }
+
+  .smsPackageCard {
+    padding: 0.85rem 0.65rem !important;
+    gap: 0.65rem !important;
+  }
+
+  .smsPackagePrice {
+    font-size: 1.3rem !important;
+  }
+
+  .smsPackageDesc {
+    font-size: 0.7rem !important;
+  }
+
+  .smsPackageBtn {
+    padding: 0.45rem 0.5rem !important;
+    font-size: 0.78rem !important;
+  }
+}
+
+:global([data-theme="dark"]) .smsMeterCard {
+  background-color: var(--surface, #1e293b);
+  border-color: var(--color-border, #334155);
+}
+
+:global([data-theme="dark"]) .smsPackageCard {
+  background-color: var(--background-alt, #0f172a);
+  border-color: var(--color-border, #334155);
+}
+
+
 
 
