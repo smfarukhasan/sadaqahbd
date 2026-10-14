@@ -54,8 +54,9 @@ export function AdminSidebar({
   isBn,
 }: AdminSidebarProps) {
   const handleLogout = async () => {
+    const isMaster = useAuthStore.getState().user?.role === 'master_admin';
     await useAuthStore.getState().logout();
-    window.location.href = '/login';
+    window.location.href = isMaster ? '/' : '/login';
   };
 
   return (

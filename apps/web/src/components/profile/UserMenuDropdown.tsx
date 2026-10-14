@@ -103,9 +103,10 @@ export default function UserMenuDropdown({
   };
 
   const handleLogout = async () => {
+    const isMaster = user?.role === 'master_admin';
     setIsOpen(false);
     await logout();
-    window.location.href = '/login';
+    window.location.href = isMaster ? '/' : '/login';
   };
 
   return (

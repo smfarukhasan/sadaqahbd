@@ -85,6 +85,17 @@ export default function LoginPage() {
   const isMasterAdminReserved =
     cleanEmail === 'admin@sadaqahbd.com' || cleanEmail === 'admin@sadaqahbd.co';
 
+  // Security Guard: Prevent browser from auto-filling Master Admin's credentials on public login form
+  React.useEffect(() => {
+    if (
+      email.trim().toLowerCase() === 'admin@sadaqahbd.com' ||
+      email.trim().toLowerCase() === 'admin@sadaqahbd.co'
+    ) {
+      setEmail('');
+      setPassword('');
+    }
+  }, [email]);
+
   const user = useAuthStore((s) => s.user);
   const loadingAuth = useAuthStore((s) => s.loading);
 
@@ -395,15 +406,19 @@ export default function LoginPage() {
               <span>{t('orWithEmail')}</span>
             </div>
 
-            <form onSubmit={handleEmailAuth} className={styles.form}>
+            <form onSubmit={handleEmailAuth} className={styles.form} autoComplete="off">
               <div className={styles.field}>
                 <label>{t('emailLabel')}</label>
                 <input
                   type="email"
+                  name="public_user_email"
+                  id="public_user_email"
+                  autoComplete="off"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
+                  data-lpignore="true"
                 />
               </div>
 
@@ -411,11 +426,17 @@ export default function LoginPage() {
                 <label>{t('passwordLabel')}</label>
                 <input
                   type="password"
+                  name="public_user_auth_key"
+                  id="public_user_auth_key"
+                  autoComplete="new-password"
+                  readOnly
+                  onFocus={(e) => e.target.removeAttribute('readOnly')}
                   required
                   minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
+                  data-lpignore="true"
                 />
               </div>
 

@@ -53,8 +53,9 @@ export default function PanelHeader({
   };
 
   const handleLogout = async () => {
+    const isMaster = user?.role === 'master_admin';
     await logout();
-    router.replace('/login');
+    router.replace(isMaster ? '/' : '/login');
   };
 
   const userInitial = user?.fullName ? user.fullName.charAt(0).toUpperCase() : role.charAt(0).toUpperCase();
