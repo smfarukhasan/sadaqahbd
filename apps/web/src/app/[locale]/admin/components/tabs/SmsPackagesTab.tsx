@@ -86,7 +86,11 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
                 headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
               }
             );
-            const data = await res.json();
+            const contentType = res.headers.get('content-type') || '';
+            const data = contentType.includes('application/json')
+              ? await res.json()
+              : { message: isBn ? 'সার্ভার থেকে ত্রুটিপূর্ণ উত্তর এসেছে।' : 'Invalid server response.' };
+
             if (res.ok && data.status === 'SUCCESS') {
               setPaymentMsg({
                 type: 'success',
@@ -135,13 +139,22 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
         }),
       });
 
-      const result = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      let result: any = null;
+      if (contentType.includes('application/json')) {
+        result = await res.json();
+      } else {
+        const text = await res.text();
+        console.warn('Non-JSON response from buy-package:', text.slice(0, 200));
+        throw new Error(isBn ? 'সার্ভার সংযোগে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।' : 'Server connection error.');
+      }
+
       if (res.ok && result.checkoutUrl) {
         window.location.href = result.checkoutUrl;
       } else {
         setPaymentMsg({
           type: 'error',
-          text: result.message || (isBn ? 'পেমেন্ট সেশন শুরু করা সম্ভব হয়নি।' : 'Could not initiate checkout.'),
+          text: result?.message || (isBn ? 'পেমেন্ট সেশন শুরু করা সম্ভব হয়নি।' : 'Could not initiate checkout.'),
         });
       }
     } catch (err: any) {
