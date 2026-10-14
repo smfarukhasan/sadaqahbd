@@ -45,8 +45,12 @@ export class MaintenanceController {
   }
 
   @Get('apps-privilege/verify-payment/:transactionId')
-  async verifyAppsPrivilegePayment(@Param('transactionId') transactionId: string) {
-    return this.maintenanceService.verifyAppsPrivilegePayment(transactionId);
+  async verifyAppsPrivilegePayment(
+    @Param('transactionId') transactionId: string,
+    @Query('status') status?: string,
+    @Query('orderId') orderId?: string
+  ) {
+    return this.maintenanceService.verifyAppsPrivilegePayment(transactionId, status, orderId);
   }
 
   @Get('apps-privilege/check-alerts')
@@ -83,8 +87,12 @@ export class MaintenanceController {
   }
 
   @Get('sms/verify-purchase/:transactionId')
-  async verifySmsPurchase(@Param('transactionId') transactionId: string) {
-    return this.maintenanceService.verifySmsPurchase(transactionId);
+  async verifySmsPurchase(
+    @Param('transactionId') transactionId: string,
+    @Query('status') status?: string,
+    @Query('orderId') orderId?: string
+  ) {
+    return this.maintenanceService.verifySmsPurchase(transactionId, status, orderId);
   }
 
   @Get('sms/purchase-history')

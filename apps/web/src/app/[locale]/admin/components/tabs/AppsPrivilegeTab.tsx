@@ -38,6 +38,7 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
 
   const [selectedPlan, setSelectedPlan] = useState<'yearly' | 'monthly'>('yearly');
   const [initiatingPayment, setInitiatingPayment] = useState<boolean>(false);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [paymentMsg, setPaymentMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   const loadStatus = async () => {
@@ -61,16 +62,27 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
     }
   };
 
+  // Silent live background polling every 6 seconds when tab is open so validity updates instantly
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadStatus();
+      }
+    }, 6000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Check URL query parameters for return callback from Khub Soja payment gateway
   useEffect(() => {
     loadStatus();
 
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
-      const trxId = urlParams.get('transaction_id');
-      const status = urlParams.get('status');
+      const trxId = urlParams.get('transaction_id') || urlParams.get('order_id') || urlParams.get('client_order_id');
+      const statusParam = urlParams.get('status') || '';
+      const orderIdParam = urlParams.get('order_id') || urlParams.get('client_order_id') || '';
 
-      if (trxId) {
+      if (trxId || statusParam === 'SUCCESS' || orderIdParam) {
         setPaymentMsg({
           type: 'info',
           text: isBn
@@ -82,8 +94,14 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
         (async () => {
           try {
             const token = await getAuthToken();
+            const verifyParam = encodeURIComponent(trxId || orderIdParam);
+            const queryParams = new URLSearchParams();
+            if (statusParam) queryParams.set('status', statusParam);
+            if (orderIdParam) queryParams.set('orderId', orderIdParam);
+            const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+
             const verifyRes = await fetch(
-              `${getApiUrl()}/maintenance/apps-privilege/verify-payment/${encodeURIComponent(trxId)}`,
+              `${getApiUrl()}/maintenance/apps-privilege/verify-payment/${verifyParam}${queryString}`,
               {
                 headers: {
                   Authorization: `Bearer ${token}`,
@@ -103,7 +121,7 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
                   ? 'আলহামদুলিল্লাহ! আপনার পেমেন্ট সফলভাবে সম্পন্ন হয়েছে এবং সাবস্ক্রিপশন মেয়াদ বৃদ্ধি করা হয়েছে।'
                   : 'Payment successful! Subscription validity has been extended.',
               });
-              loadStatus();
+              await loadStatus();
             } else {
               setPaymentMsg({
                 type: 'error',
@@ -124,6 +142,54 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
       }
     }
   }, [isBn]);
+
+  const handleManualVerify = async (paymentRecord: any) => {
+    try {
+      setVerifyingId(paymentRecord.id);
+      setPaymentMsg(null);
+      const token = await getAuthToken();
+      const verifyParam = encodeURIComponent(paymentRecord.transactionId || paymentRecord.orderId);
+      const queryParams = new URLSearchParams();
+      queryParams.set('status', 'SUCCESS');
+      if (paymentRecord.orderId) queryParams.set('orderId', paymentRecord.orderId);
+
+      const res = await fetch(
+        `${getApiUrl()}/maintenance/apps-privilege/verify-payment/${verifyParam}?${queryParams.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
+          },
+        }
+      );
+      const contentType = res.headers.get('content-type') || '';
+      const data = contentType.includes('application/json')
+        ? await res.json()
+        : { message: isBn ? 'সার্ভার থেকে ত্রুটিপূর্ণ উত্তর এসেছে।' : 'Invalid server response.' };
+
+      if (res.ok && data.status === 'SUCCESS') {
+        setPaymentMsg({
+          type: 'success',
+          text: isBn
+            ? 'আলহামদুলিল্লাহ! আপনার পেমেন্ট সফলভাবে সম্পন্ন হয়েছে এবং সাবস্ক্রিপশন মেয়াদ বৃদ্ধি করা হয়েছে।'
+            : 'Payment successful! Subscription validity has been extended.',
+        });
+        await loadStatus();
+      } else {
+        setPaymentMsg({
+          type: 'error',
+          text: data.message || (isBn ? 'পেমেন্ট যাচাই করা সম্ভব হয়নি।' : 'Could not verify payment.'),
+        });
+      }
+    } catch (err: any) {
+      setPaymentMsg({
+        type: 'error',
+        text: err?.message || (isBn ? 'যাচাইকালে সমস্যা হয়েছে।' : 'Verification error.'),
+      });
+    } finally {
+      setVerifyingId(null);
+    }
+  };
 
   const handleInitiatePayment = async () => {
     try {
@@ -678,18 +744,56 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
                       {p.transactionId}
                     </td>
                     <td style={{ padding: '0.75rem' }}>
-                      <span
-                        style={{
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          padding: '0.12rem 0.45rem',
-                          borderRadius: '6px',
-                          backgroundColor: p.status === 'success' ? '#d1fae5' : '#fee2e2',
-                          color: p.status === 'success' ? '#047857' : '#b91c1c',
-                        }}
-                      >
-                        {p.status === 'success' ? (isBn ? 'সফল' : 'Success') : p.status}
-                      </span>
+                      {p.status === 'success' ? (
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '0.12rem 0.45rem',
+                            borderRadius: '6px',
+                            backgroundColor: '#d1fae5',
+                            color: '#047857',
+                          }}
+                        >
+                          {isBn ? 'সফল' : 'Success'}
+                        </span>
+                      ) : (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '0.12rem 0.45rem',
+                              borderRadius: '6px',
+                              backgroundColor: '#fee2e2',
+                              color: '#b91c1c',
+                            }}
+                          >
+                            {p.status}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleManualVerify(p)}
+                            disabled={verifyingId === p.id}
+                            style={{
+                              padding: '0.2rem 0.55rem',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              borderRadius: '5px',
+                              border: '1px solid #059669',
+                              backgroundColor: '#059669',
+                              color: '#ffffff',
+                              cursor: verifyingId === p.id ? 'not-allowed' : 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            {verifyingId === p.id ? (isBn ? 'সিঙ্ক হচ্ছে...' : 'Syncing...') : (isBn ? '⚡ লাইভ সিঙ্ক' : '⚡ Sync Now')}
+                          </button>
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '0.75rem', fontWeight: 600, color: '#059669' }}>
                       {p.extendedValidUntil ? formatDate(p.extendedValidUntil) : '-'}
