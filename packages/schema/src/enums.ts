@@ -84,9 +84,10 @@ export type PermissionModuleKeyType =
 export const OrganizationType = {
   QAWMI_MADRASA: 'qawmi_madrasa',
   HAFEZIA_MADRASA: 'hafezia_madrasa',
+  NAJERA_MADRASA: 'najera_madrasa',
+  ORPHANAGE: 'orphanage',
   EBTEDAYEE_MADRASA: 'ebtedayee_madrasa',
   ALIA_MADRASA: 'alia_madrasa',
-  ORPHANAGE: 'orphanage',
   OTHER: 'other',
 } as const;
 
@@ -96,10 +97,8 @@ export type OrganizationTypeValue =
 export const ORGANIZATION_TYPE_OPTIONS = [
   { value: 'qawmi_madrasa', labelBn: 'কওমি মাদ্রাসা', labelEn: 'Qawmi Madrasa' },
   { value: 'hafezia_madrasa', labelBn: 'হাফেজীয়া মাদ্রাসা', labelEn: 'Hafezia Madrasa' },
-  { value: 'ebtedayee_madrasa', labelBn: 'এবতেদায়ী মাদ্রাসা', labelEn: 'Ebtedayee Madrasa' },
-  { value: 'alia_madrasa', labelBn: 'আলিয়া মাদ্রাসা', labelEn: 'Alia Madrasa' },
+  { value: 'najera_madrasa', labelBn: 'নাজেরা মাদ্রাসা', labelEn: 'Nazera Madrasa' },
   { value: 'orphanage', labelBn: 'এতিম খানা', labelEn: 'Orphanage' },
-  { value: 'other', labelBn: 'অন্যান্য', labelEn: 'Other' },
 ] as const;
 
 export function getOrganizationTypeLabel(type?: string | null, isBn = true): string {
@@ -109,6 +108,9 @@ export function getOrganizationTypeLabel(type?: string | null, isBn = true): str
 
   // Fallbacks for legacy records
   const legacyMap: Record<string, { bn: string; en: string }> = {
+    najera_madrasa: { bn: 'নাজেরা মাদ্রাসা', en: 'Nazera Madrasa' },
+    ebtedayee_madrasa: { bn: 'এবতেদায়ী মাদ্রাসা', en: 'Ebtedayee Madrasa' },
+    alia_madrasa: { bn: 'আলিয়া মাদ্রাসা', en: 'Alia Madrasa' },
     madrasa: { bn: 'মাদ্রাসা', en: 'Madrasa' },
     madrasah: { bn: 'মাদ্রাসা', en: 'Madrasa' },
     school: { bn: 'স্কুল', en: 'School' },

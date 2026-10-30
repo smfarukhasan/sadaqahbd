@@ -43,7 +43,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthActionInProgress: false,
 
   setAuthActionInProgress: (isAuthActionInProgress) => set({ isAuthActionInProgress }),
-  setUser: (user) => set({ user, loading: false }),
+  setUser: (user) => {
+    if (
+      user &&
+      (user.role === 'master_admin' ||
+        user.role === 'super_admin' ||
+        user.role === 'admin')
+    ) {
+      user.isPasswordSet = true;
+    }
+    set({ user, loading: false });
+  },
   setFirebaseUser: (firebaseUser) => set({ firebaseUser }),
 
   syncProfile: async (fbUser: FirebaseUser) => {
@@ -62,6 +72,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (res.ok) {
         const userData: AppUser = await res.json();
+        if (
+          userData &&
+          (userData.role === 'master_admin' ||
+            userData.role === 'super_admin' ||
+            userData.role === 'admin')
+        ) {
+          userData.isPasswordSet = true;
+        }
         if ((userData as any).token && typeof window !== 'undefined') {
           localStorage.setItem('sadaqahbd_auth_token', (userData as any).token);
           localStorage.setItem('sadaqahbd_local_user', JSON.stringify(userData));

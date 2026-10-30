@@ -49,7 +49,12 @@ export default function Navbar() {
     return false;
   };
 
-  const isMandatorySetup = pathname.includes('/set-password') || (user && !user.isPasswordSet);
+  const isAdmin =
+    user?.role === 'master_admin' ||
+    user?.role === 'super_admin' ||
+    user?.role === 'admin';
+  const isMandatorySetup =
+    !isAdmin && (pathname.includes('/set-password') || (user && !user.isPasswordSet));
 
   const [isScrolled, setIsScrolled] = useState(false);
 

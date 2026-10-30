@@ -20,6 +20,7 @@ import FundAllocationTab from './tabs/FundAllocationTab';
 import AppsPrivilegeTab from './tabs/AppsPrivilegeTab';
 import SmsPackagesTab from './tabs/SmsPackagesTab';
 import StudentPhoneExemptionsTab from './tabs/StudentPhoneExemptionsTab';
+import ComplaintsTab from './tabs/ComplaintsTab';
 import MyDonationsSection from '@/components/portal/MyDonationsSection';
 import styles from '../admin.module.css';
 
@@ -51,6 +52,8 @@ export interface AdminTabRouterProps {
   donorsList: any[];
   removalRequests: any[];
   actionLoading: boolean;
+  canAccessStudentExemptions?: boolean;
+  phoneExemptionCount?: number;
 
   getPermission: (key: string) => { canView: boolean; canEdit: boolean };
   resetAdminForm: () => void;
@@ -85,6 +88,8 @@ export function AdminTabRouter({
   user,
   canAccessFundAllocation = false,
   canEditFundAllocation = false,
+  canAccessStudentExemptions = false,
+  phoneExemptionCount = 0,
   ledgerStats,
   superAdmins,
   allUsers,
@@ -174,6 +179,8 @@ export function AdminTabRouter({
           donationsHistory={donationsHistory}
           canAccessFundAllocation={canAccessFundAllocation}
           canEditFundAllocation={canEditFundAllocation}
+          canAccessStudentExemptions={canAccessStudentExemptions}
+          phoneExemptionCount={phoneExemptionCount}
           currentUser={user}
         />
       )}
@@ -372,12 +379,20 @@ export function AdminTabRouter({
         <SmsPackagesTab isBn={isBn} user={user} />
       )}
 
-      {/* VIEW 12: Student Phone Exemption Clearances */}
-      {activeNav === 'phone_exemptions' && (
+      {/* VIEW 12: Student Information Verification Clearances */}
+      {(activeNav === 'phone_exemptions' || activeNav === 'student_verifications') && (
         <StudentPhoneExemptionsTab
           isBn={isBn}
           user={user}
           onRefreshCount={() => loadAdminData(true)}
+        />
+      )}
+
+      {/* VIEW 13: Complaints & Support */}
+      {activeNav === 'complaints' && (
+        <ComplaintsTab
+          isBn={isBn}
+          user={user}
         />
       )}
     </main>

@@ -152,7 +152,7 @@ export class DonationsController {
 
   @Post('items/review')
   @UseGuards(FirebaseAuthGuard, RolesGuard)
-  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
   async reviewItemDonation(
     @CurrentUser() user: any,
     @Body() body: ReviewItemDonationInput
@@ -173,7 +173,7 @@ export class DonationsController {
 
   @Post('items/follow-up')
   @UseGuards(FirebaseAuthGuard, RolesGuard)
-  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
   async adminFollowUpItemDonation(
     @CurrentUser() user: any,
     @Body() body: AdminFollowUpItemDonationInput
@@ -190,9 +190,9 @@ export class DonationsController {
 
   @Get('items/requests')
   @UseGuards(FirebaseAuthGuard, RolesGuard)
-  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN)
-  async listItemDonations() {
-    return this.donationsService.listItemDonationRequests();
+  @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  async listItemDonations(@CurrentUser() user?: any) {
+    return this.donationsService.listItemDonationRequests(user);
   }
 }
 

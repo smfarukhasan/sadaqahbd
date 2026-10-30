@@ -21,6 +21,8 @@ import {
   CreateGeneralUserInput,
   StudentVerificationProfileSchema,
   StudentVerificationProfileInput,
+  StudentVerificationSubmissionSchema,
+  StudentVerificationSubmissionInput,
   UserRole,
   UserRoleType,
 } from '@sadaqahbd/schema';
@@ -252,6 +254,16 @@ export class UsersController {
     @Body() body: any
   ) {
     return this.usersService.updateMyStudentProfile(user, body);
+  }
+
+  @Post('student-information-verification')
+  @Roles(UserRole.STUDENT)
+  async submitStudentInformationVerification(
+    @CurrentUser() user: any,
+    @Body() body: any
+  ) {
+    const validated = StudentVerificationSubmissionSchema.parse(body);
+    return this.usersService.submitStudentInformationVerification(user, validated);
   }
 
   @Get('students/:id/details')

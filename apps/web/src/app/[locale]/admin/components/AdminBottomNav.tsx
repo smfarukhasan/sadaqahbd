@@ -33,7 +33,15 @@ export function AdminBottomNav({
       <button
         type="button"
         className={`${styles.bottomNavItem} ${
-          ['org_requests', 'student_posts', 'affiliation_requests', 'pending_donations'].includes(activeNav)
+          [
+            'org_requests',
+            'student_posts',
+            'affiliation_requests',
+            'transfer_requests',
+            'pending_donations',
+            'item_donations',
+            'phone_exemptions',
+          ].includes(activeNav)
             ? styles.bottomNavItemActive
             : ''
         }`}

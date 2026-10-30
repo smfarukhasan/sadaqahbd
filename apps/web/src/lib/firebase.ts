@@ -34,6 +34,7 @@ export const firebaseApp =
 
 export const auth = getAuth(firebaseApp);
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export async function loginWithGoogle() {
   const result = await signInWithPopup(auth, googleProvider);

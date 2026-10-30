@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/auth-store';
-import { loginWithEmail } from '@/lib/firebase';
+import { auth, loginWithEmail, logoutUser } from '@/lib/firebase';
 import { getApiUrl } from '@/lib/api-config';
 import { ShieldAlert, Key, AlertTriangle, ArrowRight, Loader2 } from 'lucide-react';
 import styles from './page.module.css';
@@ -83,11 +83,23 @@ export default function MasterAdminGatePage() {
           }
         }
 
-        // Firebase background session sync if exists
-        try {
-          await loginWithEmail(cleanEmail, password).catch(() => null);
-        } catch {}
+        // If there was an active Firebase session from a Google account, log it out completely
+        if (auth.currentUser && auth.currentUser.email?.toLowerCase() !== cleanEmail) {
+          try {
+            await logoutUser();
+          } catch {}
+        }
 
+        // Firebase background session sync if master admin account exists in Firebase Auth
+        try {
+          await loginWithEmail(cleanEmail, password);
+        } catch {
+          if (auth.currentUser && auth.currentUser.email?.toLowerCase() !== cleanEmail) {
+            await logoutUser().catch(() => null);
+          }
+        }
+
+        loggedUser.isPasswordSet = true;
         useAuthStore.getState().setUser(loggedUser);
         router.replace('/bn/admin');
         return;
@@ -96,7 +108,7 @@ export default function MasterAdminGatePage() {
       // 2. If API returned a specific failure reason, display clear warning
       if (!res.ok && resData.message) {
         const msg = String(resData.message).toLowerCase();
-        if (msg.includes('কোনো অ্যাকাউন্ট পাওয়া যায়নি') || msg.includes('not found') || msg.includes('user')) {
+        if (msg.includes('কোনো অ্যাকাউন্ট পাওয়া যায়নি') || msg.includes('user not found') || msg.includes('user_not_found') || msg.includes('account not found')) {
           setLoginError('প্রদত্ত ইমেইল বা ইউজারনেমে কোনো অ্যাডমিন অ্যাকাউন্ট পাওয়া যায়নি।');
         } else if (msg.includes('পাসওয়ার্ড') || msg.includes('password') || msg.includes('ম্যাচ')) {
           setLoginError('প্রদত্ত পাসওয়ার্ডটি সঠিক নয়। অনুগ্রহ করে পুনরায় চেক করুন।');

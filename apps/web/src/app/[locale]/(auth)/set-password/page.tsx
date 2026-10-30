@@ -20,6 +20,7 @@ import { getFriendlyAuthErrorMessage } from '../../../../lib/auth-errors';
 import { getApiUrl } from '../../../../lib/api-config';
 import { getAuthToken } from '../../../../lib/auth-token';
 import { useAuthStore, getRoleDashboardPath } from '../../../../lib/auth-store';
+import { isValid11DigitPhone } from '@sadaqahbd/schema';
 
 type PublicRoleKey = 'donor' | 'student' | 'teacher' | 'organization';
 
@@ -95,10 +96,15 @@ function SetPasswordContent() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Protection Guard: Old/Existing accounts MUST NEVER see this setup!
+  // Protection Guard: Old/Existing accounts and Admin accounts MUST NEVER see this setup!
   useEffect(() => {
     if (!loadingAuth && user) {
-      if (user.isPasswordSet) {
+      const isAdmin =
+        user.role === 'master_admin' ||
+        user.role === 'super_admin' ||
+        user.role === 'admin';
+
+      if (user.isPasswordSet || isAdmin) {
         const dest = getRoleDashboardPath(user.role);
         router.replace(dest as any);
       }
@@ -143,6 +149,15 @@ function SetPasswordContent() {
         role: selectedRole,
       };
       if (phone.trim()) {
+        if (!isValid11DigitPhone(phone.trim())) {
+          setError(
+            isBn
+              ? 'ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 01XXXXXXXXX)।'
+              : 'Phone number must be exactly 11 digits (e.g. 01XXXXXXXXX).'
+          );
+          setLoading(false);
+          return;
+        }
         payload.phone = phone.trim();
       }
 
@@ -275,7 +290,8 @@ function SetPasswordContent() {
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="+8801XXXXXXXXX"
+                placeholder="01XXXXXXXXX"
+                maxLength={11}
               />
             </div>
           )}

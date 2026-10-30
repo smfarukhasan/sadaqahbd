@@ -15,6 +15,7 @@ import {
   TrendingUp,
   ArrowLeftRight,
   Heart,
+  Smartphone,
   BarChart3,
   PieChart,
   CheckCircle2,
@@ -56,6 +57,8 @@ interface OverviewTabProps {
   donationsHistory?: any[];
   canAccessFundAllocation?: boolean;
   canEditFundAllocation?: boolean;
+  canAccessStudentExemptions?: boolean;
+  phoneExemptionCount?: number;
   currentUser?: any;
 }
 
@@ -84,6 +87,8 @@ export function OverviewTab({
   donationsHistory = [],
   canAccessFundAllocation = false,
   canEditFundAllocation = false,
+  canAccessStudentExemptions = false,
+  phoneExemptionCount = 0,
   currentUser,
 }: OverviewTabProps) {
   const [selectedChartRange, setSelectedChartRange] = useState<'month' | 'quarter'>('month');
@@ -105,7 +110,8 @@ export function OverviewTab({
     studentPostRequests.length +
     pendingDonations.length +
     pendingItemsCount +
-    actionableTransfersCount;
+    actionableTransfersCount +
+    phoneExemptionCount;
 
   // Chart Data Calculations
   const poolBalance = Number(ledgerStats.randomFundPoolBalance || 0);
@@ -535,6 +541,72 @@ export function OverviewTab({
             <ArrowRight size={14} />
           </button>
         </div>
+
+        {/* CARD: Student Phone Exemptions */}
+        {canAccessStudentExemptions && (
+          <div
+            className={`${styles.kpiCard} card`}
+            style={{
+              padding: '1.25rem',
+              backgroundColor: 'var(--surface, #ffffff)',
+              borderRadius: '16px',
+              border: '1px solid var(--color-border)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', fontWeight: 700 }}>
+                  {isBn ? 'শিক্ষার্থী ফোন অব্যাহতি আবেদন' : 'Phone Exemption Clearances'}
+                </span>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(79, 70, 229, 0.12)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#4f46e5',
+                  }}
+                >
+                  <Smartphone size={20} />
+                </div>
+              </div>
+              <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#4f46e5', marginTop: '0.65rem' }}>
+                {loadingData ? '...' : (isBn ? phoneExemptionCount.toLocaleString('bn-BD') : phoneExemptionCount)}
+              </div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                {isBn ? 'ব্যক্তিগত ফোন না থাকার আবেদন' : 'Pending requests without phone'}
+              </span>
+            </div>
+            <button
+              onClick={() => setActiveNav('phone_exemptions')}
+              style={{
+                marginTop: '0.85rem',
+                paddingTop: '0.65rem',
+                borderTop: '1px solid var(--color-border)',
+                fontSize: '0.82rem',
+                color: '#4f46e5',
+                background: 'none',
+                border: 'none',
+                padding: '0.5rem 0 0',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+              }}
+            >
+              <span>{isBn ? 'ফোন ছাড়পত্র দিন' : 'Review Exemptions'}</span>
+              <ArrowRight size={14} />
+            </button>
+          </div>
+        )}
 
         {/* CARD 6: Active Super Admins */}
         <div
@@ -1684,6 +1756,54 @@ export function OverviewTab({
               </button>
             </div>
           </div>
+
+          {/* Queue 7: Student Phone Exemptions */}
+          {canAccessStudentExemptions && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.85rem 1.15rem',
+                backgroundColor: 'var(--background-alt, #f8fafc)',
+                borderRadius: '10px',
+                border: '1px solid var(--color-border)',
+                flexWrap: 'wrap',
+                gap: '0.5rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <Smartphone size={18} color="#4f46e5" />
+                <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>
+                  {isBn ? 'শিক্ষার্থী ফোন নম্বর অব্যাহতি ছাড়পত্র' : 'Student Phone Exemption Clearances'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <span
+                  style={{
+                    padding: '0.2rem 0.65rem',
+                    borderRadius: '9999px',
+                    backgroundColor: phoneExemptionCount > 0 ? '#ede9fe' : '#f1f5f9',
+                    color: phoneExemptionCount > 0 ? '#5b21b6' : '#64748b',
+                    fontWeight: 800,
+                    fontSize: '0.8rem',
+                  }}
+                >
+                  {isBn
+                    ? `${phoneExemptionCount.toLocaleString('bn-BD')} টি অপেক্ষমাণ`
+                    : `${phoneExemptionCount} Pending`}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem', fontWeight: 700 }}
+                  onClick={() => setActiveNav('phone_exemptions')}
+                >
+                  {isBn ? 'তদারকি করুন' : 'Review'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

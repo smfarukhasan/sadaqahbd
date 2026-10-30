@@ -12,7 +12,20 @@ export default function MandatorySetupGuard() {
 
   useEffect(() => {
     if (!loading && user) {
-      // If user has not completed mandatory password & role setup:
+      const isAdmin =
+        user.role === 'master_admin' ||
+        user.role === 'super_admin' ||
+        user.role === 'admin';
+
+      // Administrative roles must NEVER see /set-password setup flow
+      if (isAdmin) {
+        if (pathname.includes('/set-password')) {
+          router.replace('/admin');
+        }
+        return;
+      }
+
+      // If regular user has not completed mandatory password & role setup:
       if (!user.isPasswordSet) {
         if (!pathname.startsWith('/set-password')) {
           router.replace('/set-password');

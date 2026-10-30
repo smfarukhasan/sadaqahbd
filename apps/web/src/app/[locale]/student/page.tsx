@@ -147,9 +147,7 @@ export default function StudentDashboardPage() {
   // Student complaint state
   const [complaintSubject, setComplaintSubject] = useState('');
   const [complaintDesc, setComplaintDesc] = useState('');
-  const [complaintsList, setComplaintsList] = useState<
-    Array<{ id: string; subject: string; desc: string; date: string; status: string }>
-  >([]);
+  const [complaintsList, setComplaintsList] = useState<any[]>([]);
   const [complaintSubmitted, setComplaintSubmitted] = useState(false);
 
   // Role Protection Guard
@@ -170,8 +168,8 @@ export default function StudentDashboardPage() {
       const apiUrl = getApiUrl();
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Parallelize fetching affiliation status, student posts, full profile, and transfer request
-      const [affRes, postsRes, profRes, transferRes] = await Promise.all([
+      // Parallelize fetching affiliation status, student posts, full profile, transfer request, and complaints
+      const [affRes, postsRes, profRes, transferRes, complaintsRes] = await Promise.all([
         fetch(`${apiUrl}/users/my-affiliation`, { headers }).catch((err) => {
           console.error('Failed to load student affiliation status:', err);
           return null;
@@ -186,6 +184,10 @@ export default function StudentDashboardPage() {
         }),
         fetch(`${apiUrl}/users/my-institution-transfer`, { headers }).catch((err) => {
           console.error('Failed to load student transfer status:', err);
+          return null;
+        }),
+        fetch(`${apiUrl}/complaints/my`, { headers }).catch((err) => {
+          console.error('Failed to load complaints:', err);
           return null;
         }),
       ]);
@@ -208,6 +210,11 @@ export default function StudentDashboardPage() {
       if (transferRes && transferRes.ok) {
         const transJson = await transferRes.json().catch(() => null);
         if (transJson) setTransferData(transJson);
+      }
+
+      if (complaintsRes && complaintsRes.ok) {
+        const compJson = await complaintsRes.json().catch(() => null);
+        if (Array.isArray(compJson)) setComplaintsList(compJson);
       }
     } catch (err) {
       console.error('Failed to load student portal data:', err);
@@ -233,6 +240,15 @@ export default function StudentDashboardPage() {
     e.preventDefault();
     if (!complaintSubject.trim() || !complaintDesc.trim()) return;
 
+    if (complaintSubject.trim().length < 5) {
+      alert(locale === 'bn' ? 'অভিযোগের বিষয় কমপক্ষে ৫ অক্ষরের হতে হবে।' : 'Subject must be at least 5 characters.');
+      return;
+    }
+    if (complaintDesc.trim().length < 15) {
+      alert(locale === 'bn' ? 'অভিযোগের পূর্ণ বিবরণ কমপক্ষে ১৫ অক্ষরের হতে হবে।' : 'Message must be at least 15 characters.');
+      return;
+    }
+
     try {
       const token = await getAuthToken();
       const apiUrl = getApiUrl();
@@ -243,25 +259,26 @@ export default function StudentDashboardPage() {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          subject: complaintSubject,
-          description: complaintDesc,
+          subject: complaintSubject.trim(),
+          message: complaintDesc.trim(),
         }),
       });
 
       if (res.ok) {
         setComplaintSubmitted(true);
-        setComplaintsList((prev) => [
-          {
-            id: Date.now().toString(),
-            subject: complaintSubject,
-            desc: complaintDesc,
-            date: new Date().toLocaleDateString(locale === 'bn' ? 'bn-BD' : 'en-US'),
-            status: 'অপেক্ষমান (Pending)',
-          },
-          ...prev,
-        ]);
         setComplaintSubject('');
         setComplaintDesc('');
+        // Re-fetch my complaints to get authoritative list
+        const myRes = await fetch(`${apiUrl}/complaints/my`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (myRes.ok) {
+          const list = await myRes.json();
+          if (Array.isArray(list)) setComplaintsList(list);
+        }
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        alert(errJson.message || (locale === 'bn' ? 'অভিযোগ জমা দেওয়া সম্ভব হয়নি।' : 'Failed to submit complaint.'));
       }
     } catch (err) {
       console.error('Failed to submit complaint', err);
@@ -1003,24 +1020,55 @@ export default function StudentDashboardPage() {
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {complaintsList.map((c) => (
-                      <div
-                        key={c.id}
-                        style={{
-                          padding: '0.85rem 1rem',
-                          backgroundColor: 'var(--background, #f8fafc)',
-                          borderRadius: 'var(--radius-md)',
-                          border: '1px solid var(--surface-border, #e2e8f0)',
-                          fontSize: '0.85rem',
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                          <strong style={{ color: 'var(--text-main)' }}>{c.subject}</strong>
-                          <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: '700', backgroundColor: 'rgba(5, 150, 105, 0.1)', padding: '0.15rem 0.5rem', borderRadius: '9999px' }}>{c.status}</span>
+                    {complaintsList.map((c) => {
+                      const statusMap: Record<string, { label: string; bg: string; color: string }> = {
+                        open: { label: isBn ? 'অপেক্ষমান' : 'Pending', bg: '#fef3c7', color: '#92400e' },
+                        in_progress: { label: isBn ? 'প্রক্রিয়াধীন' : 'In Progress', bg: '#e0f2fe', color: '#075985' },
+                        resolved: { label: isBn ? 'সমাধানকৃত' : 'Resolved', bg: '#ecfdf5', color: '#065f46' },
+                      };
+                      const st = statusMap[c.status] || { label: c.status, bg: '#f1f5f9', color: '#475569' };
+                      return (
+                        <div
+                          key={c.id}
+                          style={{
+                            padding: '1rem 1.15rem',
+                            backgroundColor: 'var(--background, #f8fafc)',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--surface-border, #e2e8f0)',
+                            fontSize: '0.85rem',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            <strong style={{ color: 'var(--text-main)', fontSize: '0.92rem' }}>{c.subject}</strong>
+                            <span style={{ fontSize: '0.74rem', color: st.color, fontWeight: '700', backgroundColor: st.bg, padding: '0.2rem 0.6rem', borderRadius: '9999px' }}>
+                              {st.label}
+                            </span>
+                          </div>
+                          <p style={{ color: 'var(--text-main, #334155)', margin: '0 0 0.5rem', fontSize: '0.84rem', lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
+                            {c.message || c.desc}
+                          </p>
+                          {c.adminReply && (
+                            <div
+                              style={{
+                                marginTop: '0.65rem',
+                                padding: '0.65rem 0.85rem',
+                                borderRadius: '6px',
+                                backgroundColor: 'rgba(2, 132, 199, 0.08)',
+                                borderLeft: '3px solid #0284c7',
+                                fontSize: '0.82rem',
+                              }}
+                            >
+                              <span style={{ fontWeight: '700', color: '#0369a1', display: 'block', marginBottom: '0.2rem' }}>
+                                {isBn ? 'এডমিন উত্তর (Admin Reply):' : 'Admin Reply:'}
+                              </span>
+                              <p style={{ margin: 0, color: 'var(--text-main, #0f172a)', lineHeight: 1.4 }}>
+                                {c.adminReply}
+                              </p>
+                            </div>
+                          )}
                         </div>
-                        <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.82rem' }}>{c.desc}</p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

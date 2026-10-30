@@ -10,6 +10,7 @@ import {
   Package,
   UserCheck,
   ArrowLeftRight,
+  Smartphone,
 } from 'lucide-react';
 import {
   PermissionModuleKey,
@@ -1139,6 +1140,15 @@ export function useAdminDashboard() {
       navKey: 'transfer_requests',
       permissionKey: PermissionModuleKey.STUDENT_VERIFICATION_REQUESTS,
     },
+    {
+      id: 'phone_exemptions',
+      titleBn: 'শিক্ষার্থীর তথ্য ভেরিফিকেশন',
+      titleEn: 'Student Information Verification',
+      count: phoneExemptionCount,
+      icon: Smartphone,
+      navKey: 'phone_exemptions',
+      permissionKey: PermissionModuleKey.STUDENT_PHONE_EXEMPTIONS,
+    },
   ].filter((cat) => {
     if (user?.role === UserRole.MASTER_ADMIN) return true;
     if (Array.isArray(cat.permissionKey)) {
@@ -1228,6 +1238,8 @@ export function useAdminDashboard() {
       user,
       canAccessFundAllocation,
       canEditFundAllocation,
+      canAccessStudentExemptions,
+      phoneExemptionCount,
       ledgerStats,
       superAdmins,
       allUsers,
@@ -1326,7 +1338,8 @@ export function useAdminDashboard() {
         studentPostRequests.length +
         pendingDonations.length +
         (adminPendingAffiliations?.teachers?.length || 0) +
-        (adminPendingAffiliations?.students?.length || 0),
+        (adminPendingAffiliations?.students?.length || 0) +
+        phoneExemptionCount,
       isBn,
     },
     modalsProps: {

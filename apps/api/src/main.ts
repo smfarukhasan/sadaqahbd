@@ -23,6 +23,7 @@ import {
   ensureOrgMemberRemovalsTable,
   ensureMaintenanceAndSmsTables,
   ensurePerformanceIndexes,
+  ensurePhoneNumbersNormalized,
 } from './database';
 
 async function bootstrap() {
@@ -40,6 +41,7 @@ async function bootstrap() {
   await ensureOrgMemberRemovalsTable();
   await ensureMaintenanceAndSmsTables();
   await ensurePerformanceIndexes();
+  await ensurePhoneNumbersNormalized();
 
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,

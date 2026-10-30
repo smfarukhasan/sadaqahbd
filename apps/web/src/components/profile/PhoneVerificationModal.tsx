@@ -15,11 +15,20 @@ import {
   Clock,
   ArrowRight,
   Info,
+  User,
+  Calendar,
+  MapPin,
+  Users,
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
 import { getApiUrl } from '@/lib/api-config';
-import { getAuthToken } from '@/lib/auth-token';
-import { UserRole } from '@sadaqahbd/schema';
+import { getAuthToken } from '../../lib/auth-token';
+import {
+  UserRole,
+  extract11DigitPhone,
+  isValid11DigitPhone,
+  formatPhoneForDisplay,
+} from '@sadaqahbd/schema';
 
 interface PhoneVerificationModalProps {
   isOpen: boolean;
@@ -40,20 +49,37 @@ export default function PhoneVerificationModal({
   const setUser = useAuthStore((s) => s.setUser);
 
   // Phone input & OTP state
-  const [phone, setPhone] = useState<string>(user?.phone || '');
+  const [phone, setPhone] = useState<string>(extract11DigitPhone(user?.phone) || '');
   const [otpCode, setOtpCode] = useState<string>('');
   const [step, setStep] = useState<'input_phone' | 'enter_otp' | 'manage_list'>('input_phone');
   const [isSecondaryAdding, setIsSecondaryAdding] = useState<boolean>(false);
+  const [phoneVerifiedInSession, setPhoneVerifiedInSession] = useState<boolean>(Boolean(user?.isPhoneVerified));
 
   // Verified phones list (for manage_phones mode)
   const [verifiedPhones, setVerifiedPhones] = useState<any[]>([]);
   const [loadingPhones, setLoadingPhones] = useState<boolean>(false);
 
-  // Student Exemption Request state
-  const [showExemptionForm, setShowExemptionForm] = useState<boolean>(false);
-  const [exemptionReason, setExemptionReason] = useState<string>('');
+  // Student Comprehensive Verification Fields
+  const [studentFullName, setStudentFullName] = useState<string>(user?.fullName || '');
+  const [studentFatherName, setStudentFatherName] = useState<string>('');
+  const [studentDob, setStudentDob] = useState<string>('');
+  const [studentBloodGroup, setStudentBloodGroup] = useState<string>('A+');
+  const [studentNidOrBirth, setStudentNidOrBirth] = useState<string>('');
+  const [studentPresentAddress, setStudentPresentAddress] = useState<string>(user?.address || '');
+  const [studentPermanentAddress, setStudentPermanentAddress] = useState<string>('');
+  const [studentGuardianName, setStudentGuardianName] = useState<string>('');
+  const [studentGuardianRelationship, setStudentGuardianRelationship] = useState<string>(isBn ? 'পিতা' : 'Father');
+  const [studentGuardianPhone, setStudentGuardianPhone] = useState<string>('');
+  const [studentGuardianAddress, setStudentGuardianAddress] = useState<string>('');
+  const [isSamePhoneAsStudent, setIsSamePhoneAsStudent] = useState<boolean>(false);
+
+  // Student Phone Exemption & Verification state
+  const [isPhoneExemptionChecked, setIsPhoneExemptionChecked] = useState<boolean>(false);
+  const [phoneExemptionReason, setPhoneExemptionReason] = useState<string>('');
   const [studentExemptionStatus, setStudentExemptionStatus] = useState<any>(null);
-  const [submittingExemption, setSubmittingExemption] = useState<boolean>(false);
+  const [studentProfileData, setStudentProfileData] = useState<any>(null);
+  const [submittingStudentInfo, setSubmittingStudentInfo] = useState<boolean>(false);
+  const [isReapplying, setIsReapplying] = useState<boolean>(false);
 
   // Timers & loading
   const [sendingOtp, setSendingOtp] = useState<boolean>(false);
@@ -83,19 +109,43 @@ export default function PhoneVerificationModal({
     }
   };
 
-  const loadStudentExemption = async () => {
+  const loadStudentData = async () => {
     if (!isStudent) return;
     try {
       const token = await getAuthToken();
-      const res = await fetch(`${getApiUrl()}/sms/student-exemption`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setStudentExemptionStatus(data);
+      const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
+
+      const [exempRes, profRes] = await Promise.all([
+        fetch(`${getApiUrl()}/sms/student-exemption`, { headers }).catch(() => null),
+        fetch(`${getApiUrl()}/users/my-student-profile`, { headers }).catch(() => null),
+      ]);
+
+      if (exempRes && exempRes.ok) {
+        const data = await exempRes.json().catch(() => null);
+        if (data) setStudentExemptionStatus(data);
+      }
+
+      if (profRes && profRes.ok) {
+        const prof = await profRes.json().catch(() => null);
+        if (prof) {
+          setStudentProfileData(prof);
+          const p = prof.profile;
+          const u = prof.user;
+          if (u?.fullName) setStudentFullName(u.fullName);
+          if (p?.fatherName) setStudentFatherName(p.fatherName);
+          if (p?.dateOfBirth) setStudentDob(p.dateOfBirth);
+          if (p?.bloodGroup) setStudentBloodGroup(p.bloodGroup);
+          if (p?.nidOrBirthCertificateNumber) setStudentNidOrBirth(p.nidOrBirthCertificateNumber);
+          if (p?.presentAddress || u?.address) setStudentPresentAddress(p?.presentAddress || u?.address || '');
+          if (p?.permanentAddress) setStudentPermanentAddress(p.permanentAddress);
+          if (p?.guardianName) setStudentGuardianName(p.guardianName);
+          if (p?.guardianRelationship) setStudentGuardianRelationship(p.guardianRelationship);
+          if (p?.guardianPhone) setStudentGuardianPhone(extract11DigitPhone(p.guardianPhone));
+          if (p?.guardianAddress) setStudentGuardianAddress(p.guardianAddress);
+        }
       }
     } catch (err) {
-      console.error('Error fetching student exemption:', err);
+      console.error('Error fetching student data:', err);
     }
   };
 
@@ -103,9 +153,12 @@ export default function PhoneVerificationModal({
     if (isOpen) {
       setFeedback(null);
       setOtpCode('');
-      setPhone(user?.phone || '');
+      setPhone(extract11DigitPhone(user?.phone) || '');
+      setPhoneVerifiedInSession(Boolean(user?.isPhoneVerified));
       loadVerifiedPhones();
-      loadStudentExemption();
+      if (isStudent) {
+        loadStudentData();
+      }
 
       if (mode === 'manage_phones') {
         setStep('manage_list');
@@ -115,6 +168,13 @@ export default function PhoneVerificationModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, mode]);
+
+  // Sync guardian phone if "একই" checkbox is checked
+  useEffect(() => {
+    if (isSamePhoneAsStudent && phone) {
+      setStudentGuardianPhone(phone);
+    }
+  }, [phone, isSamePhoneAsStudent]);
 
   // Resend OTP countdown
   useEffect(() => {
@@ -129,11 +189,13 @@ export default function PhoneVerificationModal({
 
   // Handle Send OTP
   const handleSendOtp = async (targetPhone = phone, isSecondary = isSecondaryAdding) => {
-    const clean = targetPhone.replace(/[^\d+]/g, '');
-    if (!clean || clean.length < 11) {
+    const clean = extract11DigitPhone(targetPhone);
+    if (!clean || !isValid11DigitPhone(clean)) {
       setFeedback({
         type: 'error',
-        text: isBn ? 'সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন (যেমন: 017XXXXXXXX)।' : 'Please enter a valid 11-digit phone number.',
+        text: isBn
+          ? 'ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 01XXXXXXXXX)।'
+          : 'Phone number must be strictly 11 digits (e.g. 01XXXXXXXXX).',
       });
       return;
     }
@@ -158,22 +220,22 @@ export default function PhoneVerificationModal({
 
       const data = await res.json();
       if (res.ok && data.success) {
+        setFeedback({
+          type: 'info',
+          text: data.message || (isBn ? 'ওটিপি কোড পাঠানো হয়েছে।' : 'OTP code sent.'),
+        });
         setStep('enter_otp');
         setResendCooldown(60);
-        setFeedback({
-          type: 'success',
-          text: data.message || (isBn ? 'আপনার নম্বরে ৬ ডিজিটের ওটিপি পাঠানো হয়েছে।' : 'OTP has been sent to your phone.'),
-        });
       } else {
         setFeedback({
           type: 'error',
-          text: data.message || (isBn ? 'ওটিপি পাঠাতে সমস্যা হয়েছে।' : 'Failed to send OTP.'),
+          text: data.message || (isBn ? 'ওটিপি পাঠাতে ব্যর্থ হয়েছে।' : 'Failed to send OTP.'),
         });
       }
     } catch (err: any) {
       setFeedback({
         type: 'error',
-        text: err?.message || (isBn ? 'সার্ভারে সংযোগ করা যায়নি।' : 'Server connection error.'),
+        text: err?.message || (isBn ? 'সার্ভারে সংযোগে সমস্যা।' : 'Connection error.'),
       });
     } finally {
       setSendingOtp(false);
@@ -182,10 +244,10 @@ export default function PhoneVerificationModal({
 
   // Handle Verify OTP
   const handleVerifyOtp = async () => {
-    if (!otpCode || otpCode.trim().length !== 6) {
+    if (!otpCode || otpCode.length !== 6) {
       setFeedback({
         type: 'error',
-        text: isBn ? '৬ ডিজিটের সঠিক ওটিপি কোড লিখুন।' : 'Enter the 6-digit OTP code.',
+        text: isBn ? 'অনুগ্রহ করে ৬ ডিজিটের ওটিপি কোড লিখুন।' : 'Enter 6-digit OTP code.',
       });
       return;
     }
@@ -203,7 +265,7 @@ export default function PhoneVerificationModal({
           Accept: 'application/json',
         },
         body: JSON.stringify({
-          phone,
+          phone: extract11DigitPhone(phone),
           otpCode: otpCode.trim(),
           isSecondary: isSecondaryAdding,
         }),
@@ -211,16 +273,10 @@ export default function PhoneVerificationModal({
 
       const data = await res.json();
       if (res.ok && data.success) {
-        // Update user in auth store
         if (user) {
-          setUser({
-            ...user,
-            phone: isSecondaryAdding ? user.phone : phone,
-            isPhoneVerified: true,
-            secondaryPhone: isSecondaryAdding ? phone : user.secondaryPhone,
-            isSecondaryPhoneVerified: isSecondaryAdding ? true : user.isSecondaryPhoneVerified,
-          });
+          setUser({ ...user, isPhoneVerified: true, phone: `+88${extract11DigitPhone(phone)}` });
         }
+        setPhoneVerifiedInSession(true);
 
         setFeedback({
           type: 'success',
@@ -229,7 +285,10 @@ export default function PhoneVerificationModal({
 
         loadVerifiedPhones();
 
-        if (mode === 'verify_mandatory') {
+        if (isStudent && mode === 'verify_mandatory') {
+          // Keep in form so student can finish submitting profile data
+          setStep('input_phone');
+        } else if (mode === 'verify_mandatory') {
           setTimeout(() => {
             if (onSuccess) onSuccess();
             onClose();
@@ -254,7 +313,7 @@ export default function PhoneVerificationModal({
     }
   };
 
-  // Handle Remove Verified Phone (Only if 2 verified numbers exist)
+  // Handle Remove Verified Phone
   const handleRemovePhone = async (phoneToRemove: string) => {
     if (verifiedPhones.length <= 1) {
       setFeedback({
@@ -302,99 +361,181 @@ export default function PhoneVerificationModal({
     }
   };
 
-  // Handle Student Exemption Application
-  const handleSubmitStudentExemption = async () => {
-    if (!exemptionReason || exemptionReason.trim().length < 10) {
-      setFeedback({
-        type: 'error',
-        text: isBn
-          ? 'অনুগ্রহ করে ফোন নম্বর না থাকার বিস্তারিত কারণ লিখুন (কমপক্ষে ১০ অক্ষর)।'
-          : 'Please provide detailed reason (at least 10 characters).',
-      });
+  // Handle Comprehensive Student Information Verification Submit
+  const handleSubmitStudentVerification = async () => {
+    // Validations
+    if (!studentFullName.trim() || studentFullName.trim().length < 2) {
+      setFeedback({ type: 'error', text: isBn ? 'শিক্ষার্থীর পূর্ণ নাম প্রদান করা আবশ্যক।' : 'Full Name is required.' });
+      return;
+    }
+    if (!studentFatherName.trim() || studentFatherName.trim().length < 2) {
+      setFeedback({ type: 'error', text: isBn ? 'পিতার নাম প্রদান করা আবশ্যক।' : "Father's name is required." });
+      return;
+    }
+    if (!studentDob.trim()) {
+      setFeedback({ type: 'error', text: isBn ? 'জন্ম তারিখ নির্বাচন করা আবশ্যক।' : 'Date of Birth is required.' });
+      return;
+    }
+    if (!studentBloodGroup.trim()) {
+      setFeedback({ type: 'error', text: isBn ? 'রক্তের গ্রুপ নির্বাচন করুন।' : 'Blood group is required.' });
+      return;
+    }
+    if (!studentNidOrBirth.trim() || studentNidOrBirth.trim().length < 5) {
+      setFeedback({ type: 'error', text: isBn ? 'এনআইডি অথবা জন্মনিবন্ধন নম্বর আবশ্যক।' : 'NID or Birth Certificate number is required.' });
+      return;
+    }
+    if (!studentPresentAddress.trim() || studentPresentAddress.trim().length < 3) {
+      setFeedback({ type: 'error', text: isBn ? 'বর্তমান ঠিকানা প্রদান করা আবশ্যক।' : 'Present address is required.' });
+      return;
+    }
+    if (!studentPermanentAddress.trim() || studentPermanentAddress.trim().length < 3) {
+      setFeedback({ type: 'error', text: isBn ? 'স্থায়ী ঠিকানা প্রদান করা আবশ্যক।' : 'Permanent address is required.' });
+      return;
+    }
+    if (!studentGuardianName.trim() || studentGuardianName.trim().length < 2) {
+      setFeedback({ type: 'error', text: isBn ? 'অভিভাবকের নাম প্রদান করা আবশ্যক।' : "Guardian's name is required." });
+      return;
+    }
+    if (!studentGuardianRelationship.trim()) {
+      setFeedback({ type: 'error', text: isBn ? 'অভিভাবকের সাথে সম্পর্ক আবশ্যক।' : 'Relationship with guardian is required.' });
+      return;
+    }
+    if (!studentGuardianPhone.trim() || !isValid11DigitPhone(studentGuardianPhone.trim())) {
+      setFeedback({ type: 'error', text: isBn ? 'অভিভাবকের ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 01XXXXXXXXX)।' : "Guardian's phone must be 11 digits." });
+      return;
+    }
+    if (!studentGuardianAddress.trim() || studentGuardianAddress.trim().length < 3) {
+      setFeedback({ type: 'error', text: isBn ? 'অভিভাবকের ঠিকানা প্রদান করা আবশ্যক।' : "Guardian's address is required." });
       return;
     }
 
+    // Phone / Exemption check
+    if (isPhoneExemptionChecked) {
+      if (!phoneExemptionReason.trim() || phoneExemptionReason.trim().length < 10) {
+        setFeedback({
+          type: 'error',
+          text: isBn
+            ? 'অনুগ্রহ করে ফোন নম্বর না থাকার কারণ বিস্তারিত লিখুন (কমপক্ষে ১০ অক্ষর)।'
+            : 'Please state the detailed reason for phone exemption (min 10 chars).',
+        });
+        return;
+      }
+    } else {
+      if (!phoneVerifiedInSession && !user?.isPhoneVerified) {
+        setFeedback({
+          type: 'error',
+          text: isBn
+            ? 'অনুগ্রহ করে আপনার ফোন নম্বরে ওটিপি কোড পাঠিয়ে ভেরিফাই করুন, অথবা ফোন না থাকলে "অব্যাহতি আবেদন" বক্সে টিক দিন।'
+            : 'Please verify your phone via OTP or check exemption request.',
+        });
+        return;
+      }
+    }
+
     try {
-      setSubmittingExemption(true);
+      setSubmittingStudentInfo(true);
       setFeedback(null);
       const token = await getAuthToken();
 
-      const res = await fetch(`${getApiUrl()}/sms/student-exemption`, {
+      const payload = {
+        fullName: studentFullName.trim(),
+        fatherName: studentFatherName.trim(),
+        dateOfBirth: studentDob.trim(),
+        bloodGroup: studentBloodGroup.trim(),
+        nidOrBirthCertificateNumber: studentNidOrBirth.trim(),
+        presentAddress: studentPresentAddress.trim(),
+        permanentAddress: studentPermanentAddress.trim(),
+        guardianName: studentGuardianName.trim(),
+        guardianRelationship: studentGuardianRelationship.trim(),
+        guardianPhone: studentGuardianPhone.trim(),
+        guardianAddress: studentGuardianAddress.trim(),
+        phoneExemptionRequested: isPhoneExemptionChecked,
+        phoneExemptionReason: isPhoneExemptionChecked ? phoneExemptionReason.trim() : null,
+      };
+
+      const res = await fetch(`${getApiUrl()}/users/student-information-verification`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
           Accept: 'application/json',
         },
-        body: JSON.stringify({ reason: exemptionReason.trim() }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
         setFeedback({
           type: 'success',
-          text: data.message || (isBn ? 'আবেদন সফলভাবে জমা হয়েছে।' : 'Application submitted.'),
+          text: data.message || (isBn ? 'আপনার তথ্য ভেরিফিকেশন সফলভাবে জমা হয়েছে!' : 'Verification submitted successfully!'),
         });
-        setShowExemptionForm(false);
-        loadStudentExemption();
+        setIsReapplying(false);
+        await loadStudentData();
       } else {
         setFeedback({
           type: 'error',
-          text: data.message || (isBn ? 'আবেদন জমা দেওয়া যায়নি।' : 'Failed to submit application.'),
+          text: data.message || (isBn ? 'তথ্য জমা দিতে সমস্যা হয়েছে।' : 'Submission failed.'),
         });
       }
     } catch (err: any) {
       setFeedback({
         type: 'error',
-        text: err?.message || (isBn ? 'সার্ভারে সংযোগ করা যায়নি।' : 'Connection error.'),
+        text: err?.message || (isBn ? 'সার্ভারে সংযোগে সমস্যা।' : 'Connection error.'),
       });
     } finally {
-      setSubmittingExemption(false);
-    }
-  };
-
-  // Format date helper
-  const formatDate = (dStr?: string) => {
-    if (!dStr) return '';
-    try {
-      return new Date(dStr).toLocaleDateString(isBn ? 'bn-BD' : 'en-US', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
-    } catch {
-      return dStr;
+      setSubmittingStudentInfo(false);
     }
   };
 
   const isExemptActive = studentExemptionStatus?.isExemptActive;
   const exemptionValidUntil = studentExemptionStatus?.phoneExemptionValidUntil;
   const latestExemptionRequest = studentExemptionStatus?.latestRequest;
+  const studentVerifStatus = studentProfileData?.profile?.verificationStatus;
+  const isStudentPendingAdmin =
+    (latestExemptionRequest?.status === 'pending' || studentVerifStatus === 'pending_admin') &&
+    !isExemptActive &&
+    !isReapplying;
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '';
+    try {
+      return new Date(dateString).toLocaleDateString(isBn ? 'bn-BD' : 'en-US', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const isStudentMandatoryView = isStudent && mode === 'verify_mandatory';
 
   return (
     <div
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.65)',
+        zIndex: 9999,
+        backgroundColor: 'rgba(15, 23, 42, 0.75)',
+        backdropFilter: 'blur(4px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 9999,
         padding: '1rem',
-        backdropFilter: 'blur(4px)',
+        animation: 'fadeIn 0.2s ease',
       }}
     >
       <div
         style={{
+          width: '100%',
+          maxWidth: isStudentMandatoryView ? '680px' : '460px',
           backgroundColor: 'var(--surface, #ffffff)',
           borderRadius: '16px',
-          maxWidth: '490px',
-          width: '100%',
-          padding: '1.75rem',
+          padding: isStudentMandatoryView ? '1.75rem' : '1.5rem',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
           position: 'relative',
-          maxHeight: '90vh',
+          maxHeight: '92vh',
           overflowY: 'auto',
         }}
       >
@@ -403,8 +544,8 @@ export default function PhoneVerificationModal({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
             <div
               style={{
-                width: '38px',
-                height: '38px',
+                width: '40px',
+                height: '40px',
                 borderRadius: '10px',
                 backgroundColor: 'rgba(5, 150, 105, 0.1)',
                 color: 'var(--color-primary, #059669)',
@@ -413,21 +554,24 @@ export default function PhoneVerificationModal({
                 justifyContent: 'center',
               }}
             >
-              <Smartphone size={20} />
+              {isStudentMandatoryView ? <Users size={22} /> : <Smartphone size={20} />}
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main, #0f172a)' }}>
-                {mode === 'manage_phones'
+                {isStudentMandatoryView
+                  ? (isBn ? 'শিক্ষার্থীর তথ্য ভেরিফিকেশন' : 'Student Information Verification')
+                  : mode === 'manage_phones'
                   ? (isBn ? 'ভেরিফাইড ফোন নম্বর সমূহ' : 'Verified Phone Numbers')
                   : (isBn ? 'ফোন নম্বর ভেরিফিকেশন' : 'Phone Verification')}
               </h3>
-              <span style={{ fontSize: '0.74rem', color: 'var(--color-text-muted, #64748b)' }}>
-                {isBn ? 'নিরাপত্তা ও ওটিপি নিশ্চিতকরণ' : 'Security & OTP Confirmation'}
+              <span style={{ fontSize: '0.76rem', color: 'var(--color-text-muted, #64748b)' }}>
+                {isStudentMandatoryView
+                  ? (isBn ? 'ব্যক্তিগত তথ্য, অভিভাবকের তথ্য ও ফোন ভেরিফিকেশন' : 'Personal, Address, Guardian & Phone Verification')
+                  : (isBn ? 'নিরাপত্তা ও ওটিপি নিশ্চিতকরণ' : 'Security & OTP Confirmation')}
               </span>
             </div>
           </div>
 
-          {/* Allow close if manage mode, or if student has active exemption */}
           {(mode === 'manage_phones' || isExemptActive) && (
             <button
               type="button"
@@ -451,9 +595,9 @@ export default function PhoneVerificationModal({
             style={{
               padding: '0.85rem 1rem',
               borderRadius: '8px',
-              backgroundColor: feedback.type === 'success' ? '#ecfdf5' : '#fef2f2',
-              border: `1px solid ${feedback.type === 'success' ? '#a7f3d0' : '#fecaca'}`,
-              color: feedback.type === 'success' ? '#065f46' : '#991b1b',
+              backgroundColor: feedback.type === 'success' ? '#ecfdf5' : feedback.type === 'info' ? '#eff6ff' : '#fef2f2',
+              border: `1px solid ${feedback.type === 'success' ? '#a7f3d0' : feedback.type === 'info' ? '#bfdbfe' : '#fecaca'}`,
+              color: feedback.type === 'success' ? '#065f46' : feedback.type === 'info' ? '#1d4ed8' : '#991b1b',
               fontSize: '0.84rem',
               fontWeight: 600,
               display: 'flex',
@@ -467,7 +611,7 @@ export default function PhoneVerificationModal({
           </div>
         )}
 
-        {/* If Student Has Active Exemption Banner */}
+        {/* Active Exemption Banner */}
         {isStudent && isExemptActive && (
           <div
             style={{
@@ -486,45 +630,62 @@ export default function PhoneVerificationModal({
             </div>
             <p style={{ margin: 0, fontSize: '0.8rem', lineHeight: 1.4 }}>
               {isBn
-                ? `আপনি ${formatDate(exemptionValidUntil)} পর্যন্ত ফোন নম্বর ছাড়াই প্ল্যাটফর্ম ব্যবহার করতে পারবেন। চাইলে যেকোনো সময় নিচে নম্বর ভেরিফাই করতে পারেন।`
-                : `Your exemption is valid until ${formatDate(exemptionValidUntil)}. You may add a verified phone at any time.`}
+                ? `আপনি ${formatDate(exemptionValidUntil)} পর্যন্ত ফোন নম্বর ছাড়াই প্ল্যাটফর্ম ব্যবহার করতে পারবেন।`
+                : `Your exemption is valid until ${formatDate(exemptionValidUntil)}.`}
             </p>
           </div>
         )}
 
-        {/* If Student Has Pending Exemption Request */}
-        {isStudent && latestExemptionRequest?.status === 'pending' && !isExemptActive && (
+        {/* Pending Review Banner */}
+        {isStudent && isStudentPendingAdmin && (
           <div
             style={{
               backgroundColor: '#fef3c7',
               border: '1px solid #f59e0b',
               borderRadius: '10px',
-              padding: '0.9rem',
+              padding: '1.25rem',
               marginBottom: '1.25rem',
               color: '#92400e',
-              fontSize: '0.84rem',
+              fontSize: '0.86rem',
+              textAlign: 'center',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-              <Clock size={16} color="#d97706" />
-              <span>{isBn ? 'অব্যাহতি আবেদন পর্যালোচনায় রয়েছে' : 'Exemption Pending Review'}</span>
-            </div>
-            <p style={{ margin: 0, fontSize: '0.8rem', lineHeight: 1.4 }}>
+            <Clock size={32} color="#d97706" style={{ margin: '0 auto 0.5rem' }} />
+            <h4 style={{ margin: '0 0 0.35rem', fontSize: '1rem', fontWeight: 800 }}>
+              {isBn ? 'আপনার তথ্য ভেরিফিকেশন পর্যালোচনায় রয়েছে' : 'Information Under Review'}
+            </h4>
+            <p style={{ margin: '0 0 0.85rem', fontSize: '0.82rem', lineHeight: 1.5, color: '#78350f' }}>
               {isBn
-                ? 'আপনার ফোন নম্বর না থাকার আবেদনটি এডমিন পর্যালোচনায় রয়েছে। অনুমোদন হলে আপনি নোটিফিকেশন পাবেন।'
-                : 'Your exemption request is under administrative review.'}
+                ? 'আপনার দাখিলকৃত ব্যক্তিগত, অভিভাবক ও ফোন ভেরিফিকেশনের তথ্যটি মাস্টার এডমিন / সুপার এডমিন পর্যালোচনায় রয়েছে। অনুমোদিত হলে স্বয়ংক্রিয়ভাবে ফিচার আনলক হবে।'
+                : 'Your verification submission is currently under administrative review.'}
             </p>
+            <button
+              type="button"
+              onClick={() => setIsReapplying(true)}
+              style={{
+                padding: '0.45rem 0.85rem',
+                borderRadius: '6px',
+                border: '1px solid #d97706',
+                backgroundColor: 'transparent',
+                color: '#92400e',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              {isBn ? 'তথ্য সংশোধন / নতুন আবেদন' : 'Edit Information'}
+            </button>
           </div>
         )}
 
-        {/* If Student Exemption was Rejected, Show Note */}
-        {isStudent && latestExemptionRequest?.status === 'rejected' && !showExemptionForm && (
+        {/* Rejected Notice Banner */}
+        {isStudent && (latestExemptionRequest?.status === 'rejected' || studentVerifStatus === 'rejected') && !isReapplying && (
           <div
             style={{
               backgroundColor: '#fee2e2',
               border: '1px solid #ef4444',
               borderRadius: '10px',
-              padding: '0.9rem',
+              padding: '1rem',
               marginBottom: '1.25rem',
               color: '#991b1b',
               fontSize: '0.84rem',
@@ -532,109 +693,478 @@ export default function PhoneVerificationModal({
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, marginBottom: '0.25rem' }}>
               <AlertTriangle size={16} color="#dc2626" />
-              <span>{isBn ? 'আগের আবেদন প্রত্যাখ্যাত হয়েছিল' : 'Previous Request Rejected'}</span>
+              <span>{isBn ? 'পূর্ববর্তী আবেদন প্রত্যাখ্যাত হয়েছিল' : 'Previous Submission Rejected'}</span>
             </div>
-            <p style={{ margin: '0 0 0.4rem', fontSize: '0.8rem', lineHeight: 1.4 }}>
+            <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', lineHeight: 1.4 }}>
               {isBn
-                ? `কারণ: "${latestExemptionRequest.rejectionReason || 'তথ্য অপর্যাপ্ত'}"`
-                : `Reason: "${latestExemptionRequest.rejectionReason || 'Insufficient details'}"`}
+                ? `কারণ: "${latestExemptionRequest?.rejectionReason || studentProfileData?.profile?.rejectionReason || 'তথ্য অপর্যাপ্ত'}"`
+                : `Reason: "${latestExemptionRequest?.rejectionReason || studentProfileData?.profile?.rejectionReason || 'Incomplete details'}"`}
             </p>
             <button
               type="button"
-              onClick={() => setShowExemptionForm(true)}
+              onClick={() => setIsReapplying(true)}
               style={{
                 background: 'none',
                 border: 'none',
                 color: '#b91c1c',
                 fontWeight: 700,
-                fontSize: '0.78rem',
+                fontSize: '0.8rem',
                 textDecoration: 'underline',
                 cursor: 'pointer',
                 padding: 0,
               }}
             >
-              {isBn ? 'নতুন কারণ সহ পুনরায় আবেদন করুন' : 'Re-apply with updated reason'}
+              {isBn ? 'সঠিক তথ্য দিয়ে পুনরায় আবেদন করুন' : 'Re-apply with corrected information'}
             </button>
           </div>
         )}
 
         {/* ====================================================================
-            VIEW: Student Exemption Application Form
+            VIEW A: Student Information Verification Comprehensive Form
             ==================================================================== */}
-        {showExemptionForm ? (
+        {isStudentMandatoryView && (!isStudentPendingAdmin || isReapplying) ? (
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.75rem' }}>
-              <FileText size={18} color="#4338ca" />
-              <h4 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
-                {isBn ? 'ফোন নম্বর না থাকার আবেদনপত্র' : 'Phone Exemption Request Form'}
-              </h4>
-            </div>
-
-            <p style={{ margin: '0 0 0.85rem', fontSize: '0.82rem', color: 'var(--color-text-muted, #64748b)', lineHeight: 1.45 }}>
+            <p style={{ margin: '0 0 1.25rem', fontSize: '0.84rem', color: 'var(--color-text-muted, #64748b)', lineHeight: 1.5 }}>
               {isBn
-                ? 'আপনার নিজস্ব কোনো ফোন নম্বর বা বাটন ফোন না থাকলে বিস্তারিত কারণ উল্লেখ করুন। এডমিন এটি পর্যালোচনা করে একটি নির্দিষ্ট সময়সীমার জন্য ছাড়পত্র প্রদান করবেন।'
-                : 'Explain in detail why you do not have access to a personal phone. Admins will review and grant temporary access.'}
+                ? 'প্ল্যাটফর্মে সক্রিয় হতে ও প্রতিষ্ঠানে যুক্ত হওয়ার পূর্বে আপনার তথ্য ভেরিফিকেশন সম্পন্ন করা বাধ্যতামূলক। ভেরিফিকেশনের পর এই তথ্য পরিবর্তনযোগ্য নয়।'
+                : 'Complete your verification to activate your student account. These details cannot be altered once verified.'}
             </p>
 
-            <textarea
-              rows={4}
-              value={exemptionReason}
-              onChange={(e) => setExemptionReason(e.target.value)}
-              placeholder={isBn ? 'ফোন নম্বর না থাকার বিস্তারিত কারণ লিখুন...' : 'Write your reason here...'}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '8px',
-                border: '1.5px solid var(--color-border, #cbd5e1)',
-                backgroundColor: 'var(--surface, #ffffff)',
-                color: 'var(--text-main, #0f172a)',
-                fontSize: '0.85rem',
-                marginBottom: '1rem',
-                fontFamily: 'inherit',
-                resize: 'vertical',
-              }}
-            />
+            {/* Section 1: Personal Details */}
+            <div style={{ marginBottom: '1.25rem', padding: '1rem', borderRadius: '10px', backgroundColor: 'var(--background-alt, #f8fafc)', border: '1px solid var(--color-border, #e2e8f0)' }}>
+              <h4 style={{ margin: '0 0 0.85rem', fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <User size={16} color="var(--color-primary, #059669)" />
+                <span>{isBn ? '১. ব্যক্তিগত ও পরিচিতি তথ্য' : '1. Personal Information'}</span>
+              </h4>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.85rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-main, #0f172a)' }}>
+                    {isBn ? 'শিক্ষার্থীর পূর্ণ নাম' : 'Full Name'} <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={studentFullName}
+                    onChange={(e) => setStudentFullName(e.target.value)}
+                    placeholder="পূর্ণ নাম"
+                    style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1.5px solid var(--color-border, #cbd5e1)', fontSize: '0.88rem', outline: 'none', backgroundColor: '#ffffff' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-main, #0f172a)' }}>
+                    {isBn ? 'পিতার নাম' : "Father's Name"} <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={studentFatherName}
+                    onChange={(e) => setStudentFatherName(e.target.value)}
+                    placeholder="পিতার নাম"
+                    style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1.5px solid var(--color-border, #cbd5e1)', fontSize: '0.88rem', outline: 'none', backgroundColor: '#ffffff' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-main, #0f172a)' }}>
+                    {isBn ? 'জন্ম তারিখ' : 'Date of Birth'} <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={studentDob}
+                    onChange={(e) => setStudentDob(e.target.value)}
+                    style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1.5px solid var(--color-border, #cbd5e1)', fontSize: '0.88rem', outline: 'none', backgroundColor: '#ffffff' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-main, #0f172a)' }}>
+                    {isBn ? 'রক্তের গ্রুপ' : 'Blood Group'} <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <select
+                    value={studentBloodGroup}
+                    onChange={(e) => setStudentBloodGroup(e.target.value)}
+                    style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1.5px solid var(--color-border, #cbd5e1)', fontSize: '0.88rem', outline: 'none', backgroundColor: '#ffffff' }}
+                  >
+                    {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map((bg) => (
+                      <option key={bg} value={bg}>{bg}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-main, #0f172a)' }}>
+                    {isBn ? 'এনআইডি অথবা জন্মনিবন্ধন নম্বর' : 'NID or Birth Certificate No'} <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={studentNidOrBirth}
+                    onChange={(e) => setStudentNidOrBirth(e.target.value)}
+                    placeholder="১৭ বা ১০ সংখ্যার এনআইডি / জন্মনিবন্ধন নম্বর"
+                    style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1.5px solid var(--color-border, #cbd5e1)', fontSize: '0.88rem', outline: 'none', backgroundColor: '#ffffff' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Address Information */}
+            <div style={{ marginBottom: '1.25rem', padding: '1rem', borderRadius: '10px', backgroundColor: 'var(--background-alt, #f8fafc)', border: '1px solid var(--color-border, #e2e8f0)' }}>
+              <h4 style={{ margin: '0 0 0.85rem', fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <MapPin size={16} color="var(--color-primary, #059669)" />
+                <span>{isBn ? '২. ঠিকানা সংক্রান্ত তথ্য' : '2. Address Details'}</span>
+              </h4>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.85rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-main, #0f172a)' }}>
+                    {isBn ? 'বর্তমান ঠিকানা' : 'Present Address'} <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={studentPresentAddress}
+                    onChange={(e) => setStudentPresentAddress(e.target.value)}
+                    placeholder="গ্রাম/রোড, ডাকঘর, থানা, জেলা"
+                    style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1.5px solid var(--color-border, #cbd5e1)', fontSize: '0.88rem', outline: 'none', backgroundColor: '#ffffff' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-main, #0f172a)' }}>
+                    {isBn ? 'স্থায়ী ঠিকানা' : 'Permanent Address'} <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={studentPermanentAddress}
+                    onChange={(e) => setStudentPermanentAddress(e.target.value)}
+                    placeholder="স্থায়ী জেলা, থানা বা ঠিকানা"
+                    style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1.5px solid var(--color-border, #cbd5e1)', fontSize: '0.88rem', outline: 'none', backgroundColor: '#ffffff' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Guardian Details */}
+            <div style={{ marginBottom: '1.25rem', padding: '1rem', borderRadius: '10px', backgroundColor: 'var(--background-alt, #f8fafc)', border: '1px solid var(--color-border, #e2e8f0)' }}>
+              <h4 style={{ margin: '0 0 0.85rem', fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Users size={16} color="var(--color-primary, #059669)" />
+                <span>{isBn ? '৩. অভিভাবকের তথ্য' : '3. Guardian Details'}</span>
+              </h4>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.85rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-main, #0f172a)' }}>
+                    {isBn ? 'অভিভাবকের নাম' : "Guardian's Name"} <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={studentGuardianName}
+                    onChange={(e) => setStudentGuardianName(e.target.value)}
+                    placeholder="অভিভাবকের নাম"
+                    style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1.5px solid var(--color-border, #cbd5e1)', fontSize: '0.88rem', outline: 'none', backgroundColor: '#ffffff' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-main, #0f172a)' }}>
+                    {isBn ? 'সম্পর্ক' : 'Relationship'} <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <select
+                    value={studentGuardianRelationship}
+                    onChange={(e) => setStudentGuardianRelationship(e.target.value)}
+                    style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1.5px solid var(--color-border, #cbd5e1)', fontSize: '0.88rem', outline: 'none', backgroundColor: '#ffffff' }}
+                  >
+                    {[
+                      { val: 'পিতা', label: isBn ? 'পিতা' : 'Father' },
+                      { val: 'মাতা', label: isBn ? 'মাতা' : 'Mother' },
+                      { val: 'বড় ভাই', label: isBn ? 'বড় ভাই' : 'Brother' },
+                      { val: 'বড় বোন', label: isBn ? 'বড় বোন' : 'Sister' },
+                      { val: 'চাচা', label: isBn ? 'চাচা' : 'Uncle' },
+                      { val: 'মামা', label: isBn ? 'মামা' : 'Maternal Uncle' },
+                      { val: 'অন্যান্য', label: isBn ? 'অন্যান্য' : 'Other' },
+                    ].map((item) => (
+                      <option key={item.val} value={item.val}>{item.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
+                      {isBn ? 'অভিভাবকের ফোন নম্বর' : "Guardian's Phone"} <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+
+                    {/* "একই" Checkbox */}
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', fontWeight: 700, color: '#059669', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={isSamePhoneAsStudent}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setIsSamePhoneAsStudent(checked);
+                          if (checked && phone) {
+                            setStudentGuardianPhone(phone);
+                          }
+                        }}
+                      />
+                      <span>{isBn ? 'একই (শিক্ষার্থীর নম্বরের মতো)' : 'Same as student phone'}</span>
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                    <span
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0.55rem 0.85rem',
+                        borderTopLeftRadius: '8px',
+                        borderBottomLeftRadius: '8px',
+                        border: '1.5px solid var(--color-border, #cbd5e1)',
+                        borderRight: 'none',
+                        backgroundColor: 'var(--background-alt, #f1f5f9)',
+                        fontSize: '0.88rem',
+                        fontWeight: 700,
+                        color: 'var(--text-main, #334155)',
+                        userSelect: 'none',
+                      }}
+                    >
+                      +88
+                    </span>
+                    <input
+                      type="tel"
+                      maxLength={11}
+                      value={studentGuardianPhone}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^\d]/g, '');
+                        setStudentGuardianPhone(val);
+                        if (val !== phone) setIsSamePhoneAsStudent(false);
+                      }}
+                      placeholder="01XXXXXXXXX"
+                      style={{
+                        flex: 1,
+                        padding: '0.55rem 0.75rem',
+                        borderTopRightRadius: '8px',
+                        borderBottomRightRadius: '8px',
+                        border: '1.5px solid var(--color-border, #cbd5e1)',
+                        fontSize: '0.88rem',
+                        outline: 'none',
+                        backgroundColor: '#ffffff',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-main, #0f172a)' }}>
+                    {isBn ? 'অভিভাবকের ঠিকানা' : "Guardian's Address"} <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={studentGuardianAddress}
+                    onChange={(e) => setStudentGuardianAddress(e.target.value)}
+                    placeholder="অভিভাবকের বর্তমান ঠিকানা"
+                    style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1.5px solid var(--color-border, #cbd5e1)', fontSize: '0.88rem', outline: 'none', backgroundColor: '#ffffff' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4: Phone Verification / Exemption Option */}
+            <div style={{ marginBottom: '1.5rem', padding: '1rem', borderRadius: '10px', backgroundColor: 'var(--background-alt, #f8fafc)', border: '1px solid var(--color-border, #e2e8f0)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Smartphone size={16} color="var(--color-primary, #059669)" />
+                  <span>{isBn ? '৪. ফোন ভেরিফিকেশন ও ছাড়পত্র' : '4. Phone Verification & Exemption'}</span>
+                </h4>
+
+                {/* Exemption Checkbox */}
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', fontWeight: 700, color: '#4338ca', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={isPhoneExemptionChecked}
+                    onChange={(e) => setIsPhoneExemptionChecked(e.target.checked)}
+                  />
+                  <span>{isBn ? 'শিক্ষার্থী ফোন ভেরিফিকেশন অব্যাহতি আবেদন' : 'Apply for Phone Exemption'}</span>
+                </label>
+              </div>
+
+              {isPhoneExemptionChecked ? (
+                /* Exemption Reason Textarea */
+                <div>
+                  <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: '#64748b' }}>
+                    {isBn
+                      ? 'ব্যক্তিগত ফোন না থাকার বিস্তারিত কারণ উল্লেখ করুন। এডমিন প্যানেল থেকে পর্যালোচনা করে নির্দিষ্ট মেয়াদের জন্য অনুমোদন দেওয়া হবে।'
+                      : 'Detail why you do not have personal phone access. Admins will review for time-limited exemption.'}
+                  </p>
+                  <textarea
+                    rows={3}
+                    value={phoneExemptionReason}
+                    onChange={(e) => setPhoneExemptionReason(e.target.value)}
+                    placeholder={isBn ? 'ফোন না থাকার বিস্তারিত কারণ লিখুন (কমপক্ষে ১০ অক্ষর)...' : 'Write your reason here (min 10 chars)...'}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid #818cf8',
+                      backgroundColor: '#ffffff',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                </div>
+              ) : (
+                /* Phone Number & OTP Verification Sub-block */
+                <div>
+                  {phoneVerifiedInSession || user?.isPhoneVerified ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#ecfdf5', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid #10b981', color: '#065f46', fontSize: '0.84rem', fontWeight: 700 }}>
+                      <CheckCircle2 size={18} color="#059669" />
+                      <span>{isBn ? `ফোন নম্বর ভেরিফাইড (${phone || user?.phone})` : `Phone Verified (${phone || user?.phone})`}</span>
+                    </div>
+                  ) : step === 'enter_otp' ? (
+                    <div>
+                      <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: '#64748b' }}>
+                        {isBn ? `${phone} নম্বরে প্রেরিত ৬ ডিজিটের ওটিপি লিখুন (ডেমো কোড: 123456):` : `Enter 6-digit OTP for ${phone} (Demo: 123456):`}
+                      </p>
+                      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <input
+                          type="text"
+                          maxLength={6}
+                          value={otpCode}
+                          onChange={(e) => setOtpCode(e.target.value.replace(/[^\d]/g, ''))}
+                          placeholder="123456"
+                          style={{
+                            width: '160px',
+                            padding: '0.55rem',
+                            borderRadius: '8px',
+                            border: '2px solid #059669',
+                            fontSize: '1.2rem',
+                            fontWeight: 800,
+                            letterSpacing: '0.3rem',
+                            textAlign: 'center',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleVerifyOtp}
+                          disabled={verifyingOtp || otpCode.length !== 6}
+                          style={{
+                            padding: '0.55rem 1rem',
+                            borderRadius: '8px',
+                            backgroundColor: '#059669',
+                            color: '#ffffff',
+                            fontWeight: 700,
+                            border: 'none',
+                            cursor: verifyingOtp || otpCode.length !== 6 ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {verifyingOtp ? (isBn ? 'যাচাই হচ্ছে...' : 'Verifying...') : (isBn ? 'ওটিপি নিশ্চিত করুন' : 'Verify OTP')}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'stretch', maxWidth: '340px', marginBottom: '0.5rem' }}>
+                        <span
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '0.55rem 0.85rem',
+                            borderTopLeftRadius: '8px',
+                            borderBottomLeftRadius: '8px',
+                            border: '1.5px solid var(--color-border, #cbd5e1)',
+                            borderRight: 'none',
+                            backgroundColor: 'var(--background-alt, #f1f5f9)',
+                            fontSize: '0.88rem',
+                            fontWeight: 700,
+                            color: 'var(--text-main, #334155)',
+                            userSelect: 'none',
+                          }}
+                        >
+                          +88
+                        </span>
+                        <input
+                          type="tel"
+                          maxLength={11}
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value.replace(/[^\d]/g, ''))}
+                          placeholder="01XXXXXXXXX"
+                          style={{
+                            flex: 1,
+                            padding: '0.55rem 0.75rem',
+                            borderTopRightRadius: '8px',
+                            borderBottomRightRadius: '8px',
+                            border: '1.5px solid var(--color-border, #cbd5e1)',
+                            fontSize: '0.88rem',
+                            outline: 'none',
+                            backgroundColor: '#ffffff',
+                          }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSendOtp(phone, false)}
+                        disabled={sendingOtp || phone.length !== 11}
+                        style={{
+                          padding: '0.45rem 0.85rem',
+                          borderRadius: '6px',
+                          backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                          color: '#059669',
+                          border: '1px solid #059669',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          cursor: sendingOtp || phone.length !== 11 ? 'not-allowed' : 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                        }}
+                      >
+                        <Send size={13} />
+                        <span>{sendingOtp ? (isBn ? 'পাঠানো হচ্ছে...' : 'Sending...') : (isBn ? 'ওটিপি কোড পাঠান (ডেমো ১২৩৪৫৬)' : 'Send OTP Code')}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Submit Button */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid var(--color-border, #e2e8f0)' }}>
               <button
                 type="button"
-                onClick={() => setShowExemptionForm(false)}
+                onClick={handleSubmitStudentVerification}
+                disabled={submittingStudentInfo}
                 style={{
-                  padding: '0.55rem 1rem',
-                  borderRadius: '8px',
-                  border: '1px solid var(--color-border, #cbd5e1)',
-                  backgroundColor: 'transparent',
-                  color: 'var(--color-text-muted, #64748b)',
-                  fontSize: '0.84rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                {isBn ? 'ফিরে যান' : 'Back'}
-              </button>
-              <button
-                type="button"
-                onClick={handleSubmitStudentExemption}
-                disabled={submittingExemption || !exemptionReason.trim()}
-                style={{
-                  padding: '0.55rem 1.25rem',
-                  borderRadius: '8px',
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '10px',
                   border: 'none',
-                  backgroundColor: '#4338ca',
+                  backgroundColor: '#059669',
                   color: '#ffffff',
-                  fontSize: '0.84rem',
-                  fontWeight: 700,
-                  cursor: submittingExemption ? 'not-allowed' : 'pointer',
-                  opacity: submittingExemption ? 0.7 : 1,
+                  fontSize: '0.92rem',
+                  fontWeight: 800,
+                  cursor: submittingStudentInfo ? 'not-allowed' : 'pointer',
+                  opacity: submittingStudentInfo ? 0.7 : 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)',
                 }}
               >
-                {submittingExemption ? (isBn ? 'জমা হচ্ছে...' : 'Submitting...') : (isBn ? 'আবেদন জমা দিন' : 'Submit Application')}
+                {submittingStudentInfo ? (
+                  <>
+                    <RefreshCw className="spin" size={16} />
+                    <span>{isBn ? 'জমা হচ্ছে...' : 'Submitting...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={18} />
+                    <span>{isBn ? 'তথ্য ভেরিফিকেশন জমা দিন' : 'Submit Information Verification'}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
         ) : step === 'manage_list' ? (
           /* ====================================================================
-              VIEW: Manage Verified Phones (Multi-phone List, Max 2)
+              VIEW B: Manage Verified Phones (Multi-phone List, Max 2)
               ==================================================================== */
           <div>
             <p style={{ margin: '0 0 1rem', fontSize: '0.84rem', color: 'var(--color-text-muted, #64748b)', lineHeight: 1.45 }}>
@@ -699,7 +1229,6 @@ export default function PhoneVerificationModal({
                         </div>
                       </div>
 
-                      {/* Delete Button (Only enabled when 2 numbers exist) */}
                       <button
                         type="button"
                         onClick={() => handleRemovePhone(p.phone)}
@@ -721,7 +1250,6 @@ export default function PhoneVerificationModal({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          transition: 'color 0.15s',
                         }}
                       >
                         {deletingPhone === p.phone ? (
@@ -736,28 +1264,7 @@ export default function PhoneVerificationModal({
               </div>
             )}
 
-            {/* Explanatory Rule note for removal */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '0.45rem',
-                fontSize: '0.75rem',
-                color: 'var(--color-text-muted, #64748b)',
-                marginBottom: '1.25rem',
-                lineHeight: 1.4,
-              }}
-            >
-              <Info size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
-              <span>
-                {isBn
-                  ? 'নিয়মাবলী: একাউন্টে ১টি ভেরিফাইড নম্বর থাকা বাধ্যতামূলক। কোনো নম্বর মুছতে হলে প্রথমে আরেকটি নম্বর ভেরিফাই করে যুক্ত করতে হবে।'
-                  : 'Policy: At least one verified number is mandatory. You can only remove a number if you have 2 numbers.'}
-              </span>
-            </div>
-
-            {/* Add second number action (if count < 2) */}
-            {verifiedPhones.length < 2 ? (
+            {verifiedPhones.length < 2 && (
               <button
                 type="button"
                 onClick={() => {
@@ -785,21 +1292,40 @@ export default function PhoneVerificationModal({
                 <Plus size={16} />
                 <span>{isBn ? '+ আরেকটি ভেরিফাইড নম্বর যুক্ত করুন' : '+ Add Another Verified Number'}</span>
               </button>
-            ) : (
-              <p style={{ margin: 0, fontSize: '0.78rem', color: '#059669', textAlign: 'center', fontWeight: 600 }}>
-                {isBn ? 'আপনার একাউন্টে সর্বোচ্চ ২টি নম্বর যুক্ত করা রয়েছে।' : 'Maximum 2 numbers are linked.'}
-              </p>
             )}
           </div>
         ) : step === 'enter_otp' ? (
           /* ====================================================================
-              VIEW: Enter 6-digit OTP
+              VIEW C: Enter 6-digit OTP (for Non-students or Standalone mode)
               ==================================================================== */
           <div>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.6rem',
+                padding: '0.65rem 0.9rem',
+                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid #f59e0b',
+                borderRadius: '8px',
+                color: '#b45309',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                marginBottom: '1rem',
+              }}
+            >
+              <Info size={17} style={{ flexShrink: 0 }} />
+              <span>
+                {isBn
+                  ? 'ডেমো ওটিপি সক্রিয়: ওটিপি কোড "123456" ব্যবহার করুন।'
+                  : 'Demo OTP Active: Use OTP code "123456".'}
+              </span>
+            </div>
+
             <p style={{ margin: '0 0 1rem', fontSize: '0.84rem', color: 'var(--color-text-muted, #64748b)', lineHeight: 1.45 }}>
               {isBn
-                ? `${phone} নম্বরে ৬ ডিজিটের ওটিপি কোড পাঠানো হয়েছে। কোডটি নিচে লিখুন:`
-                : `Enter the 6-digit code sent to ${phone}:`}
+                ? `${phone} নম্বরে ওটিপি পাঠানো হয়েছে। ডেমো ওটিপি কোড '123456' নিচে লিখুন:`
+                : `Enter the demo 6-digit code "123456" sent to ${phone}:`}
             </p>
 
             <div style={{ marginBottom: '1.25rem' }}>
@@ -808,7 +1334,7 @@ export default function PhoneVerificationModal({
                 maxLength={6}
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value.replace(/[^\d]/g, ''))}
-                placeholder="• • • • • •"
+                placeholder="123456"
                 style={{
                   width: '100%',
                   padding: '0.75rem',
@@ -884,9 +1410,28 @@ export default function PhoneVerificationModal({
           </div>
         ) : (
           /* ====================================================================
-              VIEW: Input Phone Number
+              VIEW D: Input Phone Number (for Teachers, Orgs, Donors)
               ==================================================================== */
           <div>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                border: '1px solid rgba(5, 150, 105, 0.25)',
+                color: 'var(--color-primary, #059669)',
+                borderRadius: '6px',
+                padding: '0.3rem 0.65rem',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                marginBottom: '1rem',
+              }}
+            >
+              <Info size={14} />
+              <span>{isBn ? 'ডেমো মোড: ওটিপি কোড ১২৩৪৫৬' : 'Demo Mode: OTP 123456'}</span>
+            </div>
+
             <p style={{ margin: '0 0 1rem', fontSize: '0.84rem', color: 'var(--color-text-muted, #64748b)', lineHeight: 1.45 }}>
               {isBn
                 ? 'আপনার একাউন্টের সুরক্ষায় মোবাইল নম্বর ভেরিফিকেশন করা বাধ্যতামূলক। আপনার ব্যবহৃত ১১ ডিজিটের নম্বরটি লিখুন:'
@@ -897,16 +1442,21 @@ export default function PhoneVerificationModal({
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main, #0f172a)', marginBottom: '0.35rem' }}>
                 {isBn ? 'মোবাইল নম্বর (১১ ডিজিট):' : 'Mobile Number (11 Digits):'}
               </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'stretch' }}>
                 <span
                   style={{
+                    display: 'flex',
+                    alignItems: 'center',
                     padding: '0.65rem 0.85rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--color-border, #cbd5e1)',
+                    borderTopLeftRadius: '8px',
+                    borderBottomLeftRadius: '8px',
+                    border: '1.5px solid var(--color-border, #cbd5e1)',
+                    borderRight: 'none',
                     backgroundColor: 'var(--background-alt, #f1f5f9)',
                     fontSize: '0.88rem',
                     fontWeight: 700,
                     color: 'var(--text-main, #334155)',
+                    userSelect: 'none',
                   }}
                 >
                   +88
@@ -916,16 +1466,18 @@ export default function PhoneVerificationModal({
                   maxLength={11}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/[^\d]/g, ''))}
-                  placeholder="017XXXXXXXX"
+                  placeholder="01XXXXXXXXX"
                   style={{
                     flex: 1,
                     padding: '0.65rem 0.85rem',
-                    borderRadius: '8px',
+                    borderTopRightRadius: '8px',
+                    borderBottomRightRadius: '8px',
                     border: '1.5px solid var(--color-border, #cbd5e1)',
                     backgroundColor: 'var(--surface, #ffffff)',
                     color: 'var(--text-main, #0f172a)',
                     fontSize: '0.92rem',
                     fontWeight: 600,
+                    outline: 'none',
                   }}
                 />
               </div>
@@ -934,7 +1486,7 @@ export default function PhoneVerificationModal({
             <button
               type="button"
               onClick={() => handleSendOtp(phone, isSecondaryAdding)}
-              disabled={sendingOtp || phone.length < 11}
+              disabled={sendingOtp || phone.length !== 11}
               style={{
                 width: '100%',
                 padding: '0.75rem',
@@ -944,12 +1496,12 @@ export default function PhoneVerificationModal({
                 fontSize: '0.92rem',
                 fontWeight: 700,
                 border: 'none',
-                cursor: sendingOtp || phone.length < 11 ? 'not-allowed' : 'pointer',
+                cursor: sendingOtp || phone.length !== 11 ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.45rem',
-                opacity: sendingOtp || phone.length < 11 ? 0.7 : 1,
+                opacity: sendingOtp || phone.length !== 11 ? 0.7 : 1,
               }}
             >
               {sendingOtp ? (
@@ -961,35 +1513,6 @@ export default function PhoneVerificationModal({
                 </>
               )}
             </button>
-
-            {/* Special Button for Students: Phone Exemption Application */}
-            {isStudent && (
-              <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--color-border, #e2e8f0)', textAlign: 'center' }}>
-                <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: 'var(--color-text-muted, #64748b)' }}>
-                  {isBn ? 'আপনার নিজস্ব কোনো ফোন নম্বর নেই?' : "Don't have access to a personal phone?"}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowExemptionForm(true)}
-                  style={{
-                    background: 'rgba(67, 56, 202, 0.08)',
-                    border: '1px solid rgba(67, 56, 202, 0.25)',
-                    borderRadius: '8px',
-                    padding: '0.55rem 1rem',
-                    color: '#4338ca',
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                  }}
-                >
-                  <FileText size={15} />
-                  <span>{isBn ? 'ফোন নম্বর না থাকার জন্য অব্যাহতি আবেদন' : 'Apply for Phone Exemption'}</span>
-                </button>
-              </div>
-            )}
           </div>
         )}
       </div>

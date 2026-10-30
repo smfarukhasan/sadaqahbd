@@ -20,7 +20,12 @@ export default function BottomNav() {
   const toggleDrawer = useMobileDrawerStore((s) => s.toggleDrawer);
   const isDrawerOpen = useMobileDrawerStore((s) => s.isOpen);
 
-  const isMandatorySetup = pathname.includes('/set-password') || (user && !user.isPasswordSet);
+  const isAdmin =
+    user?.role === 'master_admin' ||
+    user?.role === 'super_admin' ||
+    user?.role === 'admin';
+  const isMandatorySetup =
+    !isAdmin && (pathname.includes('/set-password') || (user && !user.isPasswordSet));
   const cleanPath = pathname ? pathname.replace(/^\/(bn|en)(\/|$)/, '/') : '';
   const isAdminRoute = cleanPath.startsWith('/admin') || cleanPath.startsWith('/masteradmin');
 

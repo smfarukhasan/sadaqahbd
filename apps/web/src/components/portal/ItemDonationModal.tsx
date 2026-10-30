@@ -19,6 +19,7 @@ import {
   MapPin,
   FileText,
 } from 'lucide-react';
+import { extract11DigitPhone, isValid11DigitPhone, formatPhoneForDisplay } from '@sadaqahbd/schema';
 
 interface ItemDonationModalProps {
   isOpen: boolean;
@@ -45,7 +46,7 @@ export default function ItemDonationModal({
   const [quantity, setQuantity] = useState('১ টি');
   const [isRandom, setIsRandom] = useState(!defaultPostId);
   const [postId, setPostId] = useState(defaultPostId || '');
-  const [donorPhone, setDonorPhone] = useState(user?.phone || '');
+  const [donorPhone, setDonorPhone] = useState(extract11DigitPhone(user?.phone) || '');
   const [pickupAddress, setPickupAddress] = useState(user?.address || '');
   const [isAnonymous, setIsAnonymous] = useState(false);
 
@@ -64,7 +65,7 @@ export default function ItemDonationModal({
         setPostId(defaultPostId);
         setIsRandom(false);
       }
-      if (user?.phone) setDonorPhone(user.phone);
+      if (user?.phone) setDonorPhone(extract11DigitPhone(user.phone));
       if (user?.address) setPickupAddress(user.address);
     }
   }, [isOpen, defaultPostId, user]);
@@ -94,16 +95,17 @@ export default function ItemDonationModal({
       return;
     }
 
-    if (!itemName.trim() || !description.trim() || !donorPhone.trim()) {
+    const cleanPhone = extract11DigitPhone(donorPhone);
+    if (!cleanPhone || !isValid11DigitPhone(cleanPhone)) {
       setErrorMsg(
         isBn
-          ? 'অনুগ্রহ করে পণ্যের নাম, বিবরণ এবং ফোন নম্বর পূরণ করুন।'
-          : 'Please fill in item name, description and phone number.'
+          ? 'যোগাযোগের ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 01XXXXXXXXX)।'
+          : 'Contact phone number must be strictly 11 digits (e.g. 01XXXXXXXXX).'
       );
       return;
     }
 
-    if (!isRandom && !postId.trim()) {
+    if (!isRandom && (!postId || !postId.trim())) {
       setErrorMsg(
         isBn
           ? 'নির্দিষ্ট শিক্ষার্থীর পোস্ট নির্বাচন করুন।'
@@ -131,9 +133,9 @@ export default function ItemDonationModal({
           description: description.trim(),
           quantity: quantity.trim() || '১ টি',
           isRandom,
-          postId: isRandom ? undefined : postId.trim(),
-          donorPhone: donorPhone.trim(),
-          pickupAddress: pickupAddress.trim(),
+          postId: isRandom ? null : (postId.trim() || null),
+          donorPhone: cleanPhone,
+          pickupAddress: pickupAddress.trim() || null,
           isAnonymous,
         }),
       });
@@ -440,13 +442,14 @@ export default function ItemDonationModal({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
               <div>
                 <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', display: 'block', marginBottom: '0.35rem' }}>
-                  {isBn ? 'যোগাযোগের মোবাইল *' : 'Contact Phone *'}
+                  {isBn ? 'যোগাযোগের মোবাইল (১১ ডিজিট) *' : 'Contact Phone (11 Digits) *'}
                 </label>
                 <input
-                  type="text"
-                  placeholder="01700000000"
+                  type="tel"
+                  maxLength={11}
+                  placeholder="01XXXXXXXXX"
                   value={donorPhone}
-                  onChange={(e) => setDonorPhone(e.target.value)}
+                  onChange={(e) => setDonorPhone(e.target.value.replace(/[^\d]/g, ''))}
                   required
                   style={{
                     width: '100%',

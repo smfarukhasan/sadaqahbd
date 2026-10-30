@@ -15,6 +15,10 @@ import {
   X,
   User,
   ShieldCheck,
+  MapPin,
+  Users,
+  FileText,
+  Phone,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api-config';
 import { getAuthToken } from '@/lib/auth-token';
@@ -57,11 +61,11 @@ export default function StudentPhoneExemptionsTab({
       });
       if (res.ok) {
         const json = await res.json();
-        setExemptions(json);
+        setExemptions(Array.isArray(json) ? json : []);
         if (onRefreshCount) onRefreshCount();
       }
     } catch (err) {
-      console.error('Failed to load student exemptions:', err);
+      console.error('Failed to load student exemptions / verifications:', err);
     } finally {
       setLoading(false);
     }
@@ -73,7 +77,7 @@ export default function StudentPhoneExemptionsTab({
   }, []);
 
   const handleOpenApproveModal = (item: any) => {
-    // Default valid date: +3 months from today
+    // Default valid date: +3 months from today (if exemption)
     const d = new Date();
     d.setMonth(d.getMonth() + 3);
     setApproveValidDate(d.toISOString().slice(0, 10));
@@ -88,13 +92,14 @@ export default function StudentPhoneExemptionsTab({
   };
 
   const handleConfirmApproval = async () => {
-    if (!approveModalItem || !approveValidDate) return;
+    if (!approveModalItem) return;
     try {
       setSubmittingAction(true);
       const token = await getAuthToken();
 
+      const targetId = approveModalItem.exemptionId || approveModalItem.id;
       const res = await fetch(
-        `${getApiUrl()}/sms/admin/exemptions/${approveModalItem.id}/review`,
+        `${getApiUrl()}/sms/admin/exemptions/${targetId}/review`,
         {
           method: 'POST',
           headers: {
@@ -104,7 +109,7 @@ export default function StudentPhoneExemptionsTab({
           },
           body: JSON.stringify({
             action: 'approve',
-            validUntil: new Date(approveValidDate).toISOString(),
+            validUntil: approveModalItem.reason ? new Date(approveValidDate).toISOString() : undefined,
           }),
         }
       );
@@ -113,7 +118,7 @@ export default function StudentPhoneExemptionsTab({
       if (res.ok && data.success) {
         setActionFeedback({
           type: 'success',
-          text: data.message || (isBn ? 'আবেদন সফলভাবে অনুমোদন করা হয়েছে।' : 'Approved successfully.'),
+          text: data.message || (isBn ? 'শিক্ষার্থীর তথ্য সফলভাবে অনুমোদন করা হয়েছে।' : 'Approved successfully.'),
         });
         setApproveModalItem(null);
         loadExemptions();
@@ -139,8 +144,9 @@ export default function StudentPhoneExemptionsTab({
       setSubmittingAction(true);
       const token = await getAuthToken();
 
+      const targetId = rejectModalItem.exemptionId || rejectModalItem.id;
       const res = await fetch(
-        `${getApiUrl()}/sms/admin/exemptions/${rejectModalItem.id}/review`,
+        `${getApiUrl()}/sms/admin/exemptions/${targetId}/review`,
         {
           method: 'POST',
           headers: {
@@ -159,7 +165,7 @@ export default function StudentPhoneExemptionsTab({
       if (res.ok && data.success) {
         setActionFeedback({
           type: 'success',
-          text: data.message || (isBn ? 'আবেদনটি রিজেক্ট করা হয়েছে।' : 'Rejected successfully.'),
+          text: data.message || (isBn ? 'আবেদনটি বাতিল করা হয়েছে।' : 'Rejected successfully.'),
         });
         setRejectModalItem(null);
         loadExemptions();
@@ -181,7 +187,6 @@ export default function StudentPhoneExemptionsTab({
 
   const formatDate = (dateString?: string | null) => formatBengaliDate(dateString, isBn);
 
-  // Preset date helper (+1 month, +3 months, +6 months, +1 year)
   const setPresetDate = (months: number) => {
     const d = new Date();
     d.setMonth(d.getMonth() + months);
@@ -204,6 +209,11 @@ export default function StudentPhoneExemptionsTab({
     return (
       e.studentName?.toLowerCase().includes(term) ||
       e.studentEmail?.toLowerCase().includes(term) ||
+      e.studentPhone?.toLowerCase().includes(term) ||
+      e.fatherName?.toLowerCase().includes(term) ||
+      e.nidOrBirthCertificateNumber?.toLowerCase().includes(term) ||
+      e.guardianName?.toLowerCase().includes(term) ||
+      e.guardianPhone?.toLowerCase().includes(term) ||
       e.reason?.toLowerCase().includes(term)
     );
   });
@@ -225,16 +235,16 @@ export default function StudentPhoneExemptionsTab({
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', backgroundColor: 'rgba(255, 255, 255, 0.15)', padding: '0.25rem 0.75rem', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.75rem', backdropFilter: 'blur(6px)' }}>
-              <Smartphone size={14} color="#fef08a" />
-              <span>{isBn ? 'শিক্ষার্থী ছাড়পত্র ব্যবস্থাপনা' : 'Student Phone Exemption Clearances'}</span>
+              <Users size={14} color="#fef08a" />
+              <span>{isBn ? 'শিক্ষার্থী তথ্য ও ভেরিফিকেশন' : 'Student Verification & Clearances'}</span>
             </div>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '0 0 0.4rem', color: '#ffffff' }}>
-              {isBn ? 'শিক্ষার্থী ফোন ভেরিফিকেশন অব্যাহতি' : 'Student Phone Verification Exemptions'}
+              {isBn ? 'শিক্ষার্থীর তথ্য ভেরিফিকেশন' : 'Student Information Verification'}
             </h2>
-            <p style={{ margin: 0, fontSize: '0.88rem', color: 'rgba(255, 255, 255, 0.88)', maxWidth: '620px', lineHeight: 1.5 }}>
+            <p style={{ margin: 0, fontSize: '0.88rem', color: 'rgba(255, 255, 255, 0.88)', maxWidth: '640px', lineHeight: 1.5 }}>
               {isBn
-                ? 'ব্যক্তিগত ফোন নম্বর না থাকা শিক্ষার্থীদের একাউন্ট ব্যবহারের বিশেষ আবেদন যাচাই, ডেট পিকার দিয়ে মেয়াদ নির্ধারণ ও রিজেক্ট হিস্টোরি অডিট।'
-                : 'Review exemption applications from students without personal phones, set validity with date picker, and audit rejection reasons.'}
+                ? 'শিক্ষার্থীদের ব্যক্তিগত ও পরিচিতি তথ্য, ঠিকানা, অভিভাবকের তথ্য ও ফোন ভেরিফিকেশন যাচাই ও অনুমোদন।'
+                : 'Review and verify student personal details, address, guardian information, and phone exemption clearances.'}
             </p>
           </div>
 
@@ -255,7 +265,7 @@ export default function StudentPhoneExemptionsTab({
               cursor: 'pointer',
             }}
           >
-            <RefreshCw size={13} />
+            <RefreshCw size={13} className={loading ? 'spin' : ''} />
             <span>{isBn ? 'রিফ্রেশ' : 'Refresh'}</span>
           </button>
         </div>
@@ -302,27 +312,27 @@ export default function StudentPhoneExemptionsTab({
             type="button"
             onClick={() => setFilterTab('pending')}
             style={{
-              padding: '0.5rem 0.9rem',
-              borderRadius: '8px',
-              fontSize: '0.84rem',
+              padding: '0.45rem 0.9rem',
+              borderRadius: '20px',
+              border: filterTab === 'pending' ? '1.5px solid #4338ca' : '1px solid var(--color-border, #cbd5e1)',
+              backgroundColor: filterTab === 'pending' ? '#4338ca' : 'transparent',
+              color: filterTab === 'pending' ? '#ffffff' : 'var(--text-main, #334155)',
+              fontSize: '0.82rem',
               fontWeight: 700,
               cursor: 'pointer',
-              border: filterTab === 'pending' ? '1.5px solid #4338ca' : '1px solid var(--color-border, #cbd5e1)',
-              backgroundColor: filterTab === 'pending' ? 'rgba(67, 56, 202, 0.1)' : 'transparent',
-              color: filterTab === 'pending' ? '#4338ca' : 'var(--color-text-muted, #64748b)',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '0.45rem',
+              gap: '0.35rem',
             }}
           >
-            <span>{isBn ? 'অপেক্ষমান আবেদন' : 'Pending Requests'}</span>
+            <span>{isBn ? 'অপেক্ষমান আবেদন' : 'Pending Verification'}</span>
             <span
               style={{
                 fontSize: '0.72rem',
                 padding: '0.1rem 0.45rem',
                 borderRadius: '10px',
-                backgroundColor: pendingList.length > 0 ? '#ef4444' : '#94a3b8',
-                color: '#ffffff',
+                backgroundColor: filterTab === 'pending' ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
+                color: filterTab === 'pending' ? '#ffffff' : '#334155',
               }}
             >
               {pendingList.length}
@@ -333,20 +343,20 @@ export default function StudentPhoneExemptionsTab({
             type="button"
             onClick={() => setFilterTab('approved')}
             style={{
-              padding: '0.5rem 0.9rem',
-              borderRadius: '8px',
-              fontSize: '0.84rem',
+              padding: '0.45rem 0.9rem',
+              borderRadius: '20px',
+              border: filterTab === 'approved' ? '1.5px solid #059669' : '1px solid var(--color-border, #cbd5e1)',
+              backgroundColor: filterTab === 'approved' ? '#059669' : 'transparent',
+              color: filterTab === 'approved' ? '#ffffff' : 'var(--text-main, #334155)',
+              fontSize: '0.82rem',
               fontWeight: 700,
               cursor: 'pointer',
-              border: filterTab === 'approved' ? '1.5px solid #059669' : '1px solid var(--color-border, #cbd5e1)',
-              backgroundColor: filterTab === 'approved' ? 'rgba(5, 150, 105, 0.1)' : 'transparent',
-              color: filterTab === 'approved' ? '#059669' : 'var(--color-text-muted, #64748b)',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '0.45rem',
+              gap: '0.35rem',
             }}
           >
-            <span>{isBn ? 'অনুমোদিত ইতিহাস' : 'Approved History'}</span>
+            <span>{isBn ? 'অনুমোদিত তালিকা' : 'Approved List'}</span>
             <span
               style={{
                 fontSize: '0.72rem',
@@ -364,20 +374,20 @@ export default function StudentPhoneExemptionsTab({
             type="button"
             onClick={() => setFilterTab('rejected')}
             style={{
-              padding: '0.5rem 0.9rem',
-              borderRadius: '8px',
-              fontSize: '0.84rem',
+              padding: '0.45rem 0.9rem',
+              borderRadius: '20px',
+              border: filterTab === 'rejected' ? '1.5px solid #dc2626' : '1px solid var(--color-border, #cbd5e1)',
+              backgroundColor: filterTab === 'rejected' ? '#dc2626' : 'transparent',
+              color: filterTab === 'rejected' ? '#ffffff' : 'var(--text-main, #334155)',
+              fontSize: '0.82rem',
               fontWeight: 700,
               cursor: 'pointer',
-              border: filterTab === 'rejected' ? '1.5px solid #dc2626' : '1px solid var(--color-border, #cbd5e1)',
-              backgroundColor: filterTab === 'rejected' ? 'rgba(220, 38, 38, 0.1)' : 'transparent',
-              color: filterTab === 'rejected' ? '#dc2626' : 'var(--color-text-muted, #64748b)',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '0.45rem',
+              gap: '0.35rem',
             }}
           >
-            <span>{isBn ? 'প্রত্যাখ্যাত ইতিহাস' : 'Rejected History'}</span>
+            <span>{isBn ? 'প্রত্যাখ্যাত তালিকা' : 'Rejected List'}</span>
             <span
               style={{
                 fontSize: '0.72rem',
@@ -408,7 +418,7 @@ export default function StudentPhoneExemptionsTab({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={isBn ? 'শিক্ষার্থী খুঁজুন...' : 'Search student...'}
+            placeholder={isBn ? 'নাম, ফোন বা অভিভাবক খুঁজুন...' : 'Search student, guardian...'}
             style={{
               width: '100%',
               padding: '0.45rem 0.75rem 0.45rem 2rem',
@@ -439,9 +449,9 @@ export default function StudentPhoneExemptionsTab({
               color: 'var(--color-text-muted, #64748b)',
             }}
           >
-            <Smartphone size={32} style={{ margin: '0 auto 0.75rem', opacity: 0.4 }} />
+            <Users size={32} style={{ margin: '0 auto 0.75rem', opacity: 0.4 }} />
             <p style={{ margin: 0, fontSize: '0.92rem', fontWeight: 600 }}>
-              {isBn ? 'কোনো আবেদন পাওয়া যায়নি।' : 'No exemption requests found.'}
+              {isBn ? 'কোনো শিক্ষার্থীর আবেদন পাওয়া যায়নি।' : 'No student verification requests found.'}
             </p>
           </div>
         ) : (
@@ -456,7 +466,7 @@ export default function StudentPhoneExemptionsTab({
                 boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.75rem',
+                gap: '0.85rem',
               }}
             >
               {/* Header row */}
@@ -464,8 +474,8 @@ export default function StudentPhoneExemptionsTab({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                   <div
                     style={{
-                      width: '40px',
-                      height: '40px',
+                      width: '42px',
+                      height: '42px',
                       borderRadius: '50%',
                       backgroundColor: 'rgba(67, 56, 202, 0.1)',
                       color: '#4338ca',
@@ -473,13 +483,13 @@ export default function StudentPhoneExemptionsTab({
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontWeight: 800,
-                      fontSize: '1rem',
+                      fontSize: '1.05rem',
                     }}
                   >
                     {item.studentName?.charAt(0) || 'S'}
                   </div>
                   <div>
-                    <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
                       {item.studentName}
                     </h4>
                     <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted, #64748b)' }}>
@@ -488,7 +498,7 @@ export default function StudentPhoneExemptionsTab({
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <span
                     style={{
                       fontSize: '0.74rem',
@@ -521,23 +531,73 @@ export default function StudentPhoneExemptionsTab({
                 </div>
               </div>
 
-              {/* Student's Reason Box */}
+              {/* Comprehensive Student Information Grid */}
               <div
                 style={{
-                  backgroundColor: 'var(--background-alt, #fafbfc)',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: '0.75rem',
+                  backgroundColor: 'var(--background-alt, #f8fafc)',
                   padding: '0.85rem 1rem',
-                  borderRadius: '8px',
+                  borderRadius: '10px',
                   border: '1px solid var(--color-border, #f1f5f9)',
-                  fontSize: '0.84rem',
-                  color: 'var(--text-main, #334155)',
-                  lineHeight: 1.5,
+                  fontSize: '0.82rem',
                 }}
               >
-                <span style={{ fontWeight: 700, color: 'var(--text-main, #0f172a)', display: 'block', marginBottom: '0.2rem', fontSize: '0.78rem' }}>
-                  {isBn ? 'ফোন নম্বর না থাকার কারণ:' : 'Reason for Phone Exemption:'}
-                </span>
-                &ldquo;{item.reason}&rdquo;
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '0.74rem' }}>{isBn ? 'পিতার নাম:' : "Father's Name:"}</span>
+                  <strong style={{ color: '#0f172a' }}>{item.fatherName || '—'}</strong>
+                </div>
+
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '0.74rem' }}>{isBn ? 'জন্ম তারিখ ও রক্তের গ্রুপ:' : 'DOB & Blood:'}</span>
+                  <strong style={{ color: '#0f172a' }}>{item.dateOfBirth || '—'} ({item.bloodGroup || '—'})</strong>
+                </div>
+
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '0.74rem' }}>{isBn ? 'এনআইডি / জন্মনিবন্ধন নম্বর:' : 'NID / Birth Reg:'}</span>
+                  <strong style={{ color: '#0f172a' }}>{item.nidOrBirthCertificateNumber || '—'}</strong>
+                </div>
+
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '0.74rem' }}>{isBn ? 'অভিভাবকের নাম ও সম্পর্ক:' : 'Guardian & Relation:'}</span>
+                  <strong style={{ color: '#0f172a' }}>{item.guardianName || '—'} ({item.guardianRelationship || '—'})</strong>
+                </div>
+
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '0.74rem' }}>{isBn ? 'অভিভাবকের ফোন:' : "Guardian's Phone:"}</span>
+                  <strong style={{ color: '#0f172a' }}>{item.guardianPhone || '—'}</strong>
+                </div>
+
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontSize: '0.74rem' }}>{isBn ? 'বর্তমান ও স্থায়ী ঠিকানা:' : 'Present / Permanent Address:'}</span>
+                  <span style={{ color: '#0f172a' }}>{item.presentAddress || item.studentAddress || '—'} / {item.permanentAddress || '—'}</span>
+                </div>
               </div>
+
+              {/* Phone Status & Exemption Reason Box */}
+              {item.reason ? (
+                <div
+                  style={{
+                    backgroundColor: 'rgba(67, 56, 202, 0.05)',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(67, 56, 202, 0.2)',
+                    fontSize: '0.84rem',
+                    color: '#312e81',
+                  }}
+                >
+                  <span style={{ fontWeight: 700, display: 'block', marginBottom: '0.2rem', fontSize: '0.78rem' }}>
+                    {isBn ? 'ফোন নম্বর না থাকার অব্যাহতি আবেদন:' : 'Phone Exemption Request:'}
+                  </span>
+                  &ldquo;{item.reason}&rdquo;
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem', color: '#059669', fontWeight: 600 }}>
+                  <CheckCircle2 size={15} />
+                  <span>{isBn ? `ফোন নম্বর ওটিপি দিয়ে ভেরিফাইড (${item.studentPhone || 'সিস্টেম ভেরিফাইড'})` : `Phone verified via OTP (${item.studentPhone})`}</span>
+                </div>
+              )}
 
               {/* If Approved: Validity Info */}
               {item.status === 'approved' && item.validUntil && (
@@ -560,11 +620,6 @@ export default function StudentPhoneExemptionsTab({
                       ? `অব্যাহতির নির্ধারিত মেয়াদ: ${formatDate(item.validUntil)} পর্যন্ত`
                       : `Exemption Valid Until: ${formatDate(item.validUntil)}`}
                   </span>
-                  {item.reviewedAt && (
-                    <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: 'var(--color-text-muted, #64748b)' }}>
-                      {isBn ? `অনুমোদন তারিখ: ${formatDate(item.reviewedAt)}` : `Reviewed: ${formatDate(item.reviewedAt)}`}
-                    </span>
-                  )}
                 </div>
               )}
 
@@ -583,41 +638,29 @@ export default function StudentPhoneExemptionsTab({
                     backgroundColor: 'rgba(220, 38, 38, 0.08)',
                   }}
                 >
-                  <XCircle size={14} />
+                  <AlertTriangle size={14} />
                   <span>
-                    {isBn ? `বাতিলের কারণ: "${item.rejectionReason}"` : `Rejection Reason: "${item.rejectionReason}"`}
+                    {isBn
+                      ? `রিজেক্ট করার কারণ: "${item.rejectionReason}"`
+                      : `Rejection Reason: "${item.rejectionReason}"`}
                   </span>
-                  {item.reviewedAt && (
-                    <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: 'var(--color-text-muted, #64748b)' }}>
-                      {isBn ? `তারিখ: ${formatDate(item.reviewedAt)}` : `Reviewed: ${formatDate(item.reviewedAt)}`}
-                    </span>
-                  )}
                 </div>
               )}
 
-              {/* Action Buttons (Only for Pending requests) */}
+              {/* Action Buttons for Pending Items */}
               {item.status === 'pending' && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    gap: '0.65rem',
-                    paddingTop: '0.5rem',
-                    borderTop: '1px solid var(--color-border, #f1f5f9)',
-                  }}
-                >
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', paddingTop: '0.5rem', borderTop: '1px solid var(--color-border, #f1f5f9)' }}>
                   <button
                     type="button"
                     onClick={() => handleOpenRejectModal(item)}
                     style={{
-                      padding: '0.45rem 0.9rem',
+                      padding: '0.4rem 0.85rem',
                       borderRadius: '6px',
-                      border: '1px solid #fecaca',
-                      backgroundColor: '#fff1f2',
+                      border: '1px solid #ef4444',
+                      backgroundColor: 'transparent',
                       color: '#dc2626',
-                      fontSize: '0.82rem',
-                      fontWeight: 600,
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
                       cursor: 'pointer',
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -632,22 +675,21 @@ export default function StudentPhoneExemptionsTab({
                     type="button"
                     onClick={() => handleOpenApproveModal(item)}
                     style={{
-                      padding: '0.45rem 1rem',
+                      padding: '0.4rem 1rem',
                       borderRadius: '6px',
                       border: 'none',
-                      backgroundColor: 'var(--color-primary, #059669)',
+                      backgroundColor: '#059669',
                       color: '#ffffff',
-                      fontSize: '0.82rem',
+                      fontSize: '0.8rem',
                       fontWeight: 700,
                       cursor: 'pointer',
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '0.35rem',
-                      boxShadow: '0 2px 6px rgba(5, 150, 105, 0.2)',
                     }}
                   >
                     <Check size={14} />
-                    <span>{isBn ? 'অনুমোদন ও মেয়াদ নির্ধারণ' : 'Approve & Set Expiry'}</span>
+                    <span>{isBn ? 'অনুমোদন করুন' : 'Approve'}</span>
                   </button>
                 </div>
               )}
@@ -656,9 +698,7 @@ export default function StudentPhoneExemptionsTab({
         )}
       </div>
 
-      {/* ====================================================================
-          Approve Modal with Date Picker (Day, Month, Year)
-          ==================================================================== */}
+      {/* Approve Modal */}
       {approveModalItem && (
         <div
           style={{
@@ -668,15 +708,14 @@ export default function StudentPhoneExemptionsTab({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 9999,
+            zIndex: 1000,
             padding: '1rem',
-            backdropFilter: 'blur(3px)',
           }}
         >
           <div
             style={{
               backgroundColor: 'var(--surface, #ffffff)',
-              borderRadius: '14px',
+              borderRadius: '16px',
               maxWidth: '480px',
               width: '100%',
               padding: '1.5rem',
@@ -684,130 +723,81 @@ export default function StudentPhoneExemptionsTab({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <CheckCircle2 size={20} color="var(--color-primary, #059669)" />
-                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
-                  {isBn ? 'ফোন অব্যাহতি অনুমোদন' : 'Approve Phone Exemption'}
-                </h3>
-              </div>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main, #0f172a)' }}>
+                {isBn ? 'শিক্ষার্থী তথ্য ভেরিফিকেশন অনুমোদন' : 'Approve Student Verification'}
+              </h3>
               <button
                 type="button"
                 onClick={() => setApproveModalItem(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted, #94a3b8)' }}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
             </div>
 
-            <p style={{ fontSize: '0.84rem', color: 'var(--color-text-muted, #64748b)', margin: '0 0 1rem', lineHeight: 1.5 }}>
+            <p style={{ margin: '0 0 1rem', fontSize: '0.85rem', color: '#475569', lineHeight: 1.45 }}>
               {isBn
-                ? `শিক্ষার্থী ${approveModalItem.studentName}-এর ফোন নম্বর না থাকার আবেদনটি অনুমোদন করতে চান? শিক্ষার্থীকে কত তারিখ পর্যন্ত ফোন নম্বর ছাড়াই ব্যবহারের অনুমতি দেবেন তা নির্ধারণ করুন:`
-                : `Set the validity date until which ${approveModalItem.studentName} can use the platform without a verified phone:`}
+                ? `শিক্ষার্থী "${approveModalItem.studentName}"-এর তথ্যাদি অনুমোদন করে একাউন্ট সক্রিয় করা হবে।`
+                : `Approve verification for "${approveModalItem.studentName}" to activate account.`}
             </p>
 
-            {/* Quick Preset Buttons */}
-            <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-              <button
-                type="button"
-                onClick={() => setPresetDate(1)}
-                style={{
-                  padding: '0.35rem 0.65rem',
-                  fontSize: '0.76rem',
-                  fontWeight: 600,
-                  borderRadius: '6px',
-                  border: '1px solid var(--color-border, #cbd5e1)',
-                  backgroundColor: 'var(--background-alt, #fafbfc)',
-                  cursor: 'pointer',
-                }}
-              >
-                +১ {isBn ? 'মাস' : 'Month'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setPresetDate(3)}
-                style={{
-                  padding: '0.35rem 0.65rem',
-                  fontSize: '0.76rem',
-                  fontWeight: 600,
-                  borderRadius: '6px',
-                  border: '1px solid var(--color-border, #cbd5e1)',
-                  backgroundColor: 'var(--background-alt, #fafbfc)',
-                  cursor: 'pointer',
-                }}
-              >
-                +৩ {isBn ? 'মাস' : 'Months'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setPresetDate(6)}
-                style={{
-                  padding: '0.35rem 0.65rem',
-                  fontSize: '0.76rem',
-                  fontWeight: 600,
-                  borderRadius: '6px',
-                  border: '1px solid var(--color-border, #cbd5e1)',
-                  backgroundColor: 'var(--background-alt, #fafbfc)',
-                  cursor: 'pointer',
-                }}
-              >
-                +৬ {isBn ? 'মাস' : 'Months'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setPresetDate(12)}
-                style={{
-                  padding: '0.35rem 0.65rem',
-                  fontSize: '0.76rem',
-                  fontWeight: 600,
-                  borderRadius: '6px',
-                  border: '1px solid var(--color-border, #cbd5e1)',
-                  backgroundColor: 'var(--background-alt, #fafbfc)',
-                  cursor: 'pointer',
-                }}
-              >
-                +১ {isBn ? 'বছর' : 'Year'}
-              </button>
-            </div>
+            {approveModalItem.reason && (
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '0.35rem', color: '#0f172a' }}>
+                  {isBn ? 'ফোন অব্যাহতির মেয়াদ নির্ধারণ *' : 'Set Exemption Validity *'}
+                </label>
+                <input
+                  type="date"
+                  value={approveValidDate}
+                  onChange={(e) => setApproveValidDate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem',
+                    borderRadius: '8px',
+                    border: '1.5px solid var(--color-border, #cbd5e1)',
+                    fontSize: '0.88rem',
+                    marginBottom: '0.5rem',
+                  }}
+                />
 
-            {/* Date Picker Input */}
-            <div style={{ marginBottom: '1.25rem' }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main, #0f172a)', marginBottom: '0.35rem' }}>
-                {isBn ? 'অব্যাহতির শেষ তারিখ (দিন/মাস/বছর):' : 'Validity Expiry Date:'}
-              </label>
-              <input
-                type="date"
-                value={approveValidDate}
-                min={new Date().toISOString().slice(0, 10)}
-                onChange={(e) => setApproveValidDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.65rem 0.85rem',
-                  borderRadius: '8px',
-                  border: '1.5px solid var(--color-primary, #059669)',
-                  backgroundColor: 'var(--surface, #ffffff)',
-                  color: 'var(--text-main, #0f172a)',
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                }}
-              />
-              <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted, #64748b)', marginTop: '0.3rem', display: 'block' }}>
-                {isBn
-                  ? 'এই তারিখ অতিক্রান্ত হলে এবং ফোন নম্বর যুক্ত না করলে একাউন্ট স্বয়ংক্রিয়ভাবে লক হয়ে যাবে।'
-                  : 'Account will auto-lock if phone is not added before this date.'}
-              </span>
-            </div>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  {[
+                    { label: isBn ? '+১ মাস' : '+1m', m: 1 },
+                    { label: isBn ? '+৩ মাস' : '+3m', m: 3 },
+                    { label: isBn ? '+৬ মাস' : '+6m', m: 6 },
+                    { label: isBn ? '+১ বছর' : '+1y', m: 12 },
+                  ].map((p) => (
+                    <button
+                      key={p.m}
+                      type="button"
+                      onClick={() => setPresetDate(p.m)}
+                      style={{
+                        padding: '0.25rem 0.6rem',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        backgroundColor: '#f8fafc',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-            {/* Modal Actions */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
               <button
                 type="button"
                 onClick={() => setApproveModalItem(null)}
                 style={{
-                  padding: '0.55rem 1rem',
+                  padding: '0.5rem 1rem',
                   borderRadius: '8px',
-                  border: '1px solid var(--color-border, #cbd5e1)',
+                  border: '1px solid #cbd5e1',
                   backgroundColor: 'transparent',
-                  color: 'var(--color-text-muted, #64748b)',
+                  color: '#64748b',
                   fontSize: '0.84rem',
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -815,32 +805,30 @@ export default function StudentPhoneExemptionsTab({
               >
                 {isBn ? 'বাতিল' : 'Cancel'}
               </button>
+
               <button
                 type="button"
                 onClick={handleConfirmApproval}
-                disabled={submittingAction || !approveValidDate}
+                disabled={submittingAction}
                 style={{
-                  padding: '0.55rem 1.25rem',
+                  padding: '0.5rem 1.25rem',
                   borderRadius: '8px',
                   border: 'none',
-                  backgroundColor: 'var(--color-primary, #059669)',
+                  backgroundColor: '#059669',
                   color: '#ffffff',
                   fontSize: '0.84rem',
                   fontWeight: 700,
                   cursor: submittingAction ? 'not-allowed' : 'pointer',
-                  opacity: submittingAction ? 0.7 : 1,
                 }}
               >
-                {submittingAction ? (isBn ? 'অনুমোদন হচ্ছে...' : 'Approving...') : (isBn ? 'চূড়ান্ত অনুমোদন' : 'Confirm Approval')}
+                {submittingAction ? (isBn ? 'অনুমোদন হচ্ছে...' : 'Approving...') : (isBn ? 'অনুমোদন নিশ্চিত করুন' : 'Confirm Approval')}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ====================================================================
-          Reject Modal with Reason Textarea
-          ==================================================================== */}
+      {/* Reject Modal */}
       {rejectModalItem && (
         <div
           style={{
@@ -850,15 +838,14 @@ export default function StudentPhoneExemptionsTab({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 9999,
+            zIndex: 1000,
             padding: '1rem',
-            backdropFilter: 'blur(3px)',
           }}
         >
           <div
             style={{
               backgroundColor: 'var(--surface, #ffffff)',
-              borderRadius: '14px',
+              borderRadius: '16px',
               maxWidth: '480px',
               width: '100%',
               padding: '1.5rem',
@@ -866,70 +853,59 @@ export default function StudentPhoneExemptionsTab({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <XCircle size={20} color="#dc2626" />
-                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
-                  {isBn ? 'আবেদন বাতিলের কারণ' : 'Reject Exemption Request'}
-                </h3>
-              </div>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#dc2626' }}>
+                {isBn ? 'আবেদন প্রত্যাখ্যানের কারণ' : 'Rejection Reason'}
+              </h3>
               <button
                 type="button"
                 onClick={() => setRejectModalItem(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted, #94a3b8)' }}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
             </div>
 
-            <p style={{ fontSize: '0.84rem', color: 'var(--color-text-muted, #64748b)', margin: '0 0 1rem', lineHeight: 1.5 }}>
-              {isBn
-                ? `শিক্ষার্থী ${rejectModalItem.studentName}-এর আবেদন রিজেক্ট করার কারণ উল্লেখ করুন। শিক্ষার্থী এই কারণ দেখতে পাবে এবং প্রয়োজনে পুনরায় আবেদন করতে পারবে:`
-                : `Specify why ${rejectModalItem.studentName}'s request is being rejected. The student will see this note:`}
-            </p>
-
             <textarea
               rows={4}
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder={isBn ? 'রিজেক্ট করার যৌক্তিক কারণ লিখুন...' : 'Write rejection reason...'}
+              placeholder={isBn ? 'বাতিল করার বিস্তারিত কারণ উল্লেখ করুন (কমপক্ষে ৫ অক্ষর)...' : 'Write reason for rejection...'}
               style={{
                 width: '100%',
-                padding: '0.75rem',
+                padding: '0.65rem',
                 borderRadius: '8px',
-                border: '1.5px solid #fecaca',
-                backgroundColor: 'var(--surface, #ffffff)',
-                color: 'var(--text-main, #0f172a)',
+                border: '1.5px solid #f87171',
                 fontSize: '0.85rem',
-                marginBottom: '1.25rem',
+                marginBottom: '1rem',
+                outline: 'none',
                 fontFamily: 'inherit',
-                resize: 'vertical',
               }}
             />
 
-            {/* Modal Actions */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
               <button
                 type="button"
                 onClick={() => setRejectModalItem(null)}
                 style={{
-                  padding: '0.55rem 1rem',
+                  padding: '0.5rem 1rem',
                   borderRadius: '8px',
-                  border: '1px solid var(--color-border, #cbd5e1)',
+                  border: '1px solid #cbd5e1',
                   backgroundColor: 'transparent',
-                  color: 'var(--color-text-muted, #64748b)',
+                  color: '#64748b',
                   fontSize: '0.84rem',
                   fontWeight: 600,
                   cursor: 'pointer',
                 }}
               >
-                {isBn ? 'ফিরে যান' : 'Cancel'}
+                {isBn ? 'ফিরে যান' : 'Back'}
               </button>
+
               <button
                 type="button"
                 onClick={handleConfirmRejection}
                 disabled={submittingAction || !rejectionReason.trim()}
                 style={{
-                  padding: '0.55rem 1.25rem',
+                  padding: '0.5rem 1.25rem',
                   borderRadius: '8px',
                   border: 'none',
                   backgroundColor: '#dc2626',
@@ -937,7 +913,6 @@ export default function StudentPhoneExemptionsTab({
                   fontSize: '0.84rem',
                   fontWeight: 700,
                   cursor: submittingAction || !rejectionReason.trim() ? 'not-allowed' : 'pointer',
-                  opacity: submittingAction || !rejectionReason.trim() ? 0.7 : 1,
                 }}
               >
                 {submittingAction ? (isBn ? 'বাতিল হচ্ছে...' : 'Rejecting...') : (isBn ? 'বাতিল নিশ্চিত করুন' : 'Confirm Rejection')}

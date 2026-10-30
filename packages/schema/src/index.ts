@@ -4,3 +4,4 @@ export * from './user.schema';
 export * from './post.schema';
 export * from './donation.schema';
 export * from './complaint.schema';
+export * from './phone.utils';

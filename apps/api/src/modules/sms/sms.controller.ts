@@ -88,8 +88,8 @@ export class SmsController {
   @Get('admin/exemptions')
   @UseGuards(FirebaseAuthGuard, RolesGuard)
   @Roles(UserRole.MASTER_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN)
-  async listAllExemptions() {
-    return this.smsService.listAllStudentExemptions();
+  async listAllExemptions(@CurrentUser() adminUser: any) {
+    return this.smsService.listAllStudentExemptions(adminUser);
   }
 
   /**

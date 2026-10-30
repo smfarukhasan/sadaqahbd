@@ -160,21 +160,37 @@ export default function AdminNavSections({
         {canAccessStudentExemptions && (
           <button
             type="button"
-            className={`${styles.navItem} ${activeNav === 'phone_exemptions' ? styles.navItemActive : ''}`}
+            className={`${styles.navItem} ${activeNav === 'phone_exemptions' || activeNav === 'student_verifications' ? styles.navItemActive : ''}`}
             onClick={() => onSelect('phone_exemptions')}
-            title={isBn ? 'ফোন ভেরিফিকেশন অব্যাহতি' : 'Phone Exemption Clearances'}
+            title={isBn ? 'শিক্ষার্থীর তথ্য ভেরিফিকেশন' : 'Student Information Verification'}
           >
             <div className={styles.navItemContent}>
               <Smartphone size={18} />
               {!isCollapsed && (
                 <span className={styles.navItemText}>
-                  {isBn ? 'ফোন অব্যাহতি ছাড়পত্র' : 'Phone Exemptions'}
+                  {isBn ? 'শিক্ষার্থীর তথ্য ভেরিফিকেশন' : 'Student Verification'}
                 </span>
               )}
             </div>
             {renderNavBadge(phoneExemptionCount)}
           </button>
         )}
+
+        <button
+          type="button"
+          className={`${styles.navItem} ${activeNav === 'complaints' ? styles.navItemActive : ''}`}
+          onClick={() => onSelect('complaints')}
+          title={isBn ? 'অভিযোগ ও সহায়তা' : 'Complaints & Support'}
+        >
+          <div className={styles.navItemContent}>
+            <MessageSquare size={18} />
+            {!isCollapsed && (
+              <span className={styles.navItemText}>
+                {isBn ? 'অভিযোগ ও সহায়তা' : 'Complaints & Support'}
+              </span>
+            )}
+          </div>
+        </button>
       </div>
 
       {/* 3. Donors & Community */}

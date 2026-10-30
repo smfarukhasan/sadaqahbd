@@ -470,10 +470,8 @@ export function AdminActionDrawer({
                     >
                       <option value="qawmi_madrasa">{isBn ? 'কওমি মাদ্রাসা' : 'Qawmi Madrasa'}</option>
                       <option value="hafezia_madrasa">{isBn ? 'হাফেজীয়া মাদ্রাসা' : 'Hafezia Madrasa'}</option>
-                      <option value="ebtedayee_madrasa">{isBn ? 'এবতেদায়ী মাদ্রাসা' : 'Ebtedayee Madrasa'}</option>
-                      <option value="alia_madrasa">{isBn ? 'আলিয়া মাদ্রাসা' : 'Alia Madrasa'}</option>
+                      <option value="najera_madrasa">{isBn ? 'নাজেরা মাদ্রাসা' : 'Nazera Madrasa'}</option>
                       <option value="orphanage">{isBn ? 'এতিম খানা' : 'Orphanage'}</option>
-                      <option value="other">{isBn ? 'অন্যান্য' : 'Other'}</option>
                     </select>
                   </div>
 
@@ -1621,7 +1619,7 @@ export function AdminActionDrawer({
                   required
                   value={newAdminPhone}
                   onChange={(e) => setNewAdminPhone(e.target.value)}
-                  placeholder="017XXXXXXXX"
+                  placeholder="01XXXXXXXXX"
                   style={{
                     width: '100%',
                     padding: '0.65rem 0.85rem',

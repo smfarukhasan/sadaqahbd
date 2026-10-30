@@ -22,6 +22,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { useAuthStore, getRoleDashboardPath } from '../../../../lib/auth-store';
+import { isValid11DigitPhone } from '@sadaqahbd/schema';
 
 import { useSearchParams } from 'next/navigation';
 
@@ -102,7 +103,12 @@ export default function LoginPage() {
   // If already authenticated and setup is complete, route to redirect URL or role dashboard
   React.useEffect(() => {
     if (!loadingAuth && user && user.role) {
-      if (user.isPasswordSet) {
+      const isAdmin =
+        user.role === 'master_admin' ||
+        user.role === 'super_admin' ||
+        user.role === 'admin';
+
+      if (user.isPasswordSet || isAdmin) {
         if (redirectUrl) {
           router.replace(redirectUrl as any);
         } else {
@@ -178,8 +184,13 @@ export default function LoginPage() {
     // Immediately update global auth store
     useAuthStore.getState().setUser(userData);
 
-    // If new account and password/role setup not completed:
-    if (!userData.isPasswordSet) {
+    const isAdmin =
+      userData.role === 'master_admin' ||
+      userData.role === 'super_admin' ||
+      userData.role === 'admin';
+
+    // If new public account and password/role setup not completed (never for admin roles):
+    if (!userData.isPasswordSet && !isAdmin) {
       const roleParam = preferredRole || (isRegister ? selectedRole : '');
       const path = roleParam ? `/set-password?role=${roleParam}` : '/set-password';
       router.push(path as any);
@@ -205,12 +216,92 @@ export default function LoginPage() {
       const user = await loginWithGoogle();
       const token = await user.getIdToken();
 
+      if (isRegister) {
+        // Role-based validation rules
+        if (selectedRole === 'student') {
+          if (!fullName.trim()) {
+            setError(
+              currentLang === 'bn'
+                ? 'শিক্ষার্থীর পূর্ণ নাম প্রদান করা বাধ্যতামূলক।'
+                : 'Student full name is required.'
+            );
+            setLoading(false);
+            useAuthStore.getState().setAuthActionInProgress(false);
+            return;
+          }
+          if (!address.trim()) {
+            setError(
+              currentLang === 'bn'
+                ? 'শিক্ষার্থীর ঠিকানা প্রদান করা বাধ্যতামূলক।'
+                : 'Student address is required.'
+            );
+            setLoading(false);
+            useAuthStore.getState().setAuthActionInProgress(false);
+            return;
+          }
+        } else if (selectedRole === 'donor') {
+          if (!phone.trim()) {
+            setError(
+              currentLang === 'bn'
+                ? 'দাতার ফোন নম্বর প্রদান করা বাধ্যতামূলক।'
+                : 'Donor phone number is required.'
+            );
+            setLoading(false);
+            useAuthStore.getState().setAuthActionInProgress(false);
+            return;
+          }
+        } else {
+          // teacher & organization: all fields mandatory
+          if (!fullName.trim()) {
+            setError(
+              currentLang === 'bn'
+                ? 'পূর্ণ নাম / প্রতিষ্ঠানের নাম প্রদান করা বাধ্যতামূলক।'
+                : 'Full name is required.'
+            );
+            setLoading(false);
+            useAuthStore.getState().setAuthActionInProgress(false);
+            return;
+          }
+          if (!address.trim()) {
+            setError(
+              currentLang === 'bn'
+                ? 'ঠিকানা প্রদান করা বাধ্যতামূলক।'
+                : 'Address is required.'
+            );
+            setLoading(false);
+            useAuthStore.getState().setAuthActionInProgress(false);
+            return;
+          }
+          if (!phone.trim()) {
+            setError(
+              currentLang === 'bn'
+                ? 'ফোন নম্বর প্রদান করা বাধ্যতামূলক।'
+                : 'Phone number is required.'
+            );
+            setLoading(false);
+            useAuthStore.getState().setAuthActionInProgress(false);
+            return;
+          }
+        }
+
+        if (phone.trim() && !isValid11DigitPhone(phone.trim())) {
+          setError(
+            currentLang === 'bn'
+              ? 'ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 01XXXXXXXXX)।'
+              : 'Phone number must be exactly 11 digits (e.g. 01XXXXXXXXX).'
+          );
+          setLoading(false);
+          useAuthStore.getState().setAuthActionInProgress(false);
+          return;
+        }
+      }
+
       const roleToSync = isRegister ? selectedRole : undefined;
       const profileToSync = isRegister
         ? {
             fullName: fullName || user.displayName || user.email?.split('@')[0],
-            phone,
-            address,
+            phone: phone.trim() || undefined,
+            address: address.trim() || undefined,
           }
         : undefined;
 
@@ -222,6 +313,7 @@ export default function LoginPage() {
       useAuthStore.getState().setAuthActionInProgress(false);
       handlePostAuthRedirect(userData, roleToSync);
     } catch (err: any) {
+      console.error('[GoogleAuth] Sign-in error:', err);
       useAuthStore.getState().setAuthActionInProgress(false);
       setError(getFriendlyAuthErrorMessage(err, currentLang));
       setLoading(false);
@@ -241,6 +333,28 @@ export default function LoginPage() {
       const apiUrl = getApiUrl();
 
       if (isRegister) {
+        if (selectedRole !== 'student' && !phone.trim()) {
+          setError(
+            currentLang === 'bn'
+              ? 'ফোন নম্বর প্রদান করা বাধ্যতামূলক।'
+              : 'Phone number is required.'
+          );
+          setLoading(false);
+          useAuthStore.getState().setAuthActionInProgress(false);
+          return;
+        }
+
+        if (phone.trim() && !isValid11DigitPhone(phone.trim())) {
+          setError(
+            currentLang === 'bn'
+              ? 'ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 01XXXXXXXXX)।'
+              : 'Phone number must be exactly 11 digits (e.g. 01XXXXXXXXX).'
+          );
+          setLoading(false);
+          useAuthStore.getState().setAuthActionInProgress(false);
+          return;
+        }
+
         if (password !== confirmPassword) {
           setError('পাসওয়ার্ড ও কনফার্ম পাসওয়ার্ড মিলছে না');
           setLoading(false);
@@ -255,7 +369,7 @@ export default function LoginPage() {
           body: JSON.stringify({
             email: cleanEmail,
             password,
-            fullName: fullName.trim() || cleanEmail.split('@')[0],
+            fullName: fullName.trim() || (selectedRole === 'donor' ? 'দাতা' : cleanEmail.split('@')[0]),
             phone: phone.trim() || undefined,
             address: address.trim() || undefined,
             role: selectedRole,
@@ -529,24 +643,50 @@ export default function LoginPage() {
               {/* Row 1: Full Name & Address */}
               <div className={styles.formRow}>
                 <div className={styles.field}>
-                  <label>{t('fullNameLabel')}</label>
+                  <label>
+                    {t('fullNameLabel')}{' '}
+                    {selectedRole === 'donor' ? (
+                      <span style={{ fontSize: '0.82rem', fontWeight: 'normal', opacity: 0.75 }}>
+                        {currentLang === 'bn' ? '(ঐচ্ছিক)' : '(Optional)'}
+                      </span>
+                    ) : (
+                      <span style={{ color: '#ef4444', marginLeft: '0.2rem' }}>*</span>
+                    )}
+                  </label>
                   <input
                     type="text"
-                    required
+                    required={selectedRole !== 'donor'}
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="আপনার পূর্ণ নাম"
+                    placeholder={
+                      selectedRole === 'donor'
+                        ? currentLang === 'bn' ? 'আপনার পূর্ণ নাম (ঐচ্ছিক)' : 'Full Name (Optional)'
+                        : 'আপনার পূর্ণ নাম'
+                    }
                   />
                 </div>
 
                 <div className={styles.field}>
-                  <label>{t('addressLabel')}</label>
+                  <label>
+                    {t('addressLabel')}{' '}
+                    {selectedRole === 'donor' ? (
+                      <span style={{ fontSize: '0.82rem', fontWeight: 'normal', opacity: 0.75 }}>
+                        {currentLang === 'bn' ? '(ঐচ্ছিক)' : '(Optional)'}
+                      </span>
+                    ) : (
+                      <span style={{ color: '#ef4444', marginLeft: '0.2rem' }}>*</span>
+                    )}
+                  </label>
                   <input
                     type="text"
-                    required
+                    required={selectedRole !== 'donor'}
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    placeholder="জেলা, থানা বা বর্তমান ঠিকানা"
+                    placeholder={
+                      selectedRole === 'donor'
+                        ? currentLang === 'bn' ? 'জেলা, থানা বা ঠিকানা (ঐচ্ছিক)' : 'Address (Optional)'
+                        : 'জেলা, থানা বা বর্তমান ঠিকানা'
+                    }
                   />
                 </div>
               </div>
@@ -554,18 +694,65 @@ export default function LoginPage() {
               {/* Row 2: Phone & Email */}
               <div className={styles.formRow}>
                 <div className={styles.field}>
-                  <label>{t('phoneLabel')}</label>
-                  <input
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+8801XXXXXXXXX"
-                  />
+                  <label>
+                    {t('phoneLabel')}{' '}
+                    {selectedRole === 'student' ? (
+                      <span
+                        style={{
+                          fontSize: '0.82rem',
+                          fontWeight: 'normal',
+                          opacity: 0.75,
+                        }}
+                      >
+                        {currentLang === 'bn' ? '(ঐচ্ছিক)' : '(Optional)'}
+                      </span>
+                    ) : (
+                      <span style={{ color: '#ef4444', marginLeft: '0.2rem' }}>*</span>
+                    )}
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                    <span
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0.65rem 0.85rem',
+                        borderTopLeftRadius: '8px',
+                        borderBottomLeftRadius: '8px',
+                        border: '1.5px solid var(--surface-border, #cbd5e1)',
+                        borderRight: 'none',
+                        backgroundColor: 'var(--background-alt, #f1f5f9)',
+                        fontSize: '0.88rem',
+                        fontWeight: 700,
+                        color: 'var(--text-main, #334155)',
+                        userSelect: 'none',
+                      }}
+                    >
+                      +88
+                    </span>
+                    <input
+                      type="tel"
+                      required={selectedRole !== 'student'}
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value.replace(/[^\d]/g, ''))}
+                      placeholder={
+                        selectedRole === 'student'
+                          ? currentLang === 'bn'
+                            ? '01XXXXXXXXX (ঐচ্ছিক)'
+                            : '01XXXXXXXXX (Optional)'
+                          : '01XXXXXXXXX'
+                      }
+                      maxLength={11}
+                      style={{
+                        flex: 1,
+                        borderTopLeftRadius: 0,
+                        borderBottomLeftRadius: 0,
+                      }}
+                    />
+                  </div>
                 </div>
 
                 <div className={styles.field}>
-                  <label>{t('emailLabel')}</label>
+                  <label>{t('emailLabel')} <span style={{ color: '#ef4444', marginLeft: '0.2rem' }}>*</span></label>
                   <input
                     type="email"
                     required
@@ -579,7 +766,7 @@ export default function LoginPage() {
               {/* Row 3: Password & Confirm Password */}
               <div className={styles.formRow}>
                 <div className={styles.field}>
-                  <label>{t('passwordLabel')}</label>
+                  <label>{t('passwordLabel')} <span style={{ color: '#ef4444', marginLeft: '0.2rem' }}>*</span></label>
                   <input
                     type="password"
                     required
@@ -591,7 +778,7 @@ export default function LoginPage() {
                 </div>
 
                 <div className={styles.field}>
-                  <label>{t('confirmPasswordLabel')}</label>
+                  <label>{t('confirmPasswordLabel')} <span style={{ color: '#ef4444', marginLeft: '0.2rem' }}>*</span></label>
                   <input
                     type="password"
                     required

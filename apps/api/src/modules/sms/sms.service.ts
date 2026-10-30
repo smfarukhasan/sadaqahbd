@@ -8,11 +8,19 @@ import {
   phoneVerifications,
   userVerifiedPhones,
   studentPhoneExemptions,
+  studentProfiles,
   userPermissions,
 } from '../../database';
-import { eq, and, or, isNull, desc, sql } from 'drizzle-orm';
+import { eq, and, or, isNull, isNotNull, desc, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { PermissionModuleKey, UserRole } from '@sadaqahbd/schema';
+import {
+  PermissionModuleKey,
+  UserRole,
+  extract11DigitPhone,
+  isValid11DigitPhone,
+  formatPhoneForDb,
+  formatPhoneForDisplay,
+} from '@sadaqahbd/schema';
 import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
@@ -49,8 +57,10 @@ export class SmsService {
    * Check if a phone number is already registered to any other user
    */
   async isPhoneTakenByAnotherUser(phone: string, excludeUserId?: string): Promise<boolean> {
-    const normalized = this.normalizePhoneNumber(phone);
-    const rawLocal = normalized.replace(/^88/, ''); // e.g., 017...
+    const rawLocal = extract11DigitPhone(phone); // e.g. 01677373788
+    if (!rawLocal) return false;
+    const dbFormat = formatPhoneForDb(phone); // e.g. +8801677373788
+    const with88 = `88${rawLocal}`; // e.g. 8801677373788
 
     // 1. Check in users table
     const existingUsers = await this.db
@@ -62,9 +72,11 @@ export class SmsService {
           excludeUserId ? sql`${users.id} != ${excludeUserId}` : sql`1=1`,
           or(
             eq(users.phone, rawLocal),
-            eq(users.phone, normalized),
+            eq(users.phone, dbFormat),
+            eq(users.phone, with88),
             eq(users.secondaryPhone, rawLocal),
-            eq(users.secondaryPhone, normalized)
+            eq(users.secondaryPhone, dbFormat),
+            eq(users.secondaryPhone, with88)
           )
         )
       )
@@ -79,7 +91,11 @@ export class SmsService {
       .where(
         and(
           excludeUserId ? sql`${userVerifiedPhones.userId} != ${excludeUserId}` : sql`1=1`,
-          or(eq(userVerifiedPhones.phone, rawLocal), eq(userVerifiedPhones.phone, normalized))
+          or(
+            eq(userVerifiedPhones.phone, rawLocal),
+            eq(userVerifiedPhones.phone, dbFormat),
+            eq(userVerifiedPhones.phone, with88)
+          )
         )
       )
       .limit(1);
@@ -274,81 +290,79 @@ export class SmsService {
 
   /**
    * Send OTP for phone verification
+   * Note: As per requirement, currently in Demo mode using fixed OTP "123456"
    */
   async sendOtp(userId: string | null, rawPhone: string, isSecondary = false) {
-    if (!rawPhone || !this.isValidBangladeshPhone(rawPhone)) {
-      throw new BadRequestException('অনুগ্রহ করে একটি সঠিক ১১ ডিজিটের বাংলাদেশী মোবাইল নম্বর প্রদান করুন (যেমন: 017XXXXXXXX)।');
+    if (!rawPhone || !isValid11DigitPhone(rawPhone)) {
+      throw new BadRequestException('অনুগ্রহ করে একটি সঠিক ১১ ডিজিটের বাংলাদেশী মোবাইল নম্বর প্রদান করুন (যেমন: 01XXXXXXXXX)।');
     }
 
-    const normalizedPhone = this.normalizePhoneNumber(rawPhone);
-    const localPhone = normalizedPhone.replace(/^88/, '');
+    const localPhone = extract11DigitPhone(rawPhone);
+    const dbPhone = formatPhoneForDb(rawPhone); // +8801XXXXXXXXX
 
     // Check unique phone rule across platform
-    const isTaken = await this.isPhoneTakenByAnotherUser(normalizedPhone, userId || undefined);
+    const isTaken = await this.isPhoneTakenByAnotherUser(rawPhone, userId || undefined);
     if (isTaken) {
       throw new BadRequestException('এই ফোন নম্বরটি ইতিমধ্যে অন্য একজন ব্যবহারকারীর একাউন্টে ব্যবহৃত হচ্ছে। অনুগ্রহ করে আপনার নিজস্ব অন্য একটি নম্বর ব্যবহার করুন।');
     }
 
-    // Check remaining SMS balance
-    const [balance] = await this.db
-      .select()
-      .from(smsBalance)
-      .where(eq(smsBalance.id, 'singleton'))
-      .limit(1);
-
-    if (!balance || balance.remainingSms <= 0) {
-      // Trigger admin alert
-      await this.checkBalanceAlerts();
-      throw new BadRequestException('দুঃখিত, ওটিপি প্রেরণের এসএমএস সার্ভিস সাময়িকভাবে বন্ধ রয়েছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।');
-    }
-
-    // Generate 6-digit OTP
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+    // Demo OTP requirement:
+    // "আপাতত রিয়েল অটিপি সিস্টেম থাকবে না, আপাতত ডেমো ১২৩৪৫৬ অটিপি দিয়ে কাজ করবো ওইভাবে মডিফাই করে দেও।"
+    const otpCode = '123456';
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
     // Invalidate previous OTPs for this phone
     await this.db
       .delete(phoneVerifications)
-      .where(and(eq(phoneVerifications.phone, localPhone), eq(phoneVerifications.isVerified, false)));
+      .where(
+        and(
+          or(
+            eq(phoneVerifications.phone, localPhone),
+            eq(phoneVerifications.phone, dbPhone)
+          ),
+          eq(phoneVerifications.isVerified, false)
+        )
+      );
 
-    // Insert verification row
+    // Insert verification row with DB-formatted phone
     const verifId = randomUUID();
     await this.db.insert(phoneVerifications).values({
       id: verifId,
       userId: userId || null,
-      phone: localPhone,
+      phone: dbPhone,
       otpCode,
       expiresAt,
       isVerified: false,
       attempts: 0,
     });
 
-    // Send SMS
-    const message = `Your Sadaqahbd verification OTP code is ${otpCode}. Valid for 5 minutes. Do not share with anyone.`;
-    const sent = await this.sendRawSms(normalizedPhone, message, 'phone_verification');
-
-    if (!sent) {
-      throw new BadRequestException('এসএমএস গেটওয়ে থেকে ওটিপি পাঠানো সম্ভব হয়নি। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।');
-    }
-
     return {
       success: true,
-      message: 'আপনার মোবাইল নম্বরে ৬ ডিজিটের ওটিপি পাঠানো হয়েছে।',
+      message: 'ডেমো ওটিপি কোড: 123456। অনুগ্রহ করে 123456 কোডটি ইনপুট দিয়ে ভেরিফিকেশন সম্পন্ন করুন।',
       phone: localPhone,
+      dbPhone,
       expiresAt: expiresAt.toISOString(),
+      demoOtp: '123456',
     };
   }
 
   /**
    * Verify OTP and record verified phone
+   * Stored in DB with '+88' prefix (e.g. +8801XXXXXXXXX)
    */
   async verifyOtp(userId: string, rawPhone: string, otpCode: string, isSecondary = false) {
     if (!rawPhone || !otpCode) {
       throw new BadRequestException('ফোন নম্বর এবং ওটিপি কোড উভয়ই প্রদান করা আবশ্যক।');
     }
 
-    const normalizedPhone = this.normalizePhoneNumber(rawPhone);
-    const localPhone = normalizedPhone.replace(/^88/, '');
+    if (!isValid11DigitPhone(rawPhone)) {
+      throw new BadRequestException('অনুগ্রহ করে একটি সঠিক ১১ ডিজিটের বাংলাদেশী মোবাইল নম্বর প্রদান করুন (যেমন: 01XXXXXXXXX)।');
+    }
+
+    const localPhone = extract11DigitPhone(rawPhone);
+    const dbPhone = formatPhoneForDb(rawPhone); // +8801XXXXXXXXX
+    const cleanOtp = otpCode.trim();
+    const isDemoCode = cleanOtp === '123456';
 
     // Find the latest verification attempt
     const [verif] = await this.db
@@ -356,48 +370,53 @@ export class SmsService {
       .from(phoneVerifications)
       .where(
         and(
-          eq(phoneVerifications.phone, localPhone),
+          or(
+            eq(phoneVerifications.phone, dbPhone),
+            eq(phoneVerifications.phone, localPhone)
+          ),
           eq(phoneVerifications.isVerified, false)
         )
       )
       .orderBy(desc(phoneVerifications.createdAt))
       .limit(1);
 
-    if (!verif) {
+    if (!verif && !isDemoCode) {
       throw new BadRequestException('কোনো সক্রিয় ওটিপি কোড পাওয়া যায়নি। অনুগ্রহ করে নতুন ওটিপি চেয়ে চেষ্টা করুন।');
     }
 
-    if (new Date() > new Date(verif.expiresAt)) {
-      throw new BadRequestException('ওটিপি কোডের মেয়াদ উত্তীর্ণ হয়ে গেছে। অনুগ্রহ করে নতুন কোড চান।');
-    }
+    if (verif) {
+      if (new Date() > new Date(verif.expiresAt)) {
+        throw new BadRequestException('ওটিপি কোডের মেয়াদ উত্তীর্ণ হয়ে গেছে। অনুগ্রহ করে নতুন কোড চান।');
+      }
 
-    if (verif.attempts >= 5) {
-      throw new BadRequestException('অতিরিক্ত ভুল ওটিপি চেষ্টার কারণে এই কোডটি বাতিল হয়েছে। নতুন ওটিপি চেয়ে আবার চেষ্টা করুন।');
-    }
+      if (verif.attempts >= 10) {
+        throw new BadRequestException('অতিরিক্ত ভুল ওটিপি চেষ্টার কারণে এই কোডটি বাতিল হয়েছে। নতুন ওটিপি চেয়ে আবার চেষ্টা করুন।');
+      }
 
-    if (verif.otpCode.trim() !== otpCode.trim()) {
+      if (!isDemoCode && verif.otpCode.trim() !== cleanOtp) {
+        await this.db
+          .update(phoneVerifications)
+          .set({ attempts: sql`${phoneVerifications.attempts} + 1` })
+          .where(eq(phoneVerifications.id, verif.id));
+
+        throw new BadRequestException('প্রদত্ত ওটিপি কোডটি সঠিক নয়। (ডেমো কোড: 123456)');
+      }
+
+      // Mark verified
       await this.db
         .update(phoneVerifications)
-        .set({ attempts: sql`${phoneVerifications.attempts} + 1` })
+        .set({
+          isVerified: true,
+          verifiedAt: new Date(),
+        })
         .where(eq(phoneVerifications.id, verif.id));
-
-      throw new BadRequestException('প্রদত্ত ওটিপি কোডটি সঠিক নয়। অনুগ্রহ করে যাচাই করে পুনরায় চেষ্টা করুন।');
     }
 
     // Check again unique rule
-    const isTaken = await this.isPhoneTakenByAnotherUser(localPhone, userId);
+    const isTaken = await this.isPhoneTakenByAnotherUser(rawPhone, userId);
     if (isTaken) {
       throw new BadRequestException('এই ফোন নম্বরটি ইতিমধ্যে অন্য একটি একাউন্টে নিবন্ধিত রয়েছে।');
     }
-
-    // Mark verified
-    await this.db
-      .update(phoneVerifications)
-      .set({
-        isVerified: true,
-        verifiedAt: new Date(),
-      })
-      .where(eq(phoneVerifications.id, verif.id));
 
     // Check existing verified phones count for this user
     const existingPhones = await this.db
@@ -411,24 +430,24 @@ export class SmsService {
 
     const isPrimary = !isSecondary && existingPhones.length === 0;
 
-    // Check if phone already in user_verified_phones
-    const alreadyInList = existingPhones.some((p) => p.phone === localPhone);
+    // Check if phone already in user_verified_phones (check both formats)
+    const alreadyInList = existingPhones.some((p) => p.phone === dbPhone || p.phone === localPhone);
     if (!alreadyInList) {
       await this.db.insert(userVerifiedPhones).values({
         id: randomUUID(),
         userId,
-        phone: localPhone,
+        phone: dbPhone,
         isPrimary,
         verifiedAt: new Date(),
       });
     }
 
-    // Update user record
+    // Update user record: always store in DB with +88 prefix!
     if (isSecondary) {
       await this.db
         .update(users)
         .set({
-          secondaryPhone: localPhone,
+          secondaryPhone: dbPhone,
           isSecondaryPhoneVerified: true,
           updatedAt: new Date(),
         })
@@ -437,7 +456,7 @@ export class SmsService {
       await this.db
         .update(users)
         .set({
-          phone: localPhone,
+          phone: dbPhone,
           isPhoneVerified: true,
           updatedAt: new Date(),
         })
@@ -447,7 +466,8 @@ export class SmsService {
     return {
       success: true,
       message: 'ফোন নম্বরটি সফলভাবে ভেরিফাই করা হয়েছে।',
-      phone: localPhone,
+      phone: dbPhone,
+      displayPhone: localPhone,
       isPrimary,
     };
   }
@@ -639,33 +659,98 @@ export class SmsService {
   }
 
   /**
-   * List all student exemption requests for Admin audit
+   * Helper to verify if an admin user has permission to manage student exemptions / verifications
    */
-  async listAllStudentExemptions() {
-    return await this.db
-      .select({
-        id: studentPhoneExemptions.id,
-        studentId: studentPhoneExemptions.studentId,
-        studentName: users.fullName,
-        studentEmail: users.email,
-        studentPhone: users.phone,
-        studentStatus: users.status,
-        reason: studentPhoneExemptions.reason,
-        status: studentPhoneExemptions.status,
-        validUntil: studentPhoneExemptions.validUntil,
-        reviewedBy: studentPhoneExemptions.reviewedBy,
-        reviewedAt: studentPhoneExemptions.reviewedAt,
-        rejectionReason: studentPhoneExemptions.rejectionReason,
-        createdAt: studentPhoneExemptions.createdAt,
-        updatedAt: studentPhoneExemptions.updatedAt,
-      })
-      .from(studentPhoneExemptions)
-      .innerJoin(users, eq(users.id, studentPhoneExemptions.studentId))
-      .orderBy(desc(studentPhoneExemptions.createdAt));
+  async canAdminManageExemptions(adminUser: any): Promise<boolean> {
+    if (!adminUser) return false;
+    if (adminUser.role === UserRole.MASTER_ADMIN) return true;
+    if (adminUser.role === UserRole.SUPER_ADMIN || adminUser.role === UserRole.ADMIN) {
+      const [perm] = await this.db
+        .select()
+        .from(userPermissions)
+        .where(
+          and(
+            eq(userPermissions.userId, adminUser.id),
+            or(
+              eq(userPermissions.moduleKey, PermissionModuleKey.STUDENT_PHONE_EXEMPTIONS),
+              eq(userPermissions.moduleKey, PermissionModuleKey.STUDENT_VERIFICATION_REQUESTS)
+            )
+          )
+        )
+        .limit(1);
+      return Boolean(perm?.canView || perm?.canEdit || perm?.canApprove);
+    }
+    return false;
   }
 
   /**
-   * Review Student Exemption Request (Accept with Date Picker or Reject with Reason)
+   * List all student information verification & exemption requests for Admin audit
+   * Master Admin and permitted Super Admins / Admins
+   */
+  async listAllStudentExemptions(adminUser?: any) {
+    if (adminUser) {
+      const allowed = await this.canAdminManageExemptions(adminUser);
+      if (!allowed) {
+        throw new ForbiddenException('আপনার এই সেকশনে প্রবেশের অনুমোদন নেই।');
+      }
+    }
+
+    const rows = await this.db
+      .select({
+        id: sql<string>`COALESCE(${studentPhoneExemptions.id}, ${studentProfiles.id}, ${users.id})`,
+        exemptionId: studentPhoneExemptions.id,
+        profileId: studentProfiles.id,
+        studentId: users.id,
+        studentName: users.fullName,
+        studentEmail: users.email,
+        studentPhone: users.phone,
+        studentAddress: users.address,
+        studentStatus: users.status,
+        isPhoneVerified: users.isPhoneVerified,
+        phoneExemptionValidUntil: users.phoneExemptionValidUntil,
+        // Exemption data
+        reason: studentPhoneExemptions.reason,
+        status: sql<string>`COALESCE(${studentPhoneExemptions.status}, CASE WHEN ${studentProfiles.verificationStatus} = 'verified' THEN 'approved' WHEN ${studentProfiles.verificationStatus} = 'rejected' THEN 'rejected' ELSE 'pending' END)`,
+        validUntil: studentPhoneExemptions.validUntil,
+        reviewedBy: sql<string>`COALESCE(${studentPhoneExemptions.reviewedBy}, ${studentProfiles.adminApprovedBy})`,
+        reviewedAt: sql<Date>`COALESCE(${studentPhoneExemptions.reviewedAt}, ${studentProfiles.adminApprovedAt})`,
+        rejectionReason: sql<string>`COALESCE(${studentPhoneExemptions.rejectionReason}, ${studentProfiles.rejectionReason})`,
+        createdAt: sql<Date>`COALESCE(${studentPhoneExemptions.createdAt}, ${studentProfiles.createdAt}, ${users.createdAt})`,
+        updatedAt: sql<Date>`COALESCE(${studentPhoneExemptions.updatedAt}, ${studentProfiles.createdAt}, ${users.updatedAt})`,
+        // Profile data
+        fatherName: studentProfiles.fatherName,
+        dateOfBirth: studentProfiles.dateOfBirth,
+        bloodGroup: studentProfiles.bloodGroup,
+        nidOrBirthCertificateNumber: studentProfiles.nidOrBirthCertificateNumber,
+        presentAddress: studentProfiles.presentAddress,
+        permanentAddress: studentProfiles.permanentAddress,
+        guardianName: studentProfiles.guardianName,
+        guardianRelationship: studentProfiles.guardianRelationship,
+        guardianPhone: studentProfiles.guardianPhone,
+        guardianAddress: studentProfiles.guardianAddress,
+        verificationStatus: studentProfiles.verificationStatus,
+      })
+      .from(users)
+      .leftJoin(studentProfiles, eq(studentProfiles.userId, users.id))
+      .leftJoin(studentPhoneExemptions, eq(studentPhoneExemptions.studentId, users.id))
+      .where(
+        and(
+          eq(users.role, UserRole.STUDENT),
+          isNull(users.deletedAt),
+          or(
+            isNotNull(studentPhoneExemptions.id),
+            isNotNull(studentProfiles.id)
+          )
+        )
+      )
+      .orderBy(desc(users.createdAt));
+
+    return rows;
+  }
+
+  /**
+   * Review Student Verification / Exemption Request (Accept with Date Picker or Reject with Reason)
+   * Accessible to Master Admin and Super Admins / Admins with STUDENT_PHONE_EXEMPTIONS permission
    */
   async reviewStudentExemption(
     adminUser: any,
@@ -674,95 +759,144 @@ export class SmsService {
     validUntil?: string,
     rejectionReason?: string
   ) {
-    const [exemption] = await this.db
+    const allowed = await this.canAdminManageExemptions(adminUser);
+    if (!allowed) {
+      throw new ForbiddenException('আপনার শিক্ষার্থী তথ্য ভেরিফিকেশন অনুমোদন বা বাতিলের অনুমতি নেই।');
+    }
+
+    let exemption: any = null;
+    let targetStudentId = '';
+
+    const [exemptionRow] = await this.db
       .select()
       .from(studentPhoneExemptions)
       .where(eq(studentPhoneExemptions.id, exemptionId))
       .limit(1);
 
-    if (!exemption) {
-      throw new NotFoundException('ফোন অব্যাহতির আবেদনটি পাওয়া যায়নি।');
+    if (exemptionRow) {
+      exemption = exemptionRow;
+      targetStudentId = exemptionRow.studentId;
+    } else {
+      const [byUserId] = await this.db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.id, exemptionId))
+        .limit(1);
+
+      if (byUserId) {
+        targetStudentId = byUserId.id;
+      } else {
+        const [byProf] = await this.db
+          .select({ userId: studentProfiles.userId })
+          .from(studentProfiles)
+          .where(eq(studentProfiles.id, exemptionId))
+          .limit(1);
+        if (byProf) {
+          targetStudentId = byProf.userId;
+        }
+      }
+    }
+
+    if (!targetStudentId) {
+      throw new NotFoundException('শিক্ষার্থীর আবেদনটি পাওয়া যায়নি।');
     }
 
     if (action === 'approve') {
-      if (!validUntil) {
-        throw new BadRequestException('অনুগ্রহ করে অব্যাহতির মেয়াদকাল (তারিখ, মাস ও বছর) নির্ধারণ করুন।');
+      let validUntilDate: Date | null = null;
+      if (validUntil) {
+        validUntilDate = new Date(validUntil);
+        if (isNaN(validUntilDate.getTime()) || validUntilDate <= new Date()) {
+          throw new BadRequestException('অব্যাহতির শেষ তারিখ অবশ্যই ভবিষ্যতের কোনো তারিখ হতে হবে।');
+        }
       }
-      const validUntilDate = new Date(validUntil);
-      if (isNaN(validUntilDate.getTime()) || validUntilDate <= new Date()) {
-        throw new BadRequestException('অব্যাহতির শেষ তারিখ অবশ্যই ভবিষ্যতের কোনো তারিখ হতে হবে।');
+
+      if (exemption) {
+        if (!validUntilDate) {
+          const d = new Date();
+          d.setMonth(d.getMonth() + 3);
+          validUntilDate = d;
+        }
+        await this.db
+          .update(studentPhoneExemptions)
+          .set({
+            status: 'approved',
+            validUntil: validUntilDate,
+            reviewedBy: adminUser.id,
+            reviewedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(studentPhoneExemptions.id, exemption.id));
       }
+
+      const userUpdates: any = {
+        status: 'active',
+        updatedAt: new Date(),
+      };
+      if (validUntilDate) {
+        userUpdates.phoneExemptionValidUntil = validUntilDate;
+      }
+      await this.db.update(users).set(userUpdates).where(eq(users.id, targetStudentId));
 
       await this.db
-        .update(studentPhoneExemptions)
+        .update(studentProfiles)
         .set({
-          status: 'approved',
-          validUntil: validUntilDate,
-          reviewedBy: adminUser.id,
-          reviewedAt: new Date(),
-          updatedAt: new Date(),
+          verificationStatus: 'verified',
+          adminApprovedBy: adminUser.id,
+          adminApprovedAt: new Date(),
         })
-        .where(eq(studentPhoneExemptions.id, exemptionId));
-
-      // Update student user row: set exemption validity and activate account
-      await this.db
-        .update(users)
-        .set({
-          phoneExemptionValidUntil: validUntilDate,
-          status: 'active',
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, exemption.studentId));
-
-      // Notify student
-      const dateFormatted = validUntilDate.toLocaleDateString('bn-BD', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
+        .where(eq(studentProfiles.userId, targetStudentId));
 
       await this.notificationsService.createNotification({
-        recipientUserId: exemption.studentId,
-        titleBn: 'ফোন নম্বর অব্যাহতি অনুমোদন',
-        titleEn: 'Phone Exemption Approved',
-        messageBn: `আপনার ফোন নম্বর না থাকার আবেদনটি সফলভাবে গৃহীত হয়েছে। আপনি ${dateFormatted} পর্যন্ত ভেরিফায়েড নম্বর ছাড়াই প্ল্যাটফর্ম ব্যবহার করতে পারবেন।`,
-        messageEn: `Your phone verification exemption has been approved until ${validUntilDate.toISOString().slice(0, 10)}.`,
-        type: 'phone_exemption_approved',
+        recipientUserId: targetStudentId,
+        titleBn: 'শিক্ষার্থীর তথ্য ভেরিফিকেশন সফল',
+        titleEn: 'Student Information Verified',
+        messageBn: 'আপনার শিক্ষার্থীর তথ্য সফলভাবে অনুমোদন করা হয়েছে। আপনি এখন প্রতিষ্ঠানে যুক্ত হওয়ার আবেদন করতে পারবেন।',
+        messageEn: 'Your student information has been successfully approved by the administration.',
+        type: 'student_verification_approved',
       });
 
       return {
         success: true,
-        message: `আবেদনটি সফলভাবে অনুমোদন করা হয়েছে। শিক্ষার্থী ${dateFormatted} পর্যন্ত ফোন নম্বর ছাড়া একাউন্ট ব্যবহার করতে পারবেন।`,
+        message: 'শিক্ষার্থীর তথ্য ও ভেরিফিকেশন সফলভাবে অনুমোদন করা হয়েছে।',
       };
     } else {
       if (!rejectionReason || rejectionReason.trim().length < 5) {
         throw new BadRequestException('আবেদন রিজেক্ট করার কারণ বিস্তারিত উল্লেখ করুন (কমপক্ষে ৫ অক্ষর)।');
       }
 
-      await this.db
-        .update(studentPhoneExemptions)
-        .set({
-          status: 'rejected',
-          rejectionReason: rejectionReason.trim(),
-          reviewedBy: adminUser.id,
-          reviewedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(studentPhoneExemptions.id, exemptionId));
+      if (exemption) {
+        await this.db
+          .update(studentPhoneExemptions)
+          .set({
+            status: 'rejected',
+            rejectionReason: rejectionReason.trim(),
+            reviewedBy: adminUser.id,
+            reviewedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(studentPhoneExemptions.id, exemption.id));
+      }
 
-      // Notify student
+      await this.db
+        .update(studentProfiles)
+        .set({
+          verificationStatus: 'rejected',
+          rejectionReason: rejectionReason.trim(),
+        })
+        .where(eq(studentProfiles.userId, targetStudentId));
+
       await this.notificationsService.createNotification({
-        recipientUserId: exemption.studentId,
-        titleBn: 'ফোন নম্বর অব্যাহতি আবেদন প্রত্যাখ্যাত',
-        titleEn: 'Phone Exemption Rejected',
-        messageBn: `আপনার ফোন নম্বর অব্যাহতির আবেদনটি গৃহীত হয়নি। কারণ: "${rejectionReason.trim()}". আপনি প্রয়োজনীয় তথ্যসহ পুনরায় আবেদন করতে পারেন।`,
-        messageEn: `Your phone exemption request was rejected. Reason: ${rejectionReason.trim()}`,
-        type: 'phone_exemption_rejected',
+        recipientUserId: targetStudentId,
+        titleBn: 'শিক্ষার্থীর তথ্য ভেরিফিকেশন প্রত্যাখ্যাত',
+        titleEn: 'Student Information Verification Rejected',
+        messageBn: `আপনার তথ্য ভেরিফিকেশনের আবেদনটি গৃহীত হয়নি। কারণ: "${rejectionReason.trim()}". অনুগ্রহ করে তথ্য সংশোধন করে পুনরায় আবেদন করুন।`,
+        messageEn: `Your student information verification was rejected. Reason: ${rejectionReason.trim()}`,
+        type: 'student_verification_rejected',
       });
 
       return {
         success: true,
-        message: 'আবেদনটি রিজেক্ট করা হয়েছে এবং শিক্ষার্থীকে কারণ সহ অবহিত করা হয়েছে।',
+        message: 'আবেদনটি বাতিল করা হয়েছে এবং শিক্ষার্থীকে কারণ সহ অবহিত করা হয়েছে।',
       };
     }
   }

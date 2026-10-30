@@ -86,11 +86,35 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       const trxId = urlParams.get('transaction_id') || '';
-      const statusParam = urlParams.get('status') || '';
+      const statusParam = (urlParams.get('status') || '').toUpperCase();
       const orderIdParam = urlParams.get('order_id') || '';
       const clientOrderIdParam = urlParams.get('client_order_id') || '';
 
-      if (trxId || statusParam === 'SUCCESS' || clientOrderIdParam || orderIdParam) {
+      // Direct clean handling for Cancelled status
+      if (statusParam === 'CANCELLED') {
+        setPaymentMsg({
+          type: 'info',
+          text: isBn ? 'পেমেন্ট প্রক্রিয়াটি বাতিল করা হয়েছে।' : 'Payment process was cancelled.',
+        });
+        const cleanUrl = window.location.pathname + '?tab=sms_packages';
+        window.history.replaceState({}, document.title, cleanUrl);
+        return;
+      }
+
+      // Direct clean handling for Failed status
+      if (statusParam === 'FAILED' || statusParam === 'FAIL' || statusParam === 'REJECTED') {
+        setPaymentMsg({
+          type: 'error',
+          text: isBn
+            ? 'পেমেন্ট ব্যর্থ হয়েছে (Payment Failed)। আপনার একাউন্ট থেকে কোনো অর্থ কাটা হয়নি।'
+            : 'Payment failed. No amount was deducted from your account.',
+        });
+        const cleanUrl = window.location.pathname + '?tab=sms_packages';
+        window.history.replaceState({}, document.title, cleanUrl);
+        return;
+      }
+
+      if (trxId || statusParam === 'SUCCESS' || statusParam === 'PENDING' || clientOrderIdParam || orderIdParam) {
         setPaymentMsg({
           type: 'info',
           text: isBn
@@ -106,6 +130,7 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
             if (statusParam) queryParams.set('status', statusParam);
             if (orderIdParam) queryParams.set('orderId', orderIdParam);
             if (clientOrderIdParam) queryParams.set('clientOrderId', clientOrderIdParam);
+            if (trxId) queryParams.set('transactionId', trxId);
             const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
 
             const res = await fetch(
@@ -125,10 +150,25 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
                 text: data.message || (isBn ? 'পেমেন্ট সফল! এসএমএস ক্রেডিট সম্পন্ন হয়েছে।' : 'SMS package purchased successfully!'),
               });
               await loadData();
+            } else if (data.status === 'FAILED') {
+              setPaymentMsg({
+                type: 'error',
+                text: data.message || (isBn ? 'পেমেন্ট ব্যর্থ হয়েছে (Payment Failed)। গেটওয়েতে সফল পেমেন্ট সম্পন্ন না হলে প্যাকেজ সক্রিয় হবে না।' : 'Payment failed. Package will only activate on successful payment.'),
+              });
+            } else if (data.status === 'CANCELLED') {
+              setPaymentMsg({
+                type: 'info',
+                text: isBn ? 'পেমেন্ট প্রক্রিয়াটি বাতিল করা হয়েছে।' : 'Payment process was cancelled.',
+              });
+            } else if (data.status === 'PENDING' || data.status === 'MANUAL_REVIEW') {
+              setPaymentMsg({
+                type: 'info',
+                text: data.message || (isBn ? 'পেমেন্ট পর্যালোচনায় রয়েছে (Pending/Manual Review)। গেটওয়েতে ভেরিফাই ও সফল হলেই প্যাকেজ সক্রিয় হবে।' : 'Payment is under review.'),
+              });
             } else {
               setPaymentMsg({
                 type: 'error',
-                text: data.message || (isBn ? 'পেমেন্ট যাচাই ব্যর্থ হয়েছে।' : 'Verification failed.'),
+                text: data.message || (isBn ? 'পেমেন্ট ব্যর্থ হয়েছে (Payment Failed)।' : 'Payment failed.'),
               });
             }
           } catch (e) {
@@ -154,6 +194,7 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
       const queryParams = new URLSearchParams();
       if (pur.orderId) queryParams.set('clientOrderId', pur.orderId);
       if (pur.orderId) queryParams.set('orderId', pur.orderId);
+      if (pur.transactionId) queryParams.set('transactionId', pur.transactionId);
 
       const res = await fetch(
         `${getApiUrl()}/maintenance/sms/verify-purchase/${verifyParam}?${queryParams.toString()}`,
@@ -172,10 +213,20 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
           text: data.message || (isBn ? 'পেমেন্ট সফল! এসএমএস ক্রেডিট সম্পন্ন হয়েছে।' : 'SMS package purchased successfully!'),
         });
         await loadData();
+      } else if (data.status === 'FAILED') {
+        setPaymentMsg({
+          type: 'error',
+          text: data.message || (isBn ? 'পেমেন্ট ব্যর্থ হয়েছে (Payment Failed)।' : 'Payment failed.'),
+        });
+      } else if (data.status === 'PENDING' || data.status === 'MANUAL_REVIEW') {
+        setPaymentMsg({
+          type: 'info',
+          text: data.message || (isBn ? 'পেমেন্ট এখনও পর্যালোচনায় রয়েছে (Pending/Manual Review)।' : 'Payment is under review.'),
+        });
       } else {
         setPaymentMsg({
           type: 'error',
-          text: data.message || (isBn ? 'পেমেন্ট যাচাই করা সম্ভব হয়নি।' : 'Could not verify payment.'),
+          text: data.message || (isBn ? 'পেমেন্ট ব্যর্থ হয়েছে (Payment Failed)।' : 'Payment failed.'),
         });
       }
     } catch (err: any) {
@@ -195,6 +246,8 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
       const token = await getAuthToken();
 
       const returnUrl = `${window.location.origin}${window.location.pathname}?tab=sms_packages`;
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+      const appDomain = typeof window !== 'undefined' ? window.location.hostname : 'sadaqahbd.com';
 
       const res = await fetch(`${getApiUrl()}/maintenance/sms/buy-package`, {
         method: 'POST',
@@ -207,6 +260,8 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
           packageId: pkg.id,
           returnUrl,
           cancelUrl: returnUrl,
+          isMobile,
+          appDomain,
         }),
       });
 
@@ -703,11 +758,15 @@ export default function SmsPackagesTab({ isBn, user }: SmsPackagesTabProps) {
                               fontWeight: 700,
                               padding: '0.12rem 0.45rem',
                               borderRadius: '6px',
-                              backgroundColor: '#fee2e2',
-                              color: '#b91c1c',
+                              backgroundColor: pur.status === 'failed' ? '#fee2e2' : pur.status === 'cancelled' ? '#f1f5f9' : '#fef3c7',
+                              color: pur.status === 'failed' ? '#b91c1c' : pur.status === 'cancelled' ? '#475569' : '#b45309',
                             }}
                           >
-                            {pur.status}
+                            {pur.status === 'failed'
+                              ? (isBn ? 'ব্যর্থ' : 'Failed')
+                              : pur.status === 'cancelled'
+                              ? (isBn ? 'বাতিল' : 'Cancelled')
+                              : (isBn ? 'পেন্ডিং' : 'Pending')}
                           </span>
                           <button
                             type="button"

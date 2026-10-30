@@ -221,7 +221,7 @@ export default function FinancialDonationModal({
         {/* Modal Header */}
         <div
           style={{
-            padding: '1.25rem 1.5rem',
+            padding: '1.2rem 1rem',
             borderBottom: '1px solid var(--surface-border, #e2e8f0)',
             display: 'flex',
             alignItems: 'center',
@@ -240,6 +240,7 @@ export default function FinancialDonationModal({
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#10b981',
+                flexShrink: 0,
               }}
             >
               <Heart size={22} />
@@ -248,10 +249,10 @@ export default function FinancialDonationModal({
               <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                 {isBn ? 'শিক্ষার্থীর জন্য অর্থ সহায়তা প্রদান' : 'Provide Financial Aid for Student'}
               </h2>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.2rem 0 0', lineHeight: 1.45 }}>
                 {isBn
-                  ? 'আপনার অনুদান সবচেয়ে জরুরি ও পিছিয়ে থাকা শিক্ষার্থীদের জন্য কর্তৃপক্ষের সিদ্ধান্ত অনুসারে যুক্ত করা হবে।'
-                  : 'Your donation will be allocated according to authority decision.'}
+                  ? 'আপনার অনুদান ভবিষ্যতে আমাদের কার্যক্রম বৃদ্ধি করার জন্য সাহস যোগাবে এবং অপেক্ষাকৃত কম ডোনেশন পাওয়া শিক্ষার্থীদের জন্য কর্তৃপক্ষের সিদ্ধান্ত অনুসারে যুক্ত করা হবে। তবে সাধারন ফান্ডে আপনার অনুদান ভবিষ্যতে কখন কোথায় এবং কিভাবে ব্যয় করা হয়েছে সেটার নোটিফিকেশন আপনার কাছে পৌছে যাবে। যা আপনি আপনার ইউজার প্রোফাইলে দেখতে পারবেন।'
+                  : 'Your donation will encourage us to expand our future initiatives and will be allocated to students with relatively fewer donations according to authority decisions. You will receive notifications on your user profile detailing when, where, and how your general fund contribution is utilized in the future.'}
               </p>
             </div>
           </div>

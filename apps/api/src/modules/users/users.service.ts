@@ -20,6 +20,7 @@ import {
   complaints,
   orgMemberRemovals,
   fundAllocations,
+  studentPhoneExemptions,
 } from '../../database';
 import { FirebaseAdminService } from '../auth/firebase-admin.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -31,9 +32,13 @@ import {
   CreateAdminUserInput,
   CreateGeneralUserInput,
   StudentVerificationProfileInput,
+  StudentVerificationSubmissionInput,
   UserRole,
   UserRoleType,
   PermissionModuleKey,
+  formatPhoneForDb,
+  extract11DigitPhone,
+  isValid11DigitPhone,
 } from '@sadaqahbd/schema';
 
 @Injectable()
@@ -78,21 +83,46 @@ export class UsersService {
       ? input.phone.trim().replace(/[\s-]/g, '')
       : null;
 
-    const conditions = [eq(users.email, cleanEmail)];
+    let dbPhone: string | null = null;
     if (cleanPhone) {
-      conditions.push(eq(users.phone, cleanPhone));
+      if (!isValid11DigitPhone(cleanPhone)) {
+        throw new BadRequestException('ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 01XXXXXXXXX)।');
+      }
+      const rawLocal = extract11DigitPhone(cleanPhone);
+      dbPhone = formatPhoneForDb(cleanPhone);
+      const with88 = `88${rawLocal}`;
+
+      const [existingPhone] = await this.db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            or(
+              eq(users.phone, rawLocal),
+              eq(users.phone, dbPhone),
+              eq(users.phone, with88),
+              eq(users.secondaryPhone, rawLocal),
+              eq(users.secondaryPhone, dbPhone),
+              eq(users.secondaryPhone, with88)
+            ),
+            isNull(users.deletedAt)
+          )
+        )
+        .limit(1);
+
+      if (existingPhone) {
+        throw new BadRequestException('এই ফোন নম্বর দিয়ে ইতোমধ্যে একটি অ্যাকাউন্ট রয়েছে।');
+      }
     }
-    const [existingUser] = await this.db
-      .select({ id: users.id, email: users.email, phone: users.phone })
+
+    const [existingEmail] = await this.db
+      .select({ id: users.id })
       .from(users)
-      .where(or(...conditions))
+      .where(and(eq(users.email, cleanEmail), isNull(users.deletedAt)))
       .limit(1);
 
-    if (existingUser) {
-      if (existingUser.email.toLowerCase() === cleanEmail) {
-        throw new BadRequestException('এই ইমেইল দিয়ে ইতোমধ্যে একটি অ্যাকাউন্ট রয়েছে।');
-      }
-      throw new BadRequestException('এই ফোন নম্বর দিয়ে ইতোমধ্যে একটি অ্যাকাউন্ট রয়েছে।');
+    if (existingEmail) {
+      throw new BadRequestException('এই ইমেইল দিয়ে ইতোমধ্যে একটি অ্যাকাউন্ট রয়েছে।');
     }
 
     // 1. Optionally create or get user in Firebase Auth with default password 'pass1233'
@@ -117,7 +147,7 @@ export class UsersService {
         id: newUserId,
         firebaseUid: fbUid,
         email: cleanEmail,
-        phone: cleanPhone,
+        phone: dbPhone,
         fullName: input.fullName.trim(),
         role: input.role,
         status: 'active',
@@ -158,21 +188,50 @@ export class UsersService {
     const cleanEmail = input.email.trim().toLowerCase();
     const cleanPhone = input.phone?.trim() ? input.phone.trim().replace(/[\s-]/g, '') : null;
 
-    const conditions = [eq(users.email, cleanEmail)];
-    if (cleanPhone) {
-      conditions.push(eq(users.phone, cleanPhone));
+    if (input.role !== UserRole.STUDENT && !cleanPhone) {
+      throw new BadRequestException('ফোন নম্বর প্রদান করা বাধ্যতামূলক।');
     }
-    const [existingUser] = await this.db
-      .select({ id: users.id, email: users.email, phone: users.phone })
+
+    let dbPhone: string | null = null;
+    if (cleanPhone) {
+      if (!isValid11DigitPhone(cleanPhone)) {
+        throw new BadRequestException('ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 01XXXXXXXXX)।');
+      }
+      const rawLocal = extract11DigitPhone(cleanPhone);
+      dbPhone = formatPhoneForDb(cleanPhone);
+      const with88 = `88${rawLocal}`;
+
+      const [existingPhone] = await this.db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            or(
+              eq(users.phone, rawLocal),
+              eq(users.phone, dbPhone),
+              eq(users.phone, with88),
+              eq(users.secondaryPhone, rawLocal),
+              eq(users.secondaryPhone, dbPhone),
+              eq(users.secondaryPhone, with88)
+            ),
+            isNull(users.deletedAt)
+          )
+        )
+        .limit(1);
+
+      if (existingPhone) {
+        throw new BadRequestException('এই ফোন নম্বর দিয়ে ইতোমধ্যে একটি অ্যাকাউন্ট রয়েছে।');
+      }
+    }
+
+    const [existingEmail] = await this.db
+      .select({ id: users.id })
       .from(users)
-      .where(or(...conditions))
+      .where(and(eq(users.email, cleanEmail), isNull(users.deletedAt)))
       .limit(1);
 
-    if (existingUser) {
-      if (existingUser.email.toLowerCase() === cleanEmail) {
-        throw new BadRequestException('এই ইমেইল দিয়ে ইতোমধ্যে একটি অ্যাকাউন্ট রয়েছে।');
-      }
-      throw new BadRequestException('এই ফোন নম্বর দিয়ে ইতোমধ্যে একটি অ্যাকাউন্ট রয়েছে।');
+    if (existingEmail) {
+      throw new BadRequestException('এই ইমেইল দিয়ে ইতোমধ্যে একটি অ্যাকাউন্ট রয়েছে।');
     }
 
     const fbUser = await this.firebaseAdmin.createOrUpdateUser({
@@ -189,7 +248,7 @@ export class UsersService {
         id: newUserId,
         firebaseUid: fbUser.uid,
         email: cleanEmail,
-        phone: cleanPhone,
+        phone: dbPhone,
         fullName: input.fullName.trim(),
         role: input.role,
         organizationId: input.organizationId || null,
@@ -1474,6 +1533,112 @@ export class UsersService {
     }
 
     return this.getMyStudentProfile(currentUser);
+  }
+
+  async submitStudentInformationVerification(
+    currentUser: any,
+    input: StudentVerificationSubmissionInput
+  ) {
+    const userId = currentUser.id;
+
+    // 1. Update users table with fullName & present address
+    await this.db
+      .update(users)
+      .set({
+        fullName: input.fullName.trim(),
+        address: input.presentAddress.trim(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+
+    // 2. Handle phone exemption if requested
+    if (input.phoneExemptionRequested) {
+      if (!input.phoneExemptionReason || input.phoneExemptionReason.trim().length < 10) {
+        throw new BadRequestException('অনুগ্রহ করে ফোন নম্বর না থাকার কারণ বিস্তারিত লিখুন (কমপক্ষে ১০ অক্ষর)।');
+      }
+
+      const [existingExemption] = await this.db
+        .select()
+        .from(studentPhoneExemptions)
+        .where(
+          and(
+            eq(studentPhoneExemptions.studentId, userId),
+            eq(studentPhoneExemptions.status, 'pending')
+          )
+        )
+        .limit(1);
+
+      if (existingExemption) {
+        await this.db
+          .update(studentPhoneExemptions)
+          .set({
+            reason: input.phoneExemptionReason.trim(),
+            updatedAt: new Date(),
+          })
+          .where(eq(studentPhoneExemptions.id, existingExemption.id));
+      } else {
+        await this.db.insert(studentPhoneExemptions).values({
+          id: randomUUID(),
+          studentId: userId,
+          reason: input.phoneExemptionReason.trim(),
+          status: 'pending',
+        });
+      }
+    }
+
+    // 3. Upsert studentProfiles table
+    const [existingProfile] = await this.db
+      .select({ id: studentProfiles.id })
+      .from(studentProfiles)
+      .where(eq(studentProfiles.userId, userId))
+      .limit(1);
+
+    const profileData = {
+      address: input.presentAddress.trim(),
+      fatherName: input.fatherName.trim(),
+      dateOfBirth: input.dateOfBirth.trim(),
+      bloodGroup: input.bloodGroup.trim(),
+      nidOrBirthCertificateNumber: input.nidOrBirthCertificateNumber.trim(),
+      presentAddress: input.presentAddress.trim(),
+      permanentAddress: input.permanentAddress.trim(),
+      guardianName: input.guardianName.trim(),
+      guardianRelationship: input.guardianRelationship.trim(),
+      guardianPhone: input.guardianPhone.trim(),
+      guardianAddress: input.guardianAddress.trim(),
+      verificationStatus: 'pending_admin' as const,
+    };
+
+    if (existingProfile) {
+      await this.db
+        .update(studentProfiles)
+        .set(profileData)
+        .where(eq(studentProfiles.id, existingProfile.id));
+    } else {
+      await this.db.insert(studentProfiles).values({
+        id: randomUUID(),
+        userId,
+        institutionName: 'অপেক্ষমাণ',
+        studentClassRoll: 'N/A',
+        ...profileData,
+      });
+    }
+
+    // 4. Notify Master Admin & Permitted Admins
+    await this.notificationsService.createNotification({
+      recipientRole: 'master_admin',
+      titleBn: 'নতুন শিক্ষার্থীর তথ্য ভেরিফিকেশন আবেদন',
+      titleEn: 'New Student Information Verification',
+      messageBn: `শিক্ষার্থী ${input.fullName} তার প্রোফাইলের গুরুত্বপূর্ণ তথ্যের ভেরিফিকেশন আবেদন জমা দিয়েছেন।`,
+      messageEn: `Student ${input.fullName} submitted profile information verification request.`,
+      type: 'student_verification_submitted',
+      requiredPermission: PermissionModuleKey.STUDENT_PHONE_EXEMPTIONS,
+      link: '/admin?tab=phone_exemptions',
+    });
+
+    return {
+      success: true,
+      message: 'আপনার শিক্ষার্থীর তথ্য ভেরিফিকেশন আবেদন সফলভাবে জমা হয়েছে। এডমিন প্যানেল থেকে পর্যালোচনা করে অনুমোদন দেওয়া হবে।',
+    };
   }
 
   async getStudentDetails(currentUser: any, identifier: string) {

@@ -34,13 +34,21 @@ export class MaintenanceController {
   @Post('apps-privilege/create-payment-session')
   async createAppsPrivilegePaymentSession(
     @CurrentUser() user: any,
-    @Body() body: { planType: 'monthly' | 'yearly'; returnUrl: string; cancelUrl?: string }
+    @Body()
+    body: {
+      planType: 'monthly' | 'yearly';
+      returnUrl: string;
+      cancelUrl?: string;
+      isMobile?: boolean;
+      appDomain?: string;
+    }
   ) {
     return this.maintenanceService.createAppsPrivilegePaymentSession(
       user,
       body.planType,
       body.returnUrl,
-      body.cancelUrl
+      body.cancelUrl,
+      { isMobile: body.isMobile, appDomain: body.appDomain }
     );
   }
 
@@ -77,13 +85,21 @@ export class MaintenanceController {
   @Post('sms/buy-package')
   async buySmsPackage(
     @CurrentUser() user: any,
-    @Body() body: { packageId: string; returnUrl: string; cancelUrl?: string }
+    @Body()
+    body: {
+      packageId: string;
+      returnUrl: string;
+      cancelUrl?: string;
+      isMobile?: boolean;
+      appDomain?: string;
+    }
   ) {
     return this.maintenanceService.buySmsPackage(
       user,
       body.packageId,
       body.returnUrl,
-      body.cancelUrl
+      body.cancelUrl,
+      { isMobile: body.isMobile, appDomain: body.appDomain }
     );
   }
 

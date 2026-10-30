@@ -101,6 +101,13 @@ export class MaintenanceService {
   }
 
   /**
+   * Base URL for Khub Soja Payment Gateway (defaults to production https://pay.khubsoja.com)
+   */
+  private getKhubSojaBaseUrl(): string {
+    return process.env.KHUBSOJA_PAY_URL || 'https://pay.khubsoja.com';
+  }
+
+  /**
    * Safe fetch helper for Khub Soja Payment Gateway (https://pay.khubsoja.com)
    * Automatically provides browser-like headers to prevent Cloudflare/LiteSpeed bot blocks,
    * reads response text safely, and never throws raw SyntaxError: Unexpected token '<' on HTML pages.
@@ -111,11 +118,15 @@ export class MaintenanceService {
     data: any;
     error: string | null;
   }> {
-    const headers = {
+    const headers: Record<string, string> = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Sadaqahbd/1.0',
       'Accept': 'application/json',
-      ...(options.headers || {}),
+      ...(options.headers as Record<string, string> || {}),
     };
+
+    if (process.env.KHUBSOJA_API_KEY) {
+      headers['X-API-KEY'] = process.env.KHUBSOJA_API_KEY;
+    }
 
     try {
       const res = await fetch(url, {
@@ -137,9 +148,8 @@ export class MaintenanceService {
         };
       }
 
-      const isSuccess = res.ok && (data?.status === 'SUCCESS' || data?.status === 'APPROVED');
       return {
-        ok: isSuccess,
+        ok: res.ok,
         status: res.status,
         data,
         error: data?.message || (!res.ok ? `Gateway error (${res.status})` : null),
@@ -156,13 +166,96 @@ export class MaintenanceService {
   }
 
   /**
+   * Query Khub Soja payment gateway via Endpoint A (verify by transaction_id)
+   * and Endpoint B (lookup by invoice/client order_id).
+   */
+  private async fetchGatewayVerification(
+    transactionId?: string | null,
+    clientOrderId?: string | null,
+    orderId?: string | null
+  ): Promise<any | null> {
+    const baseUrl = this.getKhubSojaBaseUrl();
+
+    // 1. If transactionId is available and starts with TXN, query Endpoint A
+    if (transactionId && transactionId.startsWith('TXN')) {
+      try {
+        const resA = await this.callKhubSojaApi(
+          `${baseUrl}/api/payment/verify/${encodeURIComponent(transactionId)}`
+        );
+        if (resA.ok && resA.data) {
+          const data = resA.data?.data || resA.data;
+          if (data && (data.status || data.payment_status)) {
+            return data;
+          }
+        }
+      } catch (err: any) {
+        this.logger.warn(`Verify by TXN ID notice: ${err?.message}`);
+      }
+    }
+
+    // 2. Query Endpoint B using clientOrderId (e.g. ORD-MP-... or ORD-SMS-...)
+    if (clientOrderId) {
+      try {
+        const resB1 = await this.callKhubSojaApi(
+          `${baseUrl}/api/payment/order/${encodeURIComponent(clientOrderId)}`
+        );
+        if (resB1.ok && resB1.data) {
+          const data = resB1.data?.data || resB1.data;
+          if (data && (data.status || data.payment_status)) {
+            return data;
+          }
+        }
+      } catch (err: any) {
+        this.logger.warn(`Verify by Client Order ID notice: ${err?.message}`);
+      }
+    }
+
+    // 3. Query Endpoint B using gateway orderId / invoice number if available
+    if (orderId && orderId !== clientOrderId) {
+      try {
+        const resB2 = await this.callKhubSojaApi(
+          `${baseUrl}/api/payment/order/${encodeURIComponent(orderId)}`
+        );
+        if (resB2.ok && resB2.data) {
+          const data = resB2.data?.data || resB2.data;
+          if (data && (data.status || data.payment_status)) {
+            return data;
+          }
+        }
+      } catch (err: any) {
+        this.logger.warn(`Verify by Order ID notice: ${err?.message}`);
+      }
+    }
+
+    // 4. If transactionId was provided but didn't start with TXN (e.g. ORD-...), try it against Endpoint B
+    if (transactionId && !transactionId.startsWith('TXN') && transactionId !== clientOrderId && transactionId !== orderId) {
+      try {
+        const resB3 = await this.callKhubSojaApi(
+          `${baseUrl}/api/payment/order/${encodeURIComponent(transactionId)}`
+        );
+        if (resB3.ok && resB3.data) {
+          const data = resB3.data?.data || resB3.data;
+          if (data && (data.status || data.payment_status)) {
+            return data;
+          }
+        }
+      } catch (err: any) {
+        this.logger.warn(`Verify fallback by Transaction ID as Order ID notice: ${err?.message}`);
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Create Checkout Session via Khub Soja Payment Gateway (https://pay.khubsoja.com)
    */
   async createAppsPrivilegePaymentSession(
     user: any,
     planType: 'monthly' | 'yearly',
     returnUrl: string,
-    cancelUrl?: string
+    cancelUrl?: string,
+    options?: { isMobile?: boolean; appDomain?: string }
   ) {
     const status = await this.getAppsPrivilegeStatus();
     const amount = planType === 'yearly' ? status.yearlyPrice : status.monthlyPrice;
@@ -170,35 +263,42 @@ export class MaintenanceService {
     const customerName = user?.fullName || user?.name || 'Master Admin';
     const customerPhone = user?.phone || '';
     const customerEmail = user?.email || 'admin@sadaqahbd.com';
+    const appDomain = options?.appDomain || process.env.APP_DOMAIN || 'sadaqahbd.com';
+    const baseUrl = this.getKhubSojaBaseUrl();
 
     let checkoutUrl = '';
     let transactionId = orderId;
 
     try {
-      // NOTE: Do not pass return_url in JSON body because Khub Soja rejects non-whitelisted domains in body.
-      // return_url is passed as a query param in checkout_url so Khub Soja redirects the browser back seamlessly.
-      const payload = {
+      const payload: Record<string, any> = {
         app_name: 'Sadaqahbd Maintenance',
         amount: Number(amount),
         order_id: orderId,
         customer_name: customerName,
         customer_phone: customerPhone,
         customer_email: customerEmail,
+        return_url: returnUrl,
+        cancel_url: cancelUrl || returnUrl,
       };
 
-      const result = await this.callKhubSojaApi('https://pay.khubsoja.com/api/payment/create-session', {
+      if (options?.isMobile) {
+        payload.is_mobile = true;
+        payload.app_domain = null;
+      } else if (appDomain) {
+        payload.app_domain = appDomain;
+      }
+
+      const result = await this.callKhubSojaApi(`${baseUrl}/api/payment/create-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      if (result.ok && result.data?.checkout_url) {
+      if (result.ok && result.data?.checkout_url && result.data?.status === 'SUCCESS') {
         transactionId = result.data.transaction_id || orderId;
-        const separator = result.data.checkout_url.includes('?') ? '&' : '?';
-        checkoutUrl = `${result.data.checkout_url}${separator}return_url=${encodeURIComponent(returnUrl)}`;
+        checkoutUrl = result.data.checkout_url;
       } else {
-        // Fail-safe direct browser checkout URL fallback:
-        // Users are directed directly to Khub Soja payment gateway where client-side browser session is generated
+        // Fail-safe direct browser checkout URL fallback (Method 2: Direct URL Link)
         this.logger.warn(`Falling back to direct Khub Soja checkout URL: ${result.error}`);
         const params = new URLSearchParams({
           amount: String(amount),
@@ -209,7 +309,15 @@ export class MaintenanceService {
           customer_email: customerEmail,
           return_url: returnUrl,
         });
-        checkoutUrl = `https://pay.khubsoja.com/?${params.toString()}`;
+        if (options?.isMobile) {
+          params.set('is_mobile', 'true');
+        } else if (appDomain) {
+          params.set('app_domain', appDomain);
+        }
+        if (cancelUrl) {
+          params.set('cancel_url', cancelUrl);
+        }
+        checkoutUrl = `${baseUrl}/?${params.toString()}`;
       }
 
       // Record in app_maintenance_payments as pending
@@ -244,7 +352,15 @@ export class MaintenanceService {
           customer_email: customerEmail,
           return_url: returnUrl,
         });
-        checkoutUrl = `https://pay.khubsoja.com/?${params.toString()}`;
+        if (options?.isMobile) {
+          params.set('is_mobile', 'true');
+        } else if (appDomain) {
+          params.set('app_domain', appDomain);
+        }
+        if (cancelUrl) {
+          params.set('cancel_url', cancelUrl);
+        }
+        checkoutUrl = `${baseUrl}/?${params.toString()}`;
       }
       return {
         checkoutUrl,
@@ -291,61 +407,98 @@ export class MaintenanceService {
         };
       }
 
-      // 2. Query Khub Soja payment gateway API to verify
-      let gatewayData: any = null;
-      const trxToQuery = (transactionId && transactionId.startsWith('TXN'))
-        ? transactionId
-        : (existingPayment?.transactionId && existingPayment.transactionId.startsWith('TXN'))
-          ? existingPayment.transactionId
-          : null;
-
-      if (trxToQuery) {
-        try {
-          const verifyRes = await this.callKhubSojaApi(
-            `https://pay.khubsoja.com/api/payment/verify/${encodeURIComponent(trxToQuery)}`
-          );
-          gatewayData = verifyRes.data?.data || verifyRes.data;
-        } catch (err: any) {
-          this.logger.warn(`Apps Privilege gateway verification call notice: ${err?.message}`);
+      // Fast-fail if client returns with FAILED or CANCELLED status
+      const clientStatus = (statusParam || '').toUpperCase();
+      if (clientStatus === 'FAILED' || clientStatus === 'FAIL' || clientStatus === 'REJECTED') {
+        if (existingPayment && existingPayment.status !== 'success') {
+          await this.db
+            .update(appMaintenancePayments)
+            .set({ status: 'failed' })
+            .where(eq(appMaintenancePayments.id, existingPayment.id));
         }
+        return {
+          status: 'FAILED',
+          message: 'পেমেন্ট ব্যর্থ হয়েছে (Payment Failed)। আপনার একাউন্ট থেকে কোনো অর্থ কাটা হয়নি। অনুগ্রহ করে পুনরায় চেষ্টা করুন।',
+          data: null,
+        };
       }
 
+      if (clientStatus === 'CANCELLED' || clientStatus === 'CANCEL') {
+        if (existingPayment && existingPayment.status !== 'success') {
+          await this.db
+            .update(appMaintenancePayments)
+            .set({ status: 'cancelled' })
+            .where(eq(appMaintenancePayments.id, existingPayment.id));
+        }
+        return {
+          status: 'CANCELLED',
+          message: 'পেমেন্ট গেটওয়েতে গ্রাহক দ্বারা বাতিল করা হয়েছে।',
+          data: null,
+        };
+      }
+
+      // 2. Query Khub Soja payment gateway via Endpoint A & Endpoint B
+      const gatewayData = await this.fetchGatewayVerification(
+        transactionId || existingPayment?.transactionId,
+        clientOrderIdParam || existingPayment?.orderId,
+        orderIdParam
+      );
+
+      const gatewayStatus = (gatewayData?.status || gatewayData?.payment_status || '').toUpperCase();
       const isGatewaySuccess = Boolean(
-        gatewayData &&
-        (gatewayData.status === 'SUCCESS' ||
-          gatewayData.status === 'APPROVED' ||
-          gatewayData.payment_status === 'SUCCESS' ||
-          gatewayData.payment_status === 'APPROVED')
+        gatewayData && (gatewayStatus === 'SUCCESS' || gatewayStatus === 'APPROVED')
       );
 
-      const isPending = Boolean(
-        gatewayData &&
-        (gatewayData.status === 'PENDING' ||
-          gatewayData.status === 'MANUAL_REVIEW' ||
-          gatewayData.payment_status === 'PENDING')
-      );
-
-      if (isPending) {
+      // Handle Cancelled payments
+      if (gatewayStatus === 'CANCELLED') {
+        if (existingPayment && existingPayment.status !== 'success') {
+          await this.db
+            .update(appMaintenancePayments)
+            .set({ status: 'cancelled' })
+            .where(eq(appMaintenancePayments.id, existingPayment.id));
+        }
         return {
-          status: gatewayData?.status || 'PENDING',
-          message: 'পেমেন্ট এখনও পর্যালোচনায় রয়েছে (Pending/Manual Review)। গেটওয়েতে ভেরিফাই হলে স্বয়ংক্রিয়ভাবে সক্রিয় হবে।',
+          status: 'CANCELLED',
+          message: 'পেমেন্ট গেটওয়েতে গ্রাহক দ্বারা বাতিল করা হয়েছে।',
           data: gatewayData,
         };
       }
 
-      if (gatewayData && (gatewayData.status === 'FAILED' || gatewayData.status === 'REJECTED')) {
+      // Handle Failed payments
+      if (gatewayStatus === 'FAILED' || gatewayStatus === 'REJECTED') {
+        if (existingPayment && existingPayment.status !== 'success') {
+          await this.db
+            .update(appMaintenancePayments)
+            .set({ status: 'failed' })
+            .where(eq(appMaintenancePayments.id, existingPayment.id));
+        }
         return {
           status: 'FAILED',
-          message: 'পেমেন্ট সম্পন্ন হয়নি বা বাতিল হয়েছে।',
+          message: 'পেমেন্ট গেটওয়েতে ব্যর্থ হয়েছে (Payment Failed)। আপনার একাউন্ট থেকে কোনো অর্থ কাটা হয়নি।',
           data: gatewayData,
         };
       }
 
-      // CRITICAL SECURITY RULE: Only proceed if payment is genuinely verified as SUCCESS
+      // Handle Pending / Manual Review
+      if (gatewayStatus === 'PENDING' || gatewayStatus === 'MANUAL_REVIEW') {
+        return {
+          status: 'PENDING',
+          message: 'পেমেন্ট এখনও পর্যালোচনায় রয়েছে (Pending/Manual Review)। গেটওয়েতে ভেরিফাই ও সফল (SUCCESS) হলেই কেবল সাবস্ক্রিপশন সক্রিয় হবে।',
+          data: gatewayData,
+        };
+      }
+
+      // CRITICAL NON-NEGOTIABLE RULE: Only proceed if payment is genuinely verified as SUCCESS
       if (!isGatewaySuccess) {
+        if (existingPayment && existingPayment.status !== 'success') {
+          await this.db
+            .update(appMaintenancePayments)
+            .set({ status: 'failed' })
+            .where(eq(appMaintenancePayments.id, existingPayment.id));
+        }
         return {
           status: 'FAILED',
-          message: 'পেমেন্ট গেটওয়েতে এই ট্রানজেকশনটির সফল পেমেন্ট পাওয়া যায়নি। পেমেন্ট সম্পন্ন না করা হলে প্যাকেজ সক্রিয় হবে না।',
+          message: 'পেমেন্ট গেটওয়েতে এই ট্রানজেকশনের সফল পেমেন্ট পাওয়া যায়নি (Payment Failed)। পেমেন্ট সফল না হলে কোনো প্যাকেজ সক্রিয় করা হবে না।',
           data: gatewayData,
         };
       }
@@ -369,9 +522,9 @@ export class MaintenanceService {
           id: paymentId,
           planType,
           amount: String(gatewayData.amount || 500),
-          transactionId: gatewayData.transaction_id || trxToQuery || `TXN-${Date.now()}`,
+          transactionId: gatewayData.transaction_id || transactionId || `TXN-${Date.now()}`,
           orderId: gatewayData.order_id || gatewayData.client_order_id || `ORD-MP-${Date.now()}`,
-          gatewayProvider: 'khubsoja',
+          gatewayProvider: gatewayData.provider || gatewayData.gateway_provider || 'khubsoja',
           status: 'pending',
           paidByUserId: null,
           paidByName: gatewayData.customer_name || 'Master Admin',
@@ -386,6 +539,20 @@ export class MaintenanceService {
 
       if (!payment) {
         throw new BadRequestException('পেমেন্ট রেকর্ড পাওয়া যায়নি।');
+      }
+
+      // Security Best Practice: Amount Tampering Protection
+      if (gatewayData?.amount) {
+        const paidAmount = Number(gatewayData.amount);
+        const expectedAmount = Number(payment.amount);
+        if (paidAmount < expectedAmount - 0.01) {
+          this.logger.error(`Amount mismatch for maintenance: expected ${expectedAmount}, received ${paidAmount}`);
+          return {
+            status: 'FAILED',
+            message: 'পেমেন্টকৃত অর্থের পরিমাণ নির্ধারিত সাবস্ক্রিপশন মূল্যের সাথে মেলেনি।',
+            data: gatewayData,
+          };
+        }
       }
 
       // Calculate new validity
@@ -411,7 +578,8 @@ export class MaintenanceService {
         .update(appMaintenancePayments)
         .set({
           status: 'success',
-          transactionId: gatewayData?.transaction_id || trxToQuery || transactionId,
+          transactionId: gatewayData?.transaction_id || payment.transactionId || transactionId,
+          gatewayProvider: gatewayData?.provider || gatewayData?.gateway_provider || payment.gatewayProvider || 'khubsoja',
           paidAt: new Date(),
           previousValidUntil: currentValidUntil,
           extendedValidUntil: extendedDate,
@@ -609,7 +777,8 @@ export class MaintenanceService {
     user: any,
     packageId: string,
     returnUrl: string,
-    cancelUrl?: string
+    cancelUrl?: string,
+    options?: { isMobile?: boolean; appDomain?: string }
   ) {
     const pkg = SMS_PACKAGES.find((p) => p.id === packageId);
     if (!pkg) {
@@ -620,30 +789,40 @@ export class MaintenanceService {
     const customerName = user?.fullName || user?.name || 'Master Admin';
     const customerPhone = user?.phone || '';
     const customerEmail = user?.email || 'admin@sadaqahbd.com';
+    const appDomain = options?.appDomain || process.env.APP_DOMAIN || 'sadaqahbd.com';
+    const baseUrl = this.getKhubSojaBaseUrl();
 
     let checkoutUrl = '';
     let transactionId = orderId;
 
     try {
-      const payload = {
+      const payload: Record<string, any> = {
         app_name: 'Sadaqahbd SMS Package',
         amount: Number(pkg.amount),
         order_id: orderId,
         customer_name: customerName,
         customer_phone: customerPhone,
         customer_email: customerEmail,
+        return_url: returnUrl,
+        cancel_url: cancelUrl || returnUrl,
       };
 
-      const result = await this.callKhubSojaApi('https://pay.khubsoja.com/api/payment/create-session', {
+      if (options?.isMobile) {
+        payload.is_mobile = true;
+        payload.app_domain = null;
+      } else if (appDomain) {
+        payload.app_domain = appDomain;
+      }
+
+      const result = await this.callKhubSojaApi(`${baseUrl}/api/payment/create-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      if (result.ok && result.data?.checkout_url) {
+      if (result.ok && result.data?.checkout_url && result.data?.status === 'SUCCESS') {
         transactionId = result.data.transaction_id || orderId;
-        const separator = result.data.checkout_url.includes('?') ? '&' : '?';
-        checkoutUrl = `${result.data.checkout_url}${separator}return_url=${encodeURIComponent(returnUrl)}`;
+        checkoutUrl = result.data.checkout_url;
       } else {
         this.logger.warn(`Falling back to direct Khub Soja checkout URL for SMS: ${result.error}`);
         const params = new URLSearchParams({
@@ -655,7 +834,15 @@ export class MaintenanceService {
           customer_email: customerEmail,
           return_url: returnUrl,
         });
-        checkoutUrl = `https://pay.khubsoja.com/?${params.toString()}`;
+        if (options?.isMobile) {
+          params.set('is_mobile', 'true');
+        } else if (appDomain) {
+          params.set('app_domain', appDomain);
+        }
+        if (cancelUrl) {
+          params.set('cancel_url', cancelUrl);
+        }
+        checkoutUrl = `${baseUrl}/?${params.toString()}`;
       }
 
       // Record in sms_package_purchases as pending
@@ -688,7 +875,15 @@ export class MaintenanceService {
           customer_email: customerEmail,
           return_url: returnUrl,
         });
-        checkoutUrl = `https://pay.khubsoja.com/?${params.toString()}`;
+        if (options?.isMobile) {
+          params.set('is_mobile', 'true');
+        } else if (appDomain) {
+          params.set('app_domain', appDomain);
+        }
+        if (cancelUrl) {
+          params.set('cancel_url', cancelUrl);
+        }
+        checkoutUrl = `${baseUrl}/?${params.toString()}`;
       }
       return {
         checkoutUrl,
@@ -735,61 +930,98 @@ export class MaintenanceService {
         };
       }
 
-      // 2. Query Khub Soja payment gateway API to verify
-      let gatewayData: any = null;
-      const trxToQuery = (transactionId && transactionId.startsWith('TXN'))
-        ? transactionId
-        : (existingPurchase?.transactionId && existingPurchase.transactionId.startsWith('TXN'))
-          ? existingPurchase.transactionId
-          : null;
-
-      if (trxToQuery) {
-        try {
-          const verifyRes = await this.callKhubSojaApi(
-            `https://pay.khubsoja.com/api/payment/verify/${encodeURIComponent(trxToQuery)}`
-          );
-          gatewayData = verifyRes.data?.data || verifyRes.data;
-        } catch (err: any) {
-          this.logger.warn(`SMS gateway verification call notice: ${err?.message}`);
+      // Fast-fail if client returns with FAILED or CANCELLED status
+      const clientStatus = (statusParam || '').toUpperCase();
+      if (clientStatus === 'FAILED' || clientStatus === 'FAIL' || clientStatus === 'REJECTED') {
+        if (existingPurchase && existingPurchase.status !== 'success') {
+          await this.db
+            .update(smsPackagePurchases)
+            .set({ status: 'failed' })
+            .where(eq(smsPackagePurchases.id, existingPurchase.id));
         }
+        return {
+          status: 'FAILED',
+          message: 'পেমেন্ট ব্যর্থ হয়েছে (Payment Failed)। আপনার একাউন্ট থেকে কোনো অর্থ কাটা হয়নি। অনুগ্রহ করে পুনরায় চেষ্টা করুন।',
+          data: null,
+        };
       }
 
+      if (clientStatus === 'CANCELLED' || clientStatus === 'CANCEL') {
+        if (existingPurchase && existingPurchase.status !== 'success') {
+          await this.db
+            .update(smsPackagePurchases)
+            .set({ status: 'cancelled' })
+            .where(eq(smsPackagePurchases.id, existingPurchase.id));
+        }
+        return {
+          status: 'CANCELLED',
+          message: 'পেমেন্ট গেটওয়েতে গ্রাহক দ্বারা বাতিল করা হয়েছে।',
+          data: null,
+        };
+      }
+
+      // 2. Query Khub Soja payment gateway via Endpoint A & Endpoint B
+      const gatewayData = await this.fetchGatewayVerification(
+        transactionId || existingPurchase?.transactionId,
+        clientOrderIdParam || existingPurchase?.orderId,
+        orderIdParam
+      );
+
+      const gatewayStatus = (gatewayData?.status || gatewayData?.payment_status || '').toUpperCase();
       const isGatewaySuccess = Boolean(
-        gatewayData &&
-        (gatewayData.status === 'SUCCESS' ||
-          gatewayData.status === 'APPROVED' ||
-          gatewayData.payment_status === 'SUCCESS' ||
-          gatewayData.payment_status === 'APPROVED')
+        gatewayData && (gatewayStatus === 'SUCCESS' || gatewayStatus === 'APPROVED')
       );
 
-      const isPending = Boolean(
-        gatewayData &&
-        (gatewayData.status === 'PENDING' ||
-          gatewayData.status === 'MANUAL_REVIEW' ||
-          gatewayData.payment_status === 'PENDING')
-      );
-
-      if (isPending) {
+      // Handle Cancelled payments
+      if (gatewayStatus === 'CANCELLED') {
+        if (existingPurchase && existingPurchase.status !== 'success') {
+          await this.db
+            .update(smsPackagePurchases)
+            .set({ status: 'cancelled' })
+            .where(eq(smsPackagePurchases.id, existingPurchase.id));
+        }
         return {
-          status: gatewayData?.status || 'PENDING',
-          message: 'পেমেন্ট এখনও পর্যালোচনায় রয়েছে (Pending/Manual Review)। কিছুক্ষণের মধ্যে এসএমএস ব্যালেন্স যুক্ত হবে।',
+          status: 'CANCELLED',
+          message: 'পেমেন্ট গেটওয়েতে গ্রাহক দ্বারা বাতিল করা হয়েছে।',
           data: gatewayData,
         };
       }
 
-      if (gatewayData && (gatewayData.status === 'FAILED' || gatewayData.status === 'REJECTED')) {
+      // Handle Failed payments
+      if (gatewayStatus === 'FAILED' || gatewayStatus === 'REJECTED') {
+        if (existingPurchase && existingPurchase.status !== 'success') {
+          await this.db
+            .update(smsPackagePurchases)
+            .set({ status: 'failed' })
+            .where(eq(smsPackagePurchases.id, existingPurchase.id));
+        }
         return {
           status: 'FAILED',
-          message: 'পেমেন্ট সম্পন্ন হয়নি বা বাতিল হয়েছে।',
+          message: 'পেমেন্ট গেটওয়েতে ব্যর্থ হয়েছে (Payment Failed)। আপনার একাউন্ট থেকে কোনো অর্থ কাটা হয়নি।',
           data: gatewayData,
         };
       }
 
-      // CRITICAL SECURITY RULE: Only proceed if payment is genuinely verified as SUCCESS
+      // Handle Pending / Manual Review
+      if (gatewayStatus === 'PENDING' || gatewayStatus === 'MANUAL_REVIEW') {
+        return {
+          status: 'PENDING',
+          message: 'পেমেন্ট এখনও পর্যালোচনায় রয়েছে (Pending/Manual Review)। গেটওয়েতে ভেরিফাই ও সফল (SUCCESS) হলেই কেবল এসএমএস ব্যালেন্স যুক্ত হবে।',
+          data: gatewayData,
+        };
+      }
+
+      // CRITICAL NON-NEGOTIABLE RULE: Only proceed if payment is genuinely verified as SUCCESS
       if (!isGatewaySuccess) {
+        if (existingPurchase && existingPurchase.status !== 'success') {
+          await this.db
+            .update(smsPackagePurchases)
+            .set({ status: 'failed' })
+            .where(eq(smsPackagePurchases.id, existingPurchase.id));
+        }
         return {
           status: 'FAILED',
-          message: 'পেমেন্ট গেটওয়েতে এই ট্রানজেকশনটির সফল পেমেন্ট পাওয়া যায়নি। পেমেন্ট সম্পন্ন না করা হলে প্যাকেজ সক্রিয় হবে না।',
+          message: 'পেমেন্ট গেটওয়েতে এই ট্রানজেকশনের সফল পেমেন্ট পাওয়া যায়নি (Payment Failed)। পেমেন্ট সফল না হলে কোনো এসএমএস প্যাকেজ সক্রিয় করা হবে না।',
           data: gatewayData,
         };
       }
@@ -816,7 +1048,7 @@ export class MaintenanceService {
           packageName: matchedPkg.name,
           smsCount: matchedPkg.smsCount,
           amount: String(gatewayData.amount || matchedPkg.amount),
-          transactionId: gatewayData.transaction_id || trxToQuery || `TXN-${Date.now()}`,
+          transactionId: gatewayData.transaction_id || transactionId || `TXN-${Date.now()}`,
           orderId: gatewayData.order_id || gatewayData.client_order_id || `ORD-SMS-${Date.now()}`,
           status: 'pending',
           purchasedByUserId: null,
@@ -830,12 +1062,26 @@ export class MaintenanceService {
         throw new BadRequestException('প্যাকেজ ক্রয়ের রেকর্ড পাওয়া যায়নি।');
       }
 
+      // Security Best Practice: Amount Tampering Protection
+      if (gatewayData?.amount) {
+        const paidAmount = Number(gatewayData.amount);
+        const expectedAmount = Number(purchase.amount);
+        if (paidAmount < expectedAmount - 0.01) {
+          this.logger.error(`Amount mismatch for SMS purchase: expected ${expectedAmount}, received ${paidAmount}`);
+          return {
+            status: 'FAILED',
+            message: 'পেমেন্টকৃত অর্থের পরিমাণ প্যাকেজের মূল্যের সাথে মেলেনি।',
+            data: gatewayData,
+          };
+        }
+      }
+
       // Update purchase record
       await this.db
         .update(smsPackagePurchases)
         .set({
           status: 'success',
-          transactionId: gatewayData?.transaction_id || trxToQuery || transactionId,
+          transactionId: gatewayData?.transaction_id || purchase.transactionId || transactionId,
           purchasedAt: new Date(),
         })
         .where(eq(smsPackagePurchases.id, purchase.id));

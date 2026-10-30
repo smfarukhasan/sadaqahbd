@@ -1,5 +1,5 @@
 ---
-description: Fullstack Core Tech Stack & Rules (CloudLinux + LiteSpeed + cPanel + Firebase Auth & FCM + Adaptive Mobile App / Desktop Web View)
+description: "Fullstack Core Tech Stack & Rules (CloudLinux + LiteSpeed + cPanel + Firebase Auth & FCM + Adaptive Mobile App / Desktop Web View)"
 globs: ["**/*"]
 always_on: true
 ---

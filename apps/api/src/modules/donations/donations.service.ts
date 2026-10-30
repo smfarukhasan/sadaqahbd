@@ -28,6 +28,7 @@ import {
   DonationStatus,
   UserRole,
   PermissionModuleKey,
+  formatPhoneForDb,
 } from '@sadaqahbd/schema';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -582,41 +583,47 @@ export class DonationsService {
   // ITEM / NON-MONETARY DONATIONS
   // --------------------------------------------------------------------------
   async submitItemDonation(donorUser: any, input: CreateItemDonationInput) {
-    if (!input.isRandom && !input.postId) {
-      throw new BadRequestException('Direct student item donation requires post ID');
+    const isRandom = Boolean(input.isRandom);
+    const targetPostId = isRandom || !input.postId || input.postId.trim() === ''
+      ? null
+      : input.postId.trim();
+
+    if (!isRandom && !targetPostId) {
+      throw new BadRequestException('নির্দিষ্ট শিক্ষার্থীর অনুদানের জন্য পোস্ট নির্বাচন করা আবশ্যক।');
     }
 
-    if (input.postId) {
+    if (targetPostId) {
       const post = await this.db
         .select()
         .from(studentPosts)
-        .where(eq(studentPosts.id, input.postId))
+        .where(eq(studentPosts.id, targetPostId))
         .limit(1);
 
       if (post.length === 0) {
-        throw new NotFoundException('Target student post not found');
+        throw new NotFoundException('উল্লিখিত শিক্ষার্থী পোস্টটি পাওয়া যায়নি।');
       }
     }
 
     const itemDonationId = crypto.randomUUID();
+    const formattedPhone = formatPhoneForDb(input.donorPhone);
 
     await this.db.insert(itemDonations).values({
       id: itemDonationId,
       donorId: donorUser ? donorUser.id : null,
-      donorName: donorUser ? donorUser.fullName : 'অজ্ঞাত দাতা',
-      donorPhone: input.donorPhone,
-      itemName: input.itemName,
-      description: input.description,
-      quantity: input.quantity,
-      isRandom: input.isRandom,
+      donorName: donorUser ? (donorUser.fullName || 'সম্মানিত দাতা') : 'সম্মানিত দাতা',
+      donorPhone: formattedPhone,
+      itemName: input.itemName.trim(),
+      description: input.description.trim(),
+      quantity: input.quantity.trim() || '১ টি',
+      isRandom,
       isAnonymous: input.isAnonymous ?? false,
-      postId: input.isRandom ? null : input.postId,
-      pickupAddress: input.pickupAddress,
+      postId: targetPostId,
+      pickupAddress: input.pickupAddress?.trim() || null,
       status: DonationStatus.PENDING,
       deliveryStatus: 'pending_review',
     });
 
-    // Notify Super Admins and Master Admin (Filtered by Permission)
+    // Notify Admins
     await this.notificationsService.createNotification({
       recipientRole: 'admin',
       requiredPermission: PermissionModuleKey.ITEM_DONATION_APPROVAL,
@@ -625,12 +632,12 @@ export class DonationsService {
       messageBn: `"${input.itemName}" (${input.quantity}) পণ্য অনুদানের একটি নতুন আবেদন এসেছে।`,
       messageEn: `An in-kind item donation ("${input.itemName}") has been submitted for verification.`,
       type: 'item_donation_created',
-      link: '/admin?tab=item_donation_review',
+      link: '/admin?tab=item_donations',
     });
 
     return {
       success: true,
-      message: 'Item donation request submitted successfully. Pending admin review.',
+      message: 'পণ্য অনুদানের আবেদন সফলভাবে জমা হয়েছে। এডমিন প্যানেল থেকে পর্যালোচনা করে দিকনির্দেশনা দেওয়া হবে।',
       itemDonationId,
     };
   }
@@ -638,9 +645,10 @@ export class DonationsService {
   async reviewItemDonation(reviewer: any, input: ReviewItemDonationInput) {
     if (
       reviewer.role !== UserRole.MASTER_ADMIN &&
-      reviewer.role !== UserRole.SUPER_ADMIN
+      reviewer.role !== UserRole.SUPER_ADMIN &&
+      reviewer.role !== UserRole.ADMIN
     ) {
-      throw new ForbiddenException('Only Master Admin or Super Admin can review item donations');
+      throw new ForbiddenException('Only Master Admin, Super Admin, or Admin can review item donations');
     }
 
     const target = await this.db
@@ -746,9 +754,10 @@ export class DonationsService {
   async adminFollowUpItemDonation(reviewer: any, input: AdminFollowUpItemDonationInput) {
     if (
       reviewer.role !== UserRole.MASTER_ADMIN &&
-      reviewer.role !== UserRole.SUPER_ADMIN
+      reviewer.role !== UserRole.SUPER_ADMIN &&
+      reviewer.role !== UserRole.ADMIN
     ) {
-      throw new ForbiddenException('Only Master Admin or Super Admin can manage item donations');
+      throw new ForbiddenException('Only Master Admin, Super Admin, or Admin can manage item donations');
     }
 
     const target = await this.db
@@ -857,7 +866,15 @@ export class DonationsService {
     return list;
   }
 
-  async listItemDonationRequests() {
+  async listItemDonationRequests(reviewer?: any) {
+    if (
+      reviewer &&
+      reviewer.role !== UserRole.MASTER_ADMIN &&
+      reviewer.role !== UserRole.SUPER_ADMIN &&
+      reviewer.role !== UserRole.ADMIN
+    ) {
+      throw new ForbiddenException('Access denied');
+    }
     const list = await this.db
       .select({
         id: itemDonations.id,

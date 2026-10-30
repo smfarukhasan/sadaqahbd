@@ -76,6 +76,46 @@ export function getFriendlyAuthErrorMessage(
       : 'অতিরিক্ত ব্যর্থ চেষ্টার কারণে একাউন্ট সাময়িকভাবে লক রয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।';
   }
 
+  // Unauthorized domain (Domain not whitelisted in Firebase Console)
+  if (
+    rawCode === 'auth/unauthorized-domain' ||
+    rawMsg.includes('unauthorized-domain')
+  ) {
+    return locale === 'en'
+      ? 'Domain unauthorized: Please add "sadaqahbd.com" to Authorized Domains in Firebase Console (Authentication > Settings > Authorized domains).'
+      : 'ডোমেনটি Firebase-এ অনুমোদিত নয়: অনুগ্রহ করে Firebase Console-এর (Authentication > Settings > Authorized domains)-এ গিয়ে "sadaqahbd.com" ও "www.sadaqahbd.com" যুক্ত করুন।';
+  }
+
+  // Popup blocked by browser
+  if (
+    rawCode === 'auth/popup-blocked' ||
+    rawMsg.includes('popup-blocked')
+  ) {
+    return locale === 'en'
+      ? 'Sign-in popup was blocked by your browser. Please allow popups for this site and try again.'
+      : 'আপনার ব্রাউজার গুগল লগইন পপ-আপ উইন্ডো ব্লক করেছে। অনুগ্রহ করে ব্রাউজারের পপ-আপ এলাউ করুন।';
+  }
+
+  // Operation not allowed (e.g. Google Sign-In not enabled in console)
+  if (
+    rawCode === 'auth/operation-not-allowed' ||
+    rawMsg.includes('operation-not-allowed')
+  ) {
+    return locale === 'en'
+      ? 'Google Sign-In is not enabled in Firebase Console. Please enable Google under Authentication > Sign-in method.'
+      : 'Firebase Console-এ গুগল সাইন-ইন চালু করা নেই। অনুগ্রহ করে Authentication > Sign-in method থেকে Google সক্রিয় করুন।';
+  }
+
+  // Cancelled popup request
+  if (
+    rawCode === 'auth/cancelled-popup-request' ||
+    rawMsg.includes('cancelled-popup-request')
+  ) {
+    return locale === 'en'
+      ? 'Another sign-in attempt was already in progress.'
+      : 'পূর্বের লগইন উইন্ডো প্রসেসিংয়ে ছিল। অনুগ্রহ করে পুনরায় ক্লিক করুন।';
+  }
+
   // Custom application error from backend API (does not contain raw Firebase internals)
   if (err.message && !err.message.includes('Firebase:') && !err.message.includes('auth/')) {
     return err.message;
@@ -104,10 +144,12 @@ export function getFriendlyAuthErrorMessage(
       : 'লগইন উইন্ডো বন্ধ করা হয়েছে।';
   }
 
-  // Fallback default
+  // Fallback default with error code for rapid troubleshooting
   if (fallbackDefault) return fallbackDefault;
 
+  const detailSuffix = rawCode ? ` (${rawCode})` : (err.message ? ` (${err.message.slice(0, 80)})` : '');
+
   return locale === 'en'
-    ? 'Authentication failed. Please verify your credentials and try again.'
-    : 'অথেনটিকেশনে সমস্যা দেখা দিয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।';
+    ? `Authentication failed. Please verify your credentials and try again.${detailSuffix}`
+    : `অথেনটিকেশনে সমস্যা দেখা দিয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।${detailSuffix}`;
 }

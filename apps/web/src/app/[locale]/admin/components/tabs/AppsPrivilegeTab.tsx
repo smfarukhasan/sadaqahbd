@@ -80,11 +80,35 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       const trxId = urlParams.get('transaction_id') || '';
-      const statusParam = urlParams.get('status') || '';
+      const statusParam = (urlParams.get('status') || '').toUpperCase();
       const orderIdParam = urlParams.get('order_id') || '';
       const clientOrderIdParam = urlParams.get('client_order_id') || '';
 
-      if (trxId || statusParam === 'SUCCESS' || clientOrderIdParam || orderIdParam) {
+      // Direct clean handling for Cancelled status
+      if (statusParam === 'CANCELLED') {
+        setPaymentMsg({
+          type: 'info',
+          text: isBn ? 'পেমেন্ট প্রক্রিয়াটি বাতিল করা হয়েছে।' : 'Payment process was cancelled.',
+        });
+        const cleanUrl = window.location.pathname + '?tab=apps_privilege';
+        window.history.replaceState({}, document.title, cleanUrl);
+        return;
+      }
+
+      // Direct clean handling for Failed status
+      if (statusParam === 'FAILED' || statusParam === 'FAIL' || statusParam === 'REJECTED') {
+        setPaymentMsg({
+          type: 'error',
+          text: isBn
+            ? 'পেমেন্ট ব্যর্থ হয়েছে (Payment Failed)। আপনার একাউন্ট থেকে কোনো অর্থ কাটা হয়নি।'
+            : 'Payment failed. No amount was deducted from your account.',
+        });
+        const cleanUrl = window.location.pathname + '?tab=apps_privilege';
+        window.history.replaceState({}, document.title, cleanUrl);
+        return;
+      }
+
+      if (trxId || statusParam === 'SUCCESS' || statusParam === 'PENDING' || clientOrderIdParam || orderIdParam) {
         setPaymentMsg({
           type: 'info',
           text: isBn
@@ -101,6 +125,7 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
             if (statusParam) queryParams.set('status', statusParam);
             if (orderIdParam) queryParams.set('orderId', orderIdParam);
             if (clientOrderIdParam) queryParams.set('clientOrderId', clientOrderIdParam);
+            if (trxId) queryParams.set('transactionId', trxId);
             const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
 
             const verifyRes = await fetch(
@@ -125,10 +150,25 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
                   : 'Payment successful! Subscription validity has been extended.',
               });
               await loadStatus();
+            } else if (verifyData.status === 'FAILED') {
+              setPaymentMsg({
+                type: 'error',
+                text: verifyData.message || (isBn ? 'পেমেন্ট ব্যর্থ হয়েছে (Payment Failed)। গেটওয়েতে সফল পেমেন্ট সম্পন্ন না হলে প্যাকেজ সক্রিয় হবে না।' : 'Payment failed. Package will only activate on successful payment.'),
+              });
+            } else if (verifyData.status === 'CANCELLED') {
+              setPaymentMsg({
+                type: 'info',
+                text: isBn ? 'পেমেন্ট প্রক্রিয়াটি বাতিল করা হয়েছে।' : 'Payment process was cancelled.',
+              });
+            } else if (verifyData.status === 'PENDING' || verifyData.status === 'MANUAL_REVIEW') {
+              setPaymentMsg({
+                type: 'info',
+                text: verifyData.message || (isBn ? 'পেমেন্ট পর্যালোচনায় রয়েছে (Pending/Manual Review)। গেটওয়েতে ভেরিফাই ও সফল হলেই প্যাকেজ সক্রিয় হবে।' : 'Payment is under review.'),
+              });
             } else {
               setPaymentMsg({
                 type: 'error',
-                text: verifyData.message || (isBn ? 'পেমেন্ট যাচাই করা সম্ভব হয়নি।' : 'Payment verification failed.'),
+                text: verifyData.message || (isBn ? 'পেমেন্ট ব্যর্থ হয়েছে (Payment Failed)।' : 'Payment failed.'),
               });
             }
           } catch (e: any) {
@@ -155,6 +195,7 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
       const queryParams = new URLSearchParams();
       if (paymentRecord.orderId) queryParams.set('clientOrderId', paymentRecord.orderId);
       if (paymentRecord.orderId) queryParams.set('orderId', paymentRecord.orderId);
+      if (paymentRecord.transactionId) queryParams.set('transactionId', paymentRecord.transactionId);
 
       const res = await fetch(
         `${getApiUrl()}/maintenance/apps-privilege/verify-payment/${verifyParam}?${queryParams.toString()}`,
@@ -178,10 +219,20 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
             : 'Payment verified and subscription validity extended.',
         });
         await loadStatus();
+      } else if (data.status === 'FAILED') {
+        setPaymentMsg({
+          type: 'error',
+          text: data.message || (isBn ? 'পেমেন্ট ব্যর্থ হয়েছে (Payment Failed)।' : 'Payment failed.'),
+        });
+      } else if (data.status === 'PENDING' || data.status === 'MANUAL_REVIEW') {
+        setPaymentMsg({
+          type: 'info',
+          text: data.message || (isBn ? 'পেমেন্ট এখনও পর্যালোচনায় রয়েছে (Pending/Manual Review)।' : 'Payment is under review.'),
+        });
       } else {
         setPaymentMsg({
           type: 'error',
-          text: data.message || (isBn ? 'এই অর্ডারের কোনো সফল পেমেন্ট পাওয়া যায়নি।' : 'No successful payment found.'),
+          text: data.message || (isBn ? 'পেমেন্ট ব্যর্থ হয়েছে (Payment Failed)।' : 'Payment failed.'),
         });
       }
     } catch (err: any) {
@@ -201,6 +252,8 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
       const token = await getAuthToken();
 
       const returnUrl = `${window.location.origin}${window.location.pathname}?tab=apps_privilege`;
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+      const appDomain = typeof window !== 'undefined' ? window.location.hostname : 'sadaqahbd.com';
 
       const res = await fetch(`${getApiUrl()}/maintenance/apps-privilege/create-payment-session`, {
         method: 'POST',
@@ -213,6 +266,8 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
           planType: selectedPlan,
           returnUrl,
           cancelUrl: returnUrl,
+          isMobile,
+          appDomain,
         }),
       });
 
@@ -780,11 +835,15 @@ export default function AppsPrivilegeTab({ isBn, user }: AppsPrivilegeTabProps) 
                               fontWeight: 700,
                               padding: '0.12rem 0.45rem',
                               borderRadius: '6px',
-                              backgroundColor: '#fee2e2',
-                              color: '#b91c1c',
+                              backgroundColor: p.status === 'failed' ? '#fee2e2' : p.status === 'cancelled' ? '#f1f5f9' : '#fef3c7',
+                              color: p.status === 'failed' ? '#b91c1c' : p.status === 'cancelled' ? '#475569' : '#b45309',
                             }}
                           >
-                            {p.status}
+                            {p.status === 'failed'
+                              ? (isBn ? 'ব্যর্থ' : 'Failed')
+                              : p.status === 'cancelled'
+                              ? (isBn ? 'বাতিল' : 'Cancelled')
+                              : (isBn ? 'পেন্ডিং' : 'Pending')}
                           </span>
                           <button
                             type="button"

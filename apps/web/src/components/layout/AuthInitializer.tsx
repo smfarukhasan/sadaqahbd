@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../../lib/firebase';
+import { auth, logoutUser } from '../../lib/firebase';
 import { useAuthStore } from '../../lib/auth-store';
 import { getApiUrl } from '../../lib/api-config';
 
@@ -19,6 +19,30 @@ export default function AuthInitializer() {
       }
 
       if (fbUser) {
+        // Protect active administrative sessions from being overwritten by a mismatched Google/Firebase session
+        if (typeof window !== 'undefined') {
+          const storedMaster = localStorage.getItem('sadaqahbd_master_admin');
+          const storedLocalUser = localStorage.getItem('sadaqahbd_local_user');
+          let activeAdmin: any = null;
+          try {
+            activeAdmin = storedMaster ? JSON.parse(storedMaster) : (storedLocalUser ? JSON.parse(storedLocalUser) : null);
+          } catch {}
+
+          if (
+            activeAdmin &&
+            (activeAdmin.role === 'master_admin' ||
+              activeAdmin.role === 'super_admin' ||
+              activeAdmin.role === 'admin')
+          ) {
+            if (activeAdmin.email && fbUser.email && activeAdmin.email.toLowerCase() !== fbUser.email.toLowerCase()) {
+              // Lingering mismatched Google account from previous session — clean it up and keep admin session
+              logoutUser().catch(() => null);
+              setUser(activeAdmin);
+              return;
+            }
+          }
+        }
+
         await syncProfile(fbUser);
       } else {
         if (typeof window !== 'undefined') {

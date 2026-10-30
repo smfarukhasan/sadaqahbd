@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DonationStatus } from './enums';
+import { isValid11DigitPhone } from './phone.utils';
 
 export const CreateDonationSchema = z
   .object({
@@ -60,21 +61,25 @@ export const AllocateFundSchema = z.object({
 });
 
 export type AllocateFundInput = z.infer<typeof AllocateFundSchema>;
-
+ 
 export const CreateItemDonationSchema = z
   .object({
     itemName: z.string().min(2, 'Item name is required'),
     description: z.string().min(5, 'Item description is required'),
     quantity: z.string().min(1, 'Quantity is required'),
     isRandom: z.boolean().default(false),
-    postId: z.string().uuid().optional(),
-    donorPhone: z.string().min(6, 'Donor phone is required'),
-    pickupAddress: z.string().optional(),
+    postId: z.string().uuid().optional().nullable().or(z.literal('')),
+    donorPhone: z
+      .string()
+      .refine((val) => isValid11DigitPhone(val), {
+        message: 'যোগাযোগের ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 01XXXXXXXXX)।',
+      }),
+    pickupAddress: z.string().optional().nullable().or(z.literal('')),
     isAnonymous: z.boolean().default(false).optional(),
   })
   .refine(
     (data) => {
-      if (!data.isRandom && !data.postId) {
+      if (!data.isRandom && (!data.postId || data.postId.trim() === '')) {
         return false;
       }
       return true;

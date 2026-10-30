@@ -3,11 +3,32 @@ import mysql from 'mysql2/promise';
 import * as schema from './schema';
 import * as dotenv from 'dotenv';
 
+import * as fs from 'fs';
+
 dotenv.config();
 
-export const poolConnection = mysql.createPool({
-  host: process.env.DATABASE_HOST || 'localhost',
-  port: Number(process.env.DATABASE_PORT) || 3306,
+const configuredHost = process.env.DATABASE_HOST || 'localhost';
+const configuredSocket = process.env.DATABASE_SOCKET_PATH;
+
+// Check for cPanel / CloudLinux standard Unix domain sockets
+const possibleSockets = [
+  configuredSocket,
+  '/var/lib/mysql/mysql.sock',
+  '/tmp/mysql.sock',
+].filter(Boolean) as string[];
+
+const detectedSocket =
+  process.platform !== 'win32'
+    ? possibleSockets.find((s) => {
+        try {
+          return fs.existsSync(s);
+        } catch {
+          return false;
+        }
+      })
+    : undefined;
+
+const poolConfig: any = {
   user: process.env.DATABASE_USER || 'root',
   password: process.env.DATABASE_PASSWORD || '',
   database: process.env.DATABASE_NAME || 'sadaqahbd_db',
@@ -22,7 +43,17 @@ export const poolConnection = mysql.createPool({
   connectTimeout: 10000,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
-});
+};
+
+if (detectedSocket) {
+  // Unix domain socket on cPanel / CloudLinux matches @'localhost' without IP mapping
+  poolConfig.socketPath = detectedSocket;
+} else {
+  poolConfig.host = configuredHost;
+  poolConfig.port = Number(process.env.DATABASE_PORT) || 3306;
+}
+
+export const poolConnection = mysql.createPool(poolConfig);
 
 export const db = drizzle(poolConnection, { schema, mode: 'default' });
 
@@ -628,6 +659,46 @@ export async function ensurePerformanceIndexes() {
     console.log('Verified performance database indexes.');
   } catch (err) {
     console.error('ensurePerformanceIndexes warning:', err);
+  }
+}
+
+export async function ensurePhoneNumbersNormalized() {
+  try {
+    // 1. Normalize users table: phone starting with '01' to '+8801...'
+    await poolConnection.query(`
+      UPDATE users 
+      SET phone = CONCAT('+88', phone) 
+      WHERE phone IS NOT NULL 
+        AND phone REGEXP '^01[3-9][0-9]{8}$'
+    `);
+
+    // 2. Normalize users table: secondary_phone starting with '01' to '+8801...'
+    await poolConnection.query(`
+      UPDATE users 
+      SET secondary_phone = CONCAT('+88', secondary_phone) 
+      WHERE secondary_phone IS NOT NULL 
+        AND secondary_phone REGEXP '^01[3-9][0-9]{8}$'
+    `);
+
+    // 3. Normalize user_verified_phones table: phone starting with '01' to '+8801...'
+    await poolConnection.query(`
+      UPDATE user_verified_phones 
+      SET phone = CONCAT('+88', phone) 
+      WHERE phone IS NOT NULL 
+        AND phone REGEXP '^01[3-9][0-9]{8}$'
+    `);
+
+    // 4. Normalize item_donations table: donor_phone starting with '01' to '+8801...'
+    await poolConnection.query(`
+      UPDATE item_donations 
+      SET donor_phone = CONCAT('+88', donor_phone) 
+      WHERE donor_phone IS NOT NULL 
+        AND donor_phone REGEXP '^01[3-9][0-9]{8}$'
+    `);
+
+    console.log('Verified and normalized legacy phone numbers to +88 format.');
+  } catch (err) {
+    console.error('ensurePhoneNumbersNormalized warning:', err);
   }
 }
 
