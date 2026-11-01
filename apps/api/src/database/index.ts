@@ -79,6 +79,7 @@ export async function ensureStudentProfileColumns() {
       { name: 'guardian_relationship', definition: 'VARCHAR(100) NULL' },
       { name: 'guardian_phone', definition: 'VARCHAR(30) NULL' },
       { name: 'guardian_address', definition: 'TEXT NULL' },
+      { name: 'rejection_reason', definition: 'TEXT NULL' },
     ];
 
     for (const col of columnsToAdd) {
@@ -90,6 +91,31 @@ export async function ensureStudentProfileColumns() {
     }
   } catch (err) {
     console.error('ensureStudentProfileColumns warning:', err);
+  }
+}
+
+export async function ensureTeacherProfileColumns() {
+  try {
+    const [rows] = await poolConnection.query<any[]>(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS 
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'teacher_profiles'`
+    );
+    if (!Array.isArray(rows) || rows.length === 0) return;
+    const existingCols = new Set(rows.map((r: any) => r.COLUMN_NAME?.toLowerCase()));
+
+    const columnsToAdd: { name: string; definition: string }[] = [
+      { name: 'rejection_reason', definition: 'TEXT NULL' },
+    ];
+
+    for (const col of columnsToAdd) {
+      if (!existingCols.has(col.name.toLowerCase())) {
+        await poolConnection.query(
+          `ALTER TABLE teacher_profiles ADD COLUMN \`${col.name}\` ${col.definition}`
+        );
+      }
+    }
+  } catch (err) {
+    console.error('ensureTeacherProfileColumns warning:', err);
   }
 }
 
@@ -425,6 +451,26 @@ export async function ensureMaintenanceAndSmsTables() {
     console.log('Verified and ensured Maintenance & SMS database tables.');
   } catch (err) {
     console.error('ensureMaintenanceAndSmsTables warning:', err);
+  }
+}
+
+export async function ensureOrganizationsTableColumns() {
+  try {
+    const [rows]: any = await poolConnection.query(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS 
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'organizations'`
+    );
+    if (!Array.isArray(rows) || rows.length === 0) return;
+    const existingCols = new Set(rows.map((r: any) => r.COLUMN_NAME?.toLowerCase()));
+
+    if (!existingCols.has('rejection_reason')) {
+      await poolConnection.query(
+        `ALTER TABLE organizations ADD COLUMN \`rejection_reason\` TEXT NULL AFTER \`status\``
+      );
+      console.log('Added rejection_reason column to organizations table.');
+    }
+  } catch (err) {
+    console.error('ensureOrganizationsTableColumns warning:', err);
   }
 }
 

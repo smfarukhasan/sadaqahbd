@@ -369,13 +369,6 @@ export default function PostDetailPage({
                 </div>
               </div>
             </div>
-
-            {post.adminModificationReason && (
-              <div style={{ marginTop: '1rem', padding: '0.85rem 1rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', fontSize: '0.82rem', color: '#92400e' }}>
-                <strong>{isBn ? "এডমিন কর্তৃক খরচের খাত সমন্বয় নোট: " : "Admin Adjustment Note: "}</strong>
-                {post.adminModificationReason}
-              </div>
-            )}
           </div>
 
           {/* 4. Student's Previous Aid Applications & Progress Accordion */}

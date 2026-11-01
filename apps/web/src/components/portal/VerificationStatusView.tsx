@@ -434,15 +434,40 @@ export default function VerificationStatusView({
       >
         <AlertCircle size={48} color="#dc2626" style={{ margin: '0 auto 1rem' }} />
         <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-          {isBn ? 'আবেদনটি প্রত্যাখ্যাত হয়েছে' : 'Affiliation / Verification Rejected'}
-        </h3>
-        <p style={{ maxWidth: 520, margin: '0.75rem auto 1.5rem', color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.5 }}>
-          {rejectionReason
-            ? (isBn ? `কারণ: ${rejectionReason}` : `Reason: ${rejectionReason}`)
+          {role === 'organization'
+            ? isBn
+              ? 'প্রতিষ্ঠানের আবেদন প্রত্যাখ্যাত হয়েছে'
+              : 'Organization Application Rejected'
             : isBn
-            ? 'সঠিক প্রতিষ্ঠান ও প্রয়োজনীয় তথ্যাদি প্রদান করে পুনরায় আবেদন জমা দিন।'
-            : 'Please verify your information and submit a new application.'}
+            ? 'আবেদনটি প্রত্যাখ্যাত হয়েছে'
+            : 'Affiliation / Verification Rejected'}
+        </h3>
+
+        <div
+          style={{
+            maxWidth: 540,
+            margin: '1.25rem auto 1.5rem',
+            padding: '1rem 1.25rem',
+            backgroundColor: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
+            borderRadius: '12px',
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontWeight: 700, color: '#dc2626', marginBottom: '0.35rem', fontSize: '0.88rem' }}>
+            {isBn ? 'প্রত্যাখ্যানের কারণ:' : 'Reason for Rejection:'}
+          </div>
+          <div style={{ color: 'var(--text-main)', fontSize: '0.92rem', lineHeight: 1.5, fontWeight: 500 }}>
+            {rejectionReason || (isBn ? 'যথাযথ তথ্যাদি পাওয়া যায়নি বা যাচাইকরণ অসম্পূর্ণ।' : 'Incomplete or unverified details.')}
+          </div>
+        </div>
+
+        <p style={{ maxWidth: 520, margin: '0 auto 1.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+          {isBn
+            ? 'সঠিক তথ্য ও প্রয়োজনীয় প্রমাণক প্রদান করে অনুগ্রহ করে পুনরায় আবেদন জমা দিন।'
+            : 'Please review your information and submit a new application.'}
         </p>
+
         <button
           type="button"
           onClick={onApply}

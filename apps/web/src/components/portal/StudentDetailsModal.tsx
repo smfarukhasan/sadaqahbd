@@ -776,6 +776,20 @@ export default function StudentDetailsModal({
                               ৳{totalReq.toLocaleString()}
                             </span>
                           </div>
+
+                          {post.adminModificationReason && (
+                            <div style={{ marginTop: '0.45rem', padding: '0.45rem 0.65rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', fontSize: '0.78rem', color: '#92400e' }}>
+                              <strong>{isBn ? "এডমিন কর্তৃক খরচের খাত সমন্বয় নোট: " : "Admin Adjustment Note: "}</strong>
+                              {post.adminModificationReason}
+                            </div>
+                          )}
+
+                          {post.rejectionReason && (
+                            <div style={{ marginTop: '0.45rem', padding: '0.45rem 0.65rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', fontSize: '0.78rem', color: '#991b1b' }}>
+                              <strong>{isBn ? "প্রত্যাখ্যানের কারণ: " : "Rejection Reason: "}</strong>
+                              {post.rejectionReason}
+                            </div>
+                          )}
                         </div>
                       );
                     })}

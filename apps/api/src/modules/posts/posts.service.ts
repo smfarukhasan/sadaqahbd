@@ -460,6 +460,7 @@ export class PostsService {
         endDate: studentPosts.endDate,
         durationText: studentPosts.durationText,
         rejectionReason: studentPosts.rejectionReason,
+        adminModificationReason: studentPosts.adminModificationReason,
         createdAt: studentPosts.createdAt,
       })
       .from(studentPosts)
@@ -608,6 +609,7 @@ export class PostsService {
         isDoubleVerified: studentPosts.isDoubleVerified,
         status: studentPosts.verificationStatus,
         rejectionReason: studentPosts.rejectionReason,
+        adminModificationReason: studentPosts.adminModificationReason,
         createdAt: studentPosts.createdAt,
         updatedAt: studentPosts.updatedAt,
       })
@@ -1067,6 +1069,7 @@ export class PostsService {
         isDoubleVerified: studentPosts.isDoubleVerified,
         status: studentPosts.verificationStatus,
         rejectionReason: studentPosts.rejectionReason,
+        adminModificationReason: studentPosts.adminModificationReason,
         createdAt: studentPosts.createdAt,
         updatedAt: studentPosts.updatedAt,
       })

@@ -859,6 +859,20 @@ export default function StudentDashboardPage() {
                           </div>
                         )}
 
+                        {post.adminModificationReason && (
+                          <div style={{ marginTop: '0.65rem', marginBottom: '0.75rem', padding: '0.65rem 0.85rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', fontSize: '0.82rem', color: '#92400e' }}>
+                            <strong>{isBn ? "এডমিন কর্তৃক খরচের খাত সমন্বয় নোট: " : "Admin Adjustment Note: "}</strong>
+                            {post.adminModificationReason}
+                          </div>
+                        )}
+
+                        {post.rejectionReason && (
+                          <div style={{ marginTop: '0.65rem', marginBottom: '0.75rem', padding: '0.65rem 0.85rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', fontSize: '0.82rem', color: '#991b1b' }}>
+                            <strong>{isBn ? "প্রত্যাখ্যানের কারণ: " : "Rejection Reason: "}</strong>
+                            {post.rejectionReason}
+                          </div>
+                        )}
+
                         {/* 4-Step Verification Stage Tracker */}
                         <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--surface-border, #e2e8f0)' }}>
                           <span style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '0.65rem' }}>

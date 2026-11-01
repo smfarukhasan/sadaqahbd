@@ -85,6 +85,7 @@ export default function OrganizationDashboardPage() {
   const [orgStatusData, setOrgStatusData] = useState<{
     hasApplied: boolean;
     status: 'unapplied' | 'pending' | 'active' | 'rejected';
+    rejectionReason?: string;
     organization: any;
   } | null>(null);
 
@@ -227,6 +228,16 @@ export default function OrganizationDashboardPage() {
   // Handle reviewing pending teacher/student affiliation (Stage 1)
   const handleReviewAffiliation = async (role: 'teacher' | 'student', id: string, approved: boolean) => {
     if (!user) return;
+    let reason: string | undefined = undefined;
+    if (!approved) {
+      const input = window.prompt(
+        locale === 'bn'
+          ? 'আবেদনটি প্রত্যাখ্যান করার কারণ লিখুন (ঐচ্ছিক):'
+          : 'Enter reason for rejection (optional):'
+      );
+      if (input === null) return;
+      reason = input.trim() || undefined;
+    }
     try {
       const token = await getAuthToken();
       if (!token) return;
@@ -237,7 +248,7 @@ export default function OrganizationDashboardPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ approved }),
+        body: JSON.stringify({ approved, reason }),
       });
 
       if (res.ok) {
@@ -503,7 +514,7 @@ export default function OrganizationDashboardPage() {
             status={orgStatusData?.status || 'unapplied'}
             role="organization"
             organizationName={orgStatusData?.organization?.name}
-            rejectionReason={orgStatusData?.organization?.rejectionReason}
+            rejectionReason={orgStatusData?.organization?.rejectionReason || orgStatusData?.rejectionReason}
             organizationDetails={orgStatusData?.organization}
             onApply={() => setIsApplyModalOpen(true)}
           />
@@ -1863,6 +1874,19 @@ export default function OrganizationDashboardPage() {
                                     {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString(locale === 'bn' ? 'bn-BD' : 'en-US') : '—'}
                                   </span>
                                 </div>
+
+                                {item.adminModificationReason && (
+                                  <div style={{ marginTop: '0.65rem', padding: '0.55rem 0.75rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', fontSize: '0.8rem', color: '#92400e' }}>
+                                    <strong>{locale === 'bn' ? "এডমিন কর্তৃক খরচের খাত সমন্বয় নোট: " : "Admin Adjustment Note: "}</strong>
+                                    {item.adminModificationReason}
+                                  </div>
+                                )}
+                                {item.rejectionReason && (
+                                  <div style={{ marginTop: '0.65rem', padding: '0.55rem 0.75rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', fontSize: '0.8rem', color: '#991b1b' }}>
+                                    <strong>{locale === 'bn' ? "প্রত্যাখ্যানের কারণ: " : "Rejection Reason: "}</strong>
+                                    {item.rejectionReason}
+                                  </div>
+                                )}
                               </div>
 
                               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>

@@ -63,7 +63,7 @@ export class AuthService {
           return {
             available: false,
             field: 'phone',
-            message: 'ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 017XXXXXXXX)।',
+            message: 'ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 01XXXXXXXXX)।',
           };
         }
 
@@ -114,7 +114,7 @@ export class AuthService {
 
     if (rawPhone) {
       if (!isValid11DigitPhone(rawPhone)) {
-        throw new BadRequestException('ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 017XXXXXXXX)।');
+        throw new BadRequestException('ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 01XXXXXXXXX)।');
       }
       dbPhone = formatPhoneForDb(rawPhone);
     }
@@ -384,7 +384,7 @@ export class AuthService {
       const cleanPhone = input.phone.trim();
       if (cleanPhone) {
         if (!isValid11DigitPhone(cleanPhone)) {
-          throw new BadRequestException('ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 017XXXXXXXX)।');
+          throw new BadRequestException('ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 01XXXXXXXXX)।');
         }
 
         const rawLocal = extract11DigitPhone(cleanPhone);
@@ -539,7 +539,7 @@ export class AuthService {
       const cleanPhone = data.phone?.trim();
       if (cleanPhone) {
         if (!isValid11DigitPhone(cleanPhone)) {
-          throw new BadRequestException('ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 017XXXXXXXX)।');
+          throw new BadRequestException('ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে (যেমন: 01XXXXXXXXX)।');
         }
 
         const rawLocal = extract11DigitPhone(cleanPhone);

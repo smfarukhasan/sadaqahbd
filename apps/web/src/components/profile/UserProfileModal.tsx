@@ -777,7 +777,7 @@ export default function UserProfileModal({
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder={isBn ? '০১৭১২XXXXXX' : '01712XXXXXX'}
+                      placeholder="01XXXXXXXXX"
                       className={styles.input}
                     />
                   </div>
@@ -1098,7 +1098,7 @@ export default function UserProfileModal({
                           type="tel"
                           value={guardianPhone}
                           onChange={(e) => setGuardianPhone(e.target.value)}
-                          placeholder={isBn ? '০১৭১২XXXXXX' : '01712XXXXXX'}
+                          placeholder="01XXXXXXXXX"
                           className={styles.input}
                         />
                       </div>

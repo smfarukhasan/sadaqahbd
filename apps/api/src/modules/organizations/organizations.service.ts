@@ -1,7 +1,7 @@
 import { Injectable, Inject, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { DrizzleDB } from '../../database';
 import { DRIZZLE_DB } from '../../database/database.module';
-import { organizations, users, studentProfiles, teacherProfiles, institutionTransfers, donations, studentPosts, orgMemberRemovals } from '../../database/schema';
+import { organizations, users, studentProfiles, teacherProfiles, institutionTransfers, donations, studentPosts, orgMemberRemovals, notifications } from '../../database/schema';
 import { eq, and, isNull, desc, sql, or, inArray } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/mysql-core';
 import { randomUUID } from 'crypto';
@@ -141,9 +141,33 @@ export class OrganizationsService {
       };
     }
 
+    let rejectionReason = org.rejectionReason;
+    if (org.status === 'rejected' && !rejectionReason) {
+      try {
+        const [notif] = await this.database
+          .select({ messageBn: notifications.messageBn })
+          .from(notifications)
+          .where(
+            and(
+              eq(notifications.recipientUserId, currentUser.id),
+              eq(notifications.type, 'org_verification')
+            )
+          )
+          .orderBy(desc(notifications.createdAt))
+          .limit(1);
+        if (notif?.messageBn && notif.messageBn.includes('কারণ:')) {
+          const parts = notif.messageBn.split('কারণ:');
+          if (parts[1]) rejectionReason = parts[1].trim();
+        }
+      } catch (err) {
+        console.error('Failed to lookup fallback rejection reason:', err);
+      }
+    }
+
     return {
       hasApplied: true,
       status: org.status,
+      rejectionReason,
       organization: {
         id: org.id,
         name: org.name,
@@ -154,6 +178,7 @@ export class OrganizationsService {
         type: org.type,
         description: org.description,
         status: org.status,
+        rejectionReason,
         createdAt: org.createdAt,
       },
     };

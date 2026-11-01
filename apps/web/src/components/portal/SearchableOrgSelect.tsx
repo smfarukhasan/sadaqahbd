@@ -17,9 +17,10 @@ export interface OrgOption {
 interface SearchableOrgSelectProps {
   selectedOrgId: string;
   onChange: (orgId: string, orgName?: string) => void;
-  onRequestNewOrg: () => void;
+  onRequestNewOrg?: () => void;
   disabled?: boolean;
   excludeOrgId?: string;
+  showAddButton?: boolean;
 }
 
 export default function SearchableOrgSelect({
@@ -28,6 +29,7 @@ export default function SearchableOrgSelect({
   onRequestNewOrg,
   disabled = false,
   excludeOrgId,
+  showAddButton = false,
 }: SearchableOrgSelectProps) {
   const locale = useLocale();
   const isBn = locale === 'bn';
@@ -153,16 +155,18 @@ export default function SearchableOrgSelect({
               ) : (
                 <div className={styles.emptyMsg}>
                   <p>{isBn ? 'কোনো প্রতিষ্ঠান পাওয়া যায়নি।' : 'No organization found.'}</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsOpen(false);
-                      onRequestNewOrg();
-                    }}
-                    className={styles.suggestLink}
-                  >
-                    {isBn ? '+ নতুন প্রতিষ্ঠান প্রস্তাব করুন' : '+ Suggest new organization'}
-                  </button>
+                  {showAddButton && onRequestNewOrg && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsOpen(false);
+                        onRequestNewOrg();
+                      }}
+                      className={styles.suggestLink}
+                    >
+                      {isBn ? '+ নতুন প্রতিষ্ঠান প্রস্তাব করুন' : '+ Suggest new organization'}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -170,21 +174,23 @@ export default function SearchableOrgSelect({
         )}
       </div>
 
-      {/* "+" button to request adding an unlisted organization */}
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onRequestNewOrg();
-        }}
-        className={styles.addOrgBtn}
-        title={isBn ? 'তালিকায় না থাকলে নতুন প্রতিষ্ঠানের তথ্য জমা দিন' : 'Suggest new organization'}
-        aria-label="Suggest new organization"
-      >
-        <Plus size={20} />
-      </button>
+      {/* "+" button to request adding an unlisted organization (hidden by default) */}
+      {showAddButton && onRequestNewOrg && (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onRequestNewOrg();
+          }}
+          className={styles.addOrgBtn}
+          title={isBn ? 'তালিকায় না থাকলে নতুন প্রতিষ্ঠানের তথ্য জমা দিন' : 'Suggest new organization'}
+          aria-label="Suggest new organization"
+        >
+          <Plus size={20} />
+        </button>
+      )}
     </div>
   );
 }

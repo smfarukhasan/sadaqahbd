@@ -14,9 +14,11 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import {
   ensureItemDonationsTable,
   ensureStudentProfileColumns,
+  ensureTeacherProfileColumns,
   ensureStudentPostsColumns,
   ensureUsersTableSchema,
   ensureUserPermissionsTable,
+  ensureOrganizationsTableColumns,
   ensureDonationsTableColumns,
   ensureNotificationsTableColumns,
   ensureInstitutionTransfersTable,
@@ -31,10 +33,12 @@ async function bootstrap() {
 
   // Auto-verify and create tables/columns/indexes
   await ensureStudentProfileColumns();
+  await ensureTeacherProfileColumns();
   await ensureStudentPostsColumns();
   await ensureItemDonationsTable();
   await ensureUsersTableSchema();
   await ensureUserPermissionsTable();
+  await ensureOrganizationsTableColumns();
   await ensureDonationsTableColumns();
   await ensureNotificationsTableColumns();
   await ensureInstitutionTransfersTable();

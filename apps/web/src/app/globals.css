@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
   /* Brand Colors - Royal Emerald & Islamic Heritage Green */
@@ -80,8 +80,8 @@
   --shadow-gold-glow: 0 10px 30px -5px var(--accent-glow);
 
   /* Typography */
-  --font-sans: 'Hind Siliguri', 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-heading: 'Plus Jakarta Sans', 'Hind Siliguri', system-ui, sans-serif;
+  --font-sans: 'Noto Sans Bengali', 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-heading: 'Plus Jakarta Sans', 'Noto Sans Bengali', system-ui, sans-serif;
 
   /* Backward Compatible Color Aliases */
   --color-bg: var(--background);

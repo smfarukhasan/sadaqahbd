@@ -560,7 +560,7 @@ export function OverviewTab({
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', fontWeight: 700 }}>
-                  {isBn ? 'শিক্ষার্থী ফোন অব্যাহতি আবেদন' : 'Phone Exemption Clearances'}
+                  {isBn ? 'শিক্ষার্থীর তথ্য ভেরিফিকেশন' : 'Student Info Verification'}
                 </span>
                 <div
                   style={{
@@ -1775,7 +1775,7 @@ export function OverviewTab({
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <Smartphone size={18} color="#4f46e5" />
                 <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>
-                  {isBn ? 'শিক্ষার্থী ফোন নম্বর অব্যাহতি ছাড়পত্র' : 'Student Phone Exemption Clearances'}
+                  {isBn ? 'শিক্ষার্থীর তথ্য ভেরিফিকেশন আবেদন' : 'Student Information Verification Requests'}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>

@@ -10,6 +10,7 @@ import { getAuthToken } from '../../lib/auth-token';
 import SearchableOrgSelect from './SearchableOrgSelect';
 import RequestNewOrgModal from './RequestNewOrgModal';
 import styles from './RequestNewOrgModal.module.css';
+import { extract11DigitPhone, isValid11DigitPhone, formatPhoneForDb } from '@sadaqahbd/schema';
 
 interface AffiliationApplyModalProps {
   isOpen: boolean;
@@ -52,7 +53,7 @@ export default function AffiliationApplyModal({
 
   React.useEffect(() => {
     if (currentUser?.phone && !phone) {
-      setPhone(currentUser.phone);
+      setPhone(extract11DigitPhone(currentUser.phone) || currentUser.phone);
     }
   }, [currentUser?.phone]);
 
@@ -70,11 +71,12 @@ export default function AffiliationApplyModal({
       return;
     }
 
-    const cleanPhone = phone.trim().replace(/[\s-]/g, '');
-    if (!cleanPhone || cleanPhone.length < 10) {
-      setError(isBn ? 'অনুগ্রহ করে অন্তত ১০ ডিজিটের একটি সঠিক মোবাইল নম্বর প্রদান করুন।' : 'Please enter a valid mobile number with at least 10 digits.');
+    const cleanNational = extract11DigitPhone(phone);
+    if (!cleanNational || !isValid11DigitPhone(cleanNational)) {
+      setError(isBn ? 'অনুগ্রহ করে ১১ ডিজিটের সঠিক মোবাইল নম্বর প্রদান করুন (যেমন: 01XXXXXXXXX)।' : 'Please enter a valid 11-digit mobile number (e.g. 01XXXXXXXXX).');
       return;
     }
+    const cleanPhone = formatPhoneForDb(cleanNational);
 
     try {
       setLoading(true);
@@ -166,8 +168,8 @@ export default function AffiliationApplyModal({
               <div className={styles.modalBody}>
                 <div className={styles.infoBanner}>
                   {isBn
-                    ? 'নিচের ড্রপডাউন থেকে আপনার প্রতিষ্ঠান বেছে নিন। তালিকায় না থাকলে ড্রপডাউনের পাশের "+" বাটনে ক্লিক করে নতুন প্রতিষ্ঠানের তথ্য জমা দিন।'
-                    : 'Select your institution from the dropdown below. If unlisted, click the "+" button to suggest a new organization.'}
+                    ? 'নিচের ড্রপডাউন থেকে আপনার শিক্ষা প্রতিষ্ঠান বেছে নিন।'
+                    : 'Select your educational institution from the dropdown below.'}
                 </div>
 
                 {error && <div className={styles.errorMsg}>{error}</div>}
@@ -189,14 +191,40 @@ export default function AffiliationApplyModal({
                     {isBn ? 'মোবাইল নম্বর (জরুরি যোগাযোগ ও ভেরিফিকেশন)' : 'Mobile Phone (Contact & Verification)'}{' '}
                     <span style={{ color: '#ef4444' }}>*</span>
                   </label>
-                  <input
-                    type="tel"
-                    required
-                    className={styles.formInput}
-                    placeholder={isBn ? '০১৭১২৩৪৫৬৭৮' : '01712345678'}
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                  />
+                  <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                    <span
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0.65rem 0.85rem',
+                        borderTopLeftRadius: '8px',
+                        borderBottomLeftRadius: '8px',
+                        border: '1.5px solid var(--surface-border, #cbd5e1)',
+                        borderRight: 'none',
+                        backgroundColor: 'var(--background-alt, #f1f5f9)',
+                        fontSize: '0.88rem',
+                        fontWeight: 700,
+                        color: 'var(--text-main, #334155)',
+                        userSelect: 'none',
+                      }}
+                    >
+                      +88
+                    </span>
+                    <input
+                      type="tel"
+                      required
+                      className={styles.formInput}
+                      placeholder="01XXXXXXXXX"
+                      value={phone}
+                      maxLength={11}
+                      onChange={(e) => setPhone(e.target.value.replace(/[^\d]/g, ''))}
+                      style={{
+                        flex: 1,
+                        borderTopLeftRadius: 0,
+                        borderBottomLeftRadius: 0,
+                      }}
+                    />
+                  </div>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginTop: '0.25rem', display: 'block' }}>
                     {currentUser?.phone
                       ? isBn

@@ -661,12 +661,8 @@
   transform: translateX(0);
 }
 
-/* Media Queries for Responsive & Adaptive View */
-@media (max-width: 991px) {
-  .sidebarDrawer {
-    display: none;
-  }
-
+/* Media Queries for Responsive & Adaptive View (< 768px Mobile App, >= 768px Full Desktop / Tablet / Desktop Site) */
+@media (max-width: 767px) {
   .mainContent {
     padding: 1.25rem;
   }

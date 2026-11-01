@@ -31,6 +31,7 @@ export const organizations = mysqlTable(
     status: mysqlEnum('status', ['pending', 'active', 'rejected'])
       .default('pending')
       .notNull(),
+    rejectionReason: text('rejection_reason'),
     isRequestedByMember: boolean('is_requested_by_member').default(false).notNull(),
     requestedByUserId: varchar('requested_by_user_id', { length: 36 }),
     verifiedBy: varchar('verified_by', { length: 36 }),

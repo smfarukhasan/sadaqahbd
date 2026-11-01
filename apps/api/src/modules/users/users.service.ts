@@ -644,6 +644,7 @@ export class UsersService {
 
     const updatePayload: any = {
       status: newStatus,
+      rejectionReason: approved ? null : (reason?.trim() || 'যথাযথ তথ্য পাওয়া যায়নি'),
       verifiedBy: reviewer.id,
       verifiedAt: new Date(),
     };
@@ -1727,6 +1728,8 @@ export class UsersService {
         isTeacherVerified: studentPosts.isTeacherVerified,
         isOrgVerified: studentPosts.isOrgVerified,
         isDoubleVerified: studentPosts.isDoubleVerified,
+        rejectionReason: studentPosts.rejectionReason,
+        adminModificationReason: studentPosts.adminModificationReason,
         createdAt: studentPosts.createdAt,
       })
       .from(studentPosts)
